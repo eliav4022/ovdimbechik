@@ -158,7 +158,7 @@ export const AdminFiles: React.FC = () => {
             key: 'type',
             header: 'סוג',
             render: (file: SiteFile) => (
-                <Badge variant={file.type.includes('pdf') ? 'warning' : 'info'}>
+                <Badge variant={file.type.includes('pdf') ? 'warning' : 'neutral'}>
                     {file.type.includes('pdf') ? 'PDF' : 'תמונה'}
                 </Badge>
             )

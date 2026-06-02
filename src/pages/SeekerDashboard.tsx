@@ -10,7 +10,7 @@ import { Helmet } from 'react-helmet-async';
 import { LoadingSpinner, FullPageLoading } from '../components/ui/Loading';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
-import { Job, Application, ApplicationStatus, User, UserRole } from '../types';
+import { Job, Application, ApplicationStatus, User, UserRole, JobStatus } from '../types';
 import { isJobActive } from '../lib/jobUtils';
 import { JobCard } from '../components/JobCard';
 import { 
