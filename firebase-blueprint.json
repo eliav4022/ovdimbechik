@@ -1,0 +1,403 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information and role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SEEKER", "EMPLOYER", "ADMIN", "SUPER_ADMIN", "SUPPORT_AGENT", "CONTENT_MANAGER", "FINANCE_MANAGER"] },
+        "status": { "type": "string", "enum": ["active", "pending_verification", "verified", "suspended", "rejected"], "description": "Profile status, especially for employers" },
+        "phone": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "credits": { "type": "integer", "description": "Available credits for posting/promoting jobs" },
+        "companyId": { "type": "string", "description": "Reference to employer's company" },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "deletedAt": { "type": "string", "format": "date-time" },
+        "deletedBy": { "type": "string" },
+        "restoredAt": { "type": "string", "format": "date-time" },
+        "restoredBy": { "type": "string" },
+        "deleteReason": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Employer company profile.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employerId": { "type": "string" },
+        "name": { "type": "string" },
+        "logo": { "type": "string" },
+        "description": { "type": "string" },
+        "website": { "type": "string" },
+        "industry": { "type": "string" },
+        "location": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "deletedAt": { "type": "string", "format": "date-time" },
+        "deletedBy": { "type": "string" },
+        "restoredAt": { "type": "string", "format": "date-time" },
+        "restoredBy": { "type": "string" },
+        "deleteReason": { "type": "string" }
+      },
+      "required": ["name", "employerId"]
+    },
+    "SeekerProfile": {
+      "title": "SeekerProfile",
+      "description": "Extended data for job seekers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "bio": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "experience": { "type": "array", "items": { "type": "object" } },
+        "education": { "type": "array", "items": { "type": "object" } },
+        "cvUrl": { "type": "string" },
+        "preferredLocations": { "type": "array", "items": { "type": "string" } },
+        "preferredCategories": { "type": "array", "items": { "type": "string" } },
+        "visibility": { "type": "string", "enum": ["public", "private", "employers-only"] }
+      },
+      "required": ["uid"]
+    },
+    "EmployerProfile": {
+      "title": "EmployerProfile",
+      "description": "Extended data for employers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "position": { "type": "string" },
+        "isStaff": { "type": "boolean" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["uid", "companyId"]
+    },
+    "Job": {
+      "title": "Job",
+      "description": "Detailed job posting.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "location": { "type": "string" },
+        "salaryMin": { "type": "number" },
+        "salaryMax": { "type": "number" },
+        "type": { "type": "string", "enum": ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Shifts"] },
+        "workMode": { "type": "string", "enum": ["Remote", "Hybrid", "Office"] },
+        "promotionLevel": { "type": "string", "enum": ["basic", "silver", "gold", "platinum"] },
+        "status": { "type": "string", "enum": ["draft", "pending_review", "active", "paused", "rejected", "expired", "closed"] },
+        "viewsCount": { "type": "integer" },
+        "applicationsCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "deletedAt": { "type": "string", "format": "date-time" },
+        "deletedBy": { "type": "string" },
+        "restoredAt": { "type": "string", "format": "date-time" },
+        "restoredBy": { "type": "string" },
+        "deleteReason": { "type": "string" }
+      },
+      "required": ["employerId", "companyId", "title", "status"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Job application.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "jobId": { "type": "string" },
+        "seekerId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["submitted", "viewed", "shortlisted", "interview", "accepted", "rejected", "withdrawn"] },
+        "cvSnapshotUrl": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "deletedAt": { "type": "string", "format": "date-time" },
+        "deletedBy": { "type": "string" },
+        "restoredAt": { "type": "string", "format": "date-time" },
+        "restoredBy": { "type": "string" },
+        "deleteReason": { "type": "string" }
+      },
+      "required": ["jobId", "seekerId", "status"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Tax invoice for payments.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "pdfUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["transactionId", "userId", "amount"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Comprehensive system audit log for tracking all changes and actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "ID of the user who performed the action" },
+        "action": { "type": "string", "description": "Type of action: CREATE, UPDATE, DELETE, LOGIN, BLOCK, RESTORE" },
+        "entityType": { "type": "string", "description": "Target entity: jobs, users, payments, etc." },
+        "entityId": { "type": "string", "description": "ID of the affected record" },
+        "before": { "type": "object", "description": "Snapshot of data before the change (for updates/deletes)" },
+        "after": { "type": "object", "description": "Snapshot of data after the change" },
+        "ip": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "action", "entityType", "timestamp"]
+    },
+    "AdminAction": {
+      "title": "AdminAction",
+      "description": "Sensitive actions taken by admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adminId": { "type": "string" },
+        "actionType": { "type": "string", "enum": ["user_block", "job_delete", "refund", "verification_approve"] },
+        "targetId": { "type": "string" },
+        "reason": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminId", "actionType", "targetId"]
+    },
+    "JobCategory": {
+      "title": "JobCategory",
+      "description": "Hierarchical job categories.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nameHe": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" },
+        "jobCount": { "type": "integer" }
+      },
+      "required": ["nameHe", "slug"]
+    },
+    "JobView": {
+      "title": "JobView",
+      "description": "Audit log of job listing views.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "jobId": { "type": "string" },
+        "userId": { "type": "string" },
+        "ip": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["jobId", "timestamp"]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Global application configuration.",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "minAppVersion": { "type": "string" },
+        "features": { "type": "object" },
+        "contactEmail": { "type": "string" }
+      }
+    },
+    "PricingPackage": {
+      "title": "PricingPackage",
+      "description": "Subscription or credit package.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "credits": { "type": "integer" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["name", "price", "credits"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount codes for pricing packages.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discountPercent": { "type": "integer" },
+        "validUntil": { "type": "string", "format": "date-time" },
+        "usageLimit": { "type": "integer" },
+        "usageCount": { "type": "integer" }
+      },
+      "required": ["code", "discountPercent"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "System-managed locations for filters.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nameHe": { "type": "string" },
+        "region": { "type": "string" }
+      },
+      "required": ["nameHe"]
+    },
+    "Resume": {
+      "title": "Resume",
+      "description": "Seeker resume versions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seekerId": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "versionName": { "type": "string" },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["seekerId", "fileUrl"]
+    },
+    "SavedJob": {
+      "title": "SavedJob",
+      "description": "User bookmarked jobs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "jobId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "jobId"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "paid", "failed", "refunded", "cancelled"] },
+        "paymentProviderId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["job_alert", "application_update", "system", "payment"] },
+        "isRead": { "type": "boolean" },
+        "link": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Platform report.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["job", "user", "company"] },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] }
+      },
+      "required": ["reporterId", "targetId", "status"]
+    },
+    "AIConversation": {
+      "title": "AIConversation",
+      "description": "AI assistant chat session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "messages": { 
+          "type": "array", 
+          "items": { 
+            "type": "object", 
+            "properties": {
+              "role": { "type": "string", "enum": ["user", "assistant"] },
+              "content": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" }
+            }
+          } 
+        },
+        "lastQuery": { "type": "string" }
+      },
+      "required": ["userId", "messages"]
+    },
+    "ContentPage": {
+      "title": "ContentPage",
+      "description": "Dynamic web page (CMS).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "isPublished": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["slug", "title"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Business lead/inquiry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "companyName": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "contacted", "qualified", "lost", "won"] }
+      },
+      "required": ["name", "email", "status"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Customer support contact form.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["NEW", "RESOLVED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderName", "senderEmail", "subject", "message", "status"]
+    }
+  },
+  "firestore": {
+    "users/{uid}": { "schema": "User", "description": "Users and roles" },
+    "companies/{companyId}": { "schema": "Company", "description": "Company profiles" },
+    "jobs/{jobId}": { "schema": "Job", "description": "Job listings" },
+    "applications/{appId}": { "schema": "Application", "description": "Applications" },
+    "pricing_packages/{packageId}": { "schema": "PricingPackage", "description": "Payment options" },
+    "transactions/{txId}": { "schema": "Transaction", "description": "Audit log of payments" },
+    "notifications/{notifId}": { "schema": "Notification", "description": "User notifications" },
+    "reports/{reportId}": { "schema": "Report", "description": "Moderation reports" },
+    "ai_conversations/{chatId}": { "schema": "AIConversation", "description": "AI interactions" },
+    "content_pages/{pageId}": { "schema": "ContentPage", "description": "CMS system" },
+    "leads/{leadId}": { "schema": "Lead", "description": "B2B leads" },
+    "inquiries/{inquiryId}": { "schema": "Inquiry", "description": "Support tickets" }
+  }
+}

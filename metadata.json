@@ -1,0 +1,9 @@
+{
+  "name": "עובדים בצ'יק",
+  "description": "הפלטפורמה המתקדמת למציאת עבודה וגיוס עובדים בצ'יק. משרות בכל הארץ, התאמה חכמה וממשק ידידותי.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

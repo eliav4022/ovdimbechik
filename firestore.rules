@@ -1,0 +1,151 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'SEEKER');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.get('email', '') == 'eliav4022@gmail.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN', 'SUPPORT_AGENT', 'CONTENT_MANAGER', 'FINANCE_MANAGER'])
+      );
+    }
+    
+    match /users/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && isOwner(userId)) || (resource.data.role == 'EMPLOYER') || (resource.data.role == 'ADMIN');
+      allow create: if isAdmin() || (isSignedIn() && isOwner(userId) && request.resource.data.role in ['SEEKER', 'EMPLOYER', 'CANDIDATE']);
+      allow delete: if isAdmin() || (isSignedIn() && isOwner(userId));
+      allow update: if isAdmin() || (
+        isSignedIn() && isOwner(userId) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits']) || request.resource.data.credits <= resource.data.credits)
+      );
+      
+      match /{subcollection=**} {
+         allow read, write: if isAdmin() || (isSignedIn() && isOwner(userId));
+      }
+    }
+
+    match /credit_transactions/{txId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.employerId == request.auth.uid);
+      allow create: if isAdmin() || (
+          isSignedIn() && 
+          request.resource.data.employerId == request.auth.uid && 
+          request.resource.data.type in ['USAGE', 'TRANSFER_TO_COMPANY', 'TRANSFER_FROM_COMPANY'] && 
+          request.resource.data.amount >= 0
+      );
+      allow update, delete: if false;
+    }
+    
+    match /jobs/{jobId} {
+      allow read: if true; 
+      allow create: if isAdmin() || (
+        isSignedIn() && 
+        request.resource.data.employerId == request.auth.uid &&
+        (!request.resource.data.keys().hasAll(['status']) || request.resource.data.status in ['pending_review', 'draft', 'PENDING_REVIEW', 'DRAFT']) &&
+        (!request.resource.data.keys().hasAll(['isVerified']) || request.resource.data.isVerified == false)
+      );
+      allow update: if isAdmin() || (isSignedIn() && (
+        (resource.data.employerId == request.auth.uid && 
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || request.resource.data.status in ['closed', 'paused', 'draft', 'CLOSED', 'PAUSED', 'DRAFT']) &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVerified']))
+        ) || 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['applicationsCount'])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'applicationsCount']))
+      ));
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.employerId == request.auth.uid);
+    }
+
+    match /companies/{companyId} {
+      allow read: if true;
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.employerId == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.employerId == request.auth.uid && request.resource.data.employerId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.employerId == request.auth.uid);
+    }
+
+    match /applications/{appId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.seekerId == request.auth.uid || resource.data.employerId == request.auth.uid));
+      allow create: if isSignedIn() && request.resource.data.seekerId == request.auth.uid;
+      allow update: if isAdmin() || 
+        (isSignedIn() && resource.data.employerId == request.auth.uid) || 
+        (isSignedIn() && resource.data.seekerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['WITHDRAWN', 'withdrawn']);
+      allow delete: if isAdmin() || (isSignedIn() && (resource.data.seekerId == request.auth.uid || resource.data.employerId == request.auth.uid));
+    }
+
+    match /audit_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Test connection
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Optional: other collections like password_resets
+    match /password_resets/{resetId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /analytics_events/{eventId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Reports
+    match /jobReports/{reportId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+    match /reports/{reportId} {
+      allow create: if true;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.assigneeId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /files/{fileId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // AI Stats
+    match /ai_stats/{dateId} {
+      allow read: if isAdmin() || true;
+      allow write: if isAdmin();
+    }
+
+    match /inquiries/{inquiryId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /mail/{mailId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
