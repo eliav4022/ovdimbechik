@@ -111,10 +111,11 @@ const Login: React.FC = () => {
         navigate(redirectPath);
       }
     } catch (err: any) {
+      console.error('Google sign-in error:', err.code, err.message, err);
       if (err.code === 'auth/popup-closed-by-user') {
         setError('חלון ההתחברות נסגר לפני סיום תהליך ההתחברות. נסה שוב.');
       } else {
-        setError('שגיאה בהתחברות דרך גוגל: ' + err.message);
+        setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
       }
     } finally {
       setLoading(false);
