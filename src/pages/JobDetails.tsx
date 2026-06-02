@@ -175,6 +175,21 @@ const JobDetails: React.FC = () => {
               if (!appliedDocs.empty) {
                   setApplied(true);
               }
+
+              // Update user's recently viewed jobs
+              if (user.role === UserRole.SEEKER) {
+                  try {
+                      const currentViews = user.recentlyViewedJobs || [];
+                      const updatedViews = [
+                          { jobId: jobData.id, title: jobData.title, companyName: jobData.companyName, viewedAt: new Date().toISOString() },
+                          ...currentViews.filter(v => v.jobId !== jobData.id)
+                      ].slice(0, 10);
+                      const userRef = doc(db, 'users', user.uid);
+                      await updateDoc(userRef, { recentlyViewedJobs: updatedViews });
+                  } catch (err) {
+                      console.error("Failed to update user recently viewed log", err);
+                  }
+              }
           }
 
           // Fetch similar jobs

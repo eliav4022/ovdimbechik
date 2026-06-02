@@ -34,6 +34,9 @@ export interface User {
   cvUrl?: string; // Kept for compatibility
   savedJobs?: string[]; // Kept for compatibility
   preferredCategories?: string[]; // Kept for compatibility
+  preferredLocation?: string;
+  preferredJobType?: string;
+  availability?: string;
   lastLogin?: string; // Add lastLogin timestamp
   jobSeekingStatus?: 'active' | 'open' | 'inactive';
   preferredLocations?: string[];
@@ -41,6 +44,7 @@ export interface User {
   remoteOnly?: boolean;
   jobScope?: string[];
   isVerified?: boolean;
+  recentlyViewedJobs?: { jobId: string; title: string; companyName: string; viewedAt: string }[];
   credits?: number; // Kept for compatibility
   createdAt: string;
   deletedAt?: string;
@@ -282,4 +286,25 @@ export const isPositiveTx = (type: string) => {
 
 export function calculateRemainingJobs(credits: number = 0): number {
   return Math.floor(credits / 5);
+}
+
+export interface UserNotification {
+  id: string;
+  userId: string;
+  type: 'job_match' | 'application_status' | 'system' | 'profile_reminder';
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+  relatedJobId?: string;
+  relatedApplicationId?: string;
+}
+
+export interface UserActivity {
+  id: string;
+  userId: string;
+  type: 'application_submitted' | 'job_saved' | 'profile_updated' | 'cv_uploaded';
+  description: string;
+  createdAt: string;
+  relatedJobId?: string;
 }

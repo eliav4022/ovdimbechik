@@ -74,6 +74,55 @@ const SeekerDashboard: React.FC = () => {
     const [updatingProfile, setUpdatingProfile] = useState(false);
     const [cvUploading, setCvUploading] = useState(false);
 
+    // Activity & notifications
+    const [activities, setActivities] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (!user) return;
+        const compiledActivities: any[] = [];
+        
+        // Add applications
+        appliedJobs.slice(0, 5).forEach(app => {
+            compiledActivities.push({
+                id: `app-${app.app.id}`,
+                type: 'application',
+                title: `הגשת מועמדות ל${app.job.title}`,
+                company: app.job.companyName,
+                date: new Date(app.app.createdAt).getTime(),
+                icon: Send
+            });
+        });
+
+        // Add recently viewed
+        if (user.recentlyViewedJobs) {
+            user.recentlyViewedJobs.forEach((v: any, index: number) => {
+                compiledActivities.push({
+                    id: `view-${v.jobId}-${index}`,
+                    type: 'view',
+                    title: `צפית במשרה ${v.title}`,
+                    company: v.companyName,
+                    date: new Date(v.viewedAt || Date.now()).getTime(),
+                    icon: Eye
+                });
+            });
+        }
+
+        compiledActivities.sort((a, b) => b.date - a.date);
+        setActivities(compiledActivities.slice(0, 4));
+    }, [appliedJobs, user]);
+
+    // Profile Completion Logic
+    const profileFields = [
+        { key: 'displayName', label: 'שם מלא', isComplete: !!user?.displayName || !!user?.fullName },
+        { key: 'phone', label: 'טלפון', isComplete: !!user?.phone },
+        { key: 'bio', label: 'קצת עליי', isComplete: !!user?.bio },
+        { key: 'preferredCategories', label: 'תחומי עניין', isComplete: !!user?.preferredCategories && user.preferredCategories.length > 0 },
+        { key: 'preferredLocations', label: 'אזורי עבודה', isComplete: !!user?.preferredLocations && user.preferredLocations.length > 0 },
+        { key: 'jobScope', label: 'סוג משרה (היקף)', isComplete: !!user?.jobScope && user.jobScope.length > 0 },
+    ];
+    const completedFieldsCount = profileFields.filter(f => f.isComplete).length;
+    const profileCompletionPercentage = Math.round((completedFieldsCount / profileFields.length) * 100);
+
     // Password State
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -290,12 +339,19 @@ const SeekerDashboard: React.FC = () => {
         setSavedJobs(allJobs.filter(j => user.savedJobs?.includes(j.id)));
         
         // Match Jobs (Simulated logic based on common tags or categories)
-        const userCategories = new Set(appliedJobs.map(aj => aj.job.category));
-        const matches = allJobs.filter(j => 
+        const userCategories = new Set([
+            ...appliedJobs.map(aj => aj.job.category),
+            ...((user.preferredCategories as string[]) || [])
+        ]);
+        let matches = allJobs.filter(j => 
             !appliedJobs.some(aj => aj.job.id === j.id) && 
             (userCategories.has(j.category) || j.isUrgent)
-        ).slice(0, 4);
-        setMatchedJobs(matches);
+        );
+        // Fallback if no exact matches, show other unapplied jobs
+        if (matches.length === 0) {
+             matches = allJobs.filter(j => !appliedJobs.some(aj => aj.job.id === j.id));
+        }
+        setMatchedJobs(matches.slice(0, 4));
     }, [user?.savedJobs, allJobs, appliedJobs]);
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -400,10 +456,47 @@ const SeekerDashboard: React.FC = () => {
                             </div>
                             <div className="text-right">
                                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-2">שלום, {user?.displayName || user?.email} 👋</h1>
-                                <p className="text-white/60 font-bold flex items-center gap-2">
-                                    <Sparkles size={18} className="text-brand-orange" />
-                                    מחפש עבודה אקטיבי • {appliedJobs.length} פניות שנשלחו
+                                <p className="text-white/60 font-bold flex flex-wrap items-center gap-4 mt-2">
+                                    <span className="flex items-center gap-2">
+                                        <Sparkles size={18} className="text-brand-orange" />
+                                        מחפש עבודה אקטיבי • {appliedJobs.length} פניות שנשלחו
+                                    </span>
                                 </p>
+                                <div className="mt-4 flex gap-3">
+                                    {profileCompletionPercentage < 100 ? (
+                                        <button 
+                                            onClick={() => setActiveTab('profile')}
+                                            className="bg-brand-orange hover:bg-brand-orange/90 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 transition-all flex items-center gap-2"
+                                        >
+                                            <AlertTriangle size={16} />
+                                            השלם פרופיל ({profileCompletionPercentage}%)
+                                        </button>
+                                    ) : !user?.cvUrl ? (
+                                        <button 
+                                            onClick={() => setActiveTab('profile')}
+                                            className="bg-brand-teal hover:bg-brand-teal/90 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg shadow-teal-500/20 transition-all flex items-center gap-2"
+                                        >
+                                            <Upload size={16} />
+                                            העלה קורות חיים
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={() => setActiveTab('matches')}
+                                            className="bg-brand-teal hover:bg-brand-teal/90 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg shadow-teal-500/20 transition-all flex items-center gap-2"
+                                        >
+                                            <Zap size={16} />
+                                            מצא לי משרות מתאימות
+                                        </button>
+                                    )}
+                                    {appliedJobs.length > 0 && activeTab !== 'applications' && (
+                                        <button 
+                                            onClick={() => setActiveTab('applications')}
+                                            className="bg-white/10 hover:bg-white/20 text-white py-2 px-5 rounded-xl font-bold text-sm transition-all border border-white/10"
+                                        >
+                                            בדוק סטטוס מועמדויות
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="flex gap-4">
@@ -423,10 +516,62 @@ const SeekerDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     {/* Sidebar Tabs */}
                     <div className="lg:col-span-1 space-y-4">
+                        {/* Profile Completion Widget */}
+                        <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center">
+                            <div className="relative w-20 h-20 mb-4">
+                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="4" />
+                                    <circle 
+                                        cx="18" 
+                                        cy="18" 
+                                        r="16" 
+                                        fill="none" 
+                                        className={profileCompletionPercentage === 100 ? "stroke-brand-teal" : "stroke-brand-orange"} 
+                                        strokeWidth="4" 
+                                        strokeDasharray={`${profileCompletionPercentage}, 100`}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center font-black text-lg text-slate-800">
+                                    {profileCompletionPercentage}%
+                                </div>
+                            </div>
+                            <h4 className="font-black text-slate-900 mb-2">
+                                {profileCompletionPercentage === 100 ? 'הפרופיל שלך מושלם!' : 'השלמת פרופיל'}
+                            </h4>
+                            <p className="text-sm text-slate-500 font-bold mb-4">
+                                {profileCompletionPercentage === 100 
+                                    ? 'סיכויי הקבלה שלך בשיאם.' 
+                                    : 'פרופיל מלא מגדיל את סיכויי הקבלה שלך ב-40%.'}
+                            </p>
+                            {profileCompletionPercentage < 100 && (
+                                <ul className="text-right text-xs text-slate-600 space-y-2 mb-4 w-full bg-slate-50 p-4 rounded-xl">
+                                    {profileFields.map(f => (
+                                        <li key={f.key} className="flex items-center justify-between">
+                                            <span>{f.label}</span>
+                                            {f.isComplete ? (
+                                                <CheckCircle size={14} className="text-brand-teal" />
+                                            ) : (
+                                                <XCircle size={14} className="text-rose-400" />
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            {profileCompletionPercentage < 100 && activeTab !== 'profile' && (
+                                <button 
+                                    onClick={() => setActiveTab('profile')}
+                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-black text-sm transition-all"
+                                >
+                                    השלם חסרים עכשיו
+                                </button>
+                            )}
+                        </div>
+
                         {[
                             { id: 'applications', label: 'המועמדויות שלי', icon: Send, count: appliedJobs.length },
                             { id: 'saved', label: 'משרות ששמרתי', icon: Heart, count: savedJobs.length },
-                            { id: 'matches', label: 'התאמות AI בשבילך', icon: Zap, count: 5 },
+                            { id: 'matches', label: 'התאמות AI בשבילך', icon: Zap, count: matchedJobs.length },
                             { id: 'profile', label: 'פרופיל אישי', icon: UserIcon }
                         ].map(tab => (
                             <button
@@ -467,6 +612,32 @@ const SeekerDashboard: React.FC = () => {
                                 העדפות חיפוש עבודה
                             </button>
                         </div>
+
+                        {/* Recent Activity */}
+                        {activities.length > 0 && (
+                            <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100">
+                                <h4 className="font-black text-slate-900 mb-6 flex items-center gap-2">
+                                    <TrendingUp className="text-brand-teal" size={18} />
+                                    פעילות אחרונה
+                                </h4>
+                                <div className="space-y-4">
+                                    {activities.map((activity, idx) => (
+                                        <div key={activity.id} className={cn(
+                                            "flex gap-4 items-start",
+                                            idx !== activities.length - 1 ? "pb-4 border-b border-slate-50" : ""
+                                        )}>
+                                            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0 mt-0.5">
+                                                <activity.icon size={14} className={activity.type === 'application' ? "text-brand-orange" : "text-brand-teal"} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800 leading-tight">{activity.title}</p>
+                                                <p className="text-xs text-slate-500 mt-1">{activity.company} • {new Date(activity.date).toLocaleDateString('he-IL')}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Main Content Area */}
@@ -553,7 +724,7 @@ const SeekerDashboard: React.FC = () => {
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: 20 }}
-                                    className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                    className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6"
                                 >
                                     {savedJobs.length === 0 ? (
                                         <div className="col-span-full">
@@ -802,49 +973,67 @@ const SeekerDashboard: React.FC = () => {
                                     </div>
 
                                     {/* Delete Account */}
-                                    <div className="mt-12 flex justify-center text-center">
-                                        {!showDeleteConfirm ? (
-                                            <button
-                                                onClick={() => setShowDeleteConfirm(true)}
-                                                className="text-sm text-slate-400 hover:text-rose-600 font-medium transition-colors underline decoration-slate-300 hover:decoration-rose-300 underline-offset-4"
-                                            >
-                                                מחיקת חשבון לצמיתות
-                                            </button>
-                                        ) : (
-                                            <div className="bg-rose-50 rounded-3xl p-8 border border-rose-200 max-w-lg w-full text-center shadow-lg shadow-rose-100/50">
-                                                <AlertTriangle className="text-rose-500 w-12 h-12 mx-auto mb-4" />
-                                                <h4 className="text-xl font-black text-rose-900 mb-2">אזור מסוכן - מחיקת חשבון</h4>
-                                                <p className="text-rose-800 font-medium mb-8">האם אתה בטוח? מחיקת החשבון הינה פעולה בלתי הפיכה. ברגע שהחשבון ימחק ימחקו כל הנתונים, המשרות ששמרת והפרופיל שלך.</p>
-                                                {linkedProviders.includes('password') && (
-                                                    <div className="mb-6 relative max-w-sm mx-auto">
-                                                        <label className="block text-right text-sm font-bold text-rose-900 mb-2">הזן סיסמה לאימות</label>
-                                                        <input 
-                                                            type="password"
-                                                            value={deletePassword}
-                                                            onChange={(e) => setDeletePassword(e.target.value)}
-                                                            placeholder="סיסמת החשבון שלך"
-                                                            className="w-full px-4 py-3 bg-white border border-rose-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-slate-800"
-                                                        />
+                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mt-8 mb-12">
+                                        <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                                            <ShieldCheck className="text-brand-orange" />
+                                            פרטיות וניהול חשבון
+                                        </h3>
+                                        
+                                        <div className="space-y-6 text-slate-600 font-medium pb-8 border-b border-slate-100">
+                                            <p className="flex items-start gap-2">
+                                                <Eye className="text-brand-teal shrink-0 mt-1" size={18} />
+                                                <span><strong className="text-slate-800">מי יכול לראות את הפרופיל שלי?</strong> רק מעסיקים שהגשת אליהם מועמדות יוכלו לצפות בפרטיך המלאים (לרבות קורות חיים ופרטי קשר). הפרופיל אינו חשוף באופן ציבורי בחיפוש.</span>
+                                            </p>
+                                            <p className="flex items-start gap-2">
+                                                <AlertTriangle className="text-brand-orange shrink-0 mt-1" size={18} />
+                                                <span><strong className="text-slate-800">מה נמחק במחיקת חשבון?</strong> מחיקת החשבון הינה פעולה בלתי הפיכה. ברגע שהחשבון יימחק: פרטיך האישיים יוסרו מהמערכת, קורות החיים שלך יימחקו משרתינו, והיסטוריית המועמדויות והמשרות ששמרת תאבד לחלוטין.</span>
+                                            </p>
+                                        </div>
+
+                                        <div className="mt-8 flex justify-center text-center">
+                                            {!showDeleteConfirm ? (
+                                                <button
+                                                    onClick={() => setShowDeleteConfirm(true)}
+                                                    className="bg-white text-rose-600 hover:bg-rose-50 px-6 py-3 rounded-2xl font-black transition-colors border-2 border-rose-100"
+                                                >
+                                                    מחיקת חשבון לצמיתות
+                                                </button>
+                                            ) : (
+                                                <div className="bg-rose-50 rounded-3xl p-8 border border-rose-200 mt-6 max-w-lg w-full text-center shadow-inner">
+                                                    <AlertTriangle className="text-rose-500 w-12 h-12 mx-auto mb-4" />
+                                                    <h4 className="text-xl font-black text-rose-900 mb-2">אזור מסוכן - אישור מחיקה</h4>
+                                                    <p className="text-rose-800 font-medium mb-8">האם אתה בטוח? מחיקת החשבון הינה פעולה בלתי הפיכה.</p>
+                                                    {linkedProviders.includes('password') && (
+                                                        <div className="mb-6 relative max-w-sm mx-auto">
+                                                            <label className="block text-right text-sm font-bold text-rose-900 mb-2">הזן סיסמה לאימות</label>
+                                                            <input 
+                                                                type="password"
+                                                                value={deletePassword}
+                                                                onChange={(e) => setDeletePassword(e.target.value)}
+                                                                placeholder="סיסמת החשבון שלך"
+                                                                className="w-full px-4 py-3 bg-white border border-rose-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-slate-800"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-col sm:flex-row justify-center gap-4">
+                                                        <button
+                                                            onClick={handleDeleteAccount}
+                                                            disabled={isDeleting}
+                                                            className="bg-rose-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-rose-700 transition-all shadow-md shadow-rose-500/20 disabled:opacity-50"
+                                                        >
+                                                            {isDeleting ? 'מוחק...' : 'כן, מחק חשבון'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setShowDeleteConfirm(false)}
+                                                            disabled={isDeleting}
+                                                            className="bg-white text-slate-700 px-8 py-3 rounded-xl font-bold border border-slate-200 hover:bg-slate-50 transition-all disabled:opacity-50"
+                                                        >
+                                                            ביטול חזרה לעמוד
+                                                        </button>
                                                     </div>
-                                                )}
-                                                <div className="flex flex-col sm:flex-row justify-center gap-4">
-                                                    <button
-                                                        onClick={handleDeleteAccount}
-                                                        disabled={isDeleting}
-                                                        className="bg-rose-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
-                                                    >
-                                                        {isDeleting ? 'מוחק...' : 'כן, מחק חשבון לצמיתות'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setShowDeleteConfirm(false)}
-                                                        disabled={isDeleting}
-                                                        className="bg-white text-slate-700 px-8 py-3 rounded-xl font-bold border border-slate-200 hover:bg-slate-50 transition-all disabled:opacity-50"
-                                                    >
-                                                        ביטול חזרה לעמוד
-                                                    </button>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
@@ -870,7 +1059,7 @@ const SeekerDashboard: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
                                         {matchedJobs.length === 0 ? (
                                             <div className="col-span-full py-20 text-center bg-white rounded-[2rem] border border-slate-100">
                                                 <Sparkles size={48} className="mx-auto text-slate-200 mb-4" />

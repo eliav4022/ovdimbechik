@@ -76,7 +76,7 @@ const Home: React.FC = () => {
             <div className="absolute bottom-10 left-10 w-[300px] h-[300px] bg-highlight rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
         </div>
         
-        <div className="max-w-5xl mx-auto px-4 relative z-10 text-center">
+        <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -115,7 +115,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* Category Tabs Section */}
-      <section className="max-w-5xl mx-auto px-4 -mt-10 relative z-20">
+      <section className="max-w-7xl mx-auto px-4 -mt-10 relative z-20">
           <Card className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl p-4 md:p-6 border-white/50">
               <h2 className="text-base md:text-lg font-black text-text-main mb-4 md:mb-6 flex items-center gap-2">
                   <TrendingUp size={20} className="text-primary" />
@@ -141,7 +141,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* Recent Jobs Content Area */}
-      <section className="max-w-5xl mx-auto px-4 py-12 md:py-16">
+      <section className="max-w-7xl mx-auto px-4 py-12 md:py-16">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
           <div className="text-right">
             <h2 className="text-2xl md:text-3xl font-black text-slate-800 border-r-6 border-primary pr-4">
@@ -166,11 +166,11 @@ const Home: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map(i => <JobCardSkeleton key={i} />)}
           </div>
         ) : displayedJobs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {displayedJobs.map(job => (
               <JobCard 
                 key={job.id} 
@@ -196,7 +196,7 @@ const Home: React.FC = () => {
 
       {/* How it works */}
       <section className="py-16">
-          <div className="max-w-5xl mx-auto px-4">
+          <div className="max-w-7xl mx-auto px-4">
               <div className="text-center mb-12">
                   <h2 className="text-3xl font-black text-slate-800 mb-3">איך זה עובד? פשוט בצ'יק!</h2>
                   <p className="text-slate-500 font-bold text-sm md:text-base">הצטרפו לאלפי הישראלים שמגדירים מחדש את הקריירה שלהם</p>
@@ -223,7 +223,7 @@ const Home: React.FC = () => {
           </div>
       </section>
 
-      <section className="max-w-5xl mx-auto px-2 md:px-4 pb-12 md:pb-20 mt-8">
+      <section className="max-w-7xl mx-auto px-2 md:px-4 pb-12 md:pb-20 mt-8">
           <div className="bg-gradient-to-r from-primary-dark via-primary to-highlight rounded-3xl p-6 sm:p-10 md:p-14 text-center text-white relative overflow-hidden shadow-xl">
               <div className="relative z-10">
                   <h2 className="text-2xl sm:text-3xl md:text-4xl font-black mb-3 md:mb-4 tracking-tight">המשרה הבאה מחכה לך.</h2>

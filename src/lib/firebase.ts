@@ -6,8 +6,6 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-console.log("Initializing Firestore with Database ID:", firebaseConfig.firestoreDatabaseId);
-
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
@@ -19,16 +17,12 @@ export const storage = getStorage(app);
 async function testConnection(retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      console.log(`Testing Firestore connection (attempt ${i + 1})...`);
       // Use getDoc instead of getDocFromServer for the first check to see if it even initializes
       await getDocFromServer(doc(db, 'test', 'connection'));
-      console.log("Firestore connection successful");
       return;
     } catch (error) {
-      console.error(`Firestore connectivity attempt ${i + 1} failed:`, error);
       if (i < retries - 1) {
         const delay = Math.pow(2, i) * 1000;
-        console.log(`Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
