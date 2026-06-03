@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import { AdminTable } from '../../components/admin/AdminTable';
@@ -27,12 +27,29 @@ export const AdminFiles: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [uploadPassword, setUploadPassword] = useState('');
+    const [systemPassword, setSystemPassword] = useState('');
+    const [maxFileSizeMB, setMaxFileSizeMB] = useState(5);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { user } = useAuth();
     const { toast } = useToast();
 
     useEffect(() => {
+        // Fetch settings for upload constraints
+        const fetchSettings = async () => {
+            try {
+                const sysSnap = await getDoc(doc(db, 'settings', 'system'));
+                if (sysSnap.exists()) {
+                    setSystemPassword(sysSnap.data().fileUploadPassword || '');
+                    setMaxFileSizeMB(sysSnap.data().maxAdminUploadSizeMB || 5);
+                }
+            } catch (err) {
+                console.error("Error fetching system settings for files tab:", err);
+            }
+        };
+        fetchSettings();
+
         const q = query(collection(db, 'files'), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const filesData = snapshot.docs.map(doc => ({
@@ -54,6 +71,17 @@ export const AdminFiles: React.FC = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if (!user) {
+            toast('רק משתמש מחובר יכול להעלות קבצים', 'error');
+            return;
+        }
+
+        if (systemPassword && uploadPassword !== systemPassword) {
+            toast('סיסמת העלאה שגויה', 'error');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
         // Validation
         const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
         if (!allowedTypes.includes(file.type)) {
@@ -61,15 +89,19 @@ export const AdminFiles: React.FC = () => {
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            toast('גודל קובץ חורג מ-5MB', 'error');
+        if (file.size > maxFileSizeMB * 1024 * 1024) {
+            toast(`גודל קובץ חורג מ-${maxFileSizeMB}MB`, 'error');
             return;
         }
 
         setUploading(true);
         try {
             const storageRef = ref(storage, `site_files/${Date.now()}_${file.name}`);
-            await uploadBytes(storageRef, file);
+            
+            // Convert to byte array to bypass Blob/iframe issues in Firebase SDK
+            const fileBytes = new Uint8Array(await file.arrayBuffer());
+            
+            await uploadBytes(storageRef, fileBytes, { contentType: file.type });
             const url = await getDownloadURL(storageRef);
 
             await addDoc(collection(db, 'files'), {
@@ -216,6 +248,18 @@ export const AdminFiles: React.FC = () => {
                 title="העלאת קובץ חדש"
             >
                 <div className="space-y-6 text-right" dir="rtl">
+                    {systemPassword && (
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">סיסמת מערכת להעלאה</label>
+                            <input 
+                                type="password" 
+                                value={uploadPassword}
+                                onChange={(e) => setUploadPassword(e.target.value)}
+                                placeholder="הזן סיסמה..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700" 
+                            />
+                        </div>
+                    )}
                     <div 
                         className="border-2 border-dashed border-slate-200 rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 transition-colors"
                         onClick={() => fileInputRef.current?.click()}
@@ -224,7 +268,7 @@ export const AdminFiles: React.FC = () => {
                             <UploadCloud size={40} />
                         </div>
                         <h3 className="text-lg font-black text-slate-900 mb-2">לחץ כאן כדי לבחור קובץ להעלאה</h3>
-                        <p className="text-slate-500 font-medium">קבצי תמונה (JPG, PNG, WEBP) ו-PDF נתמכים. עד 5MB.</p>
+                        <p className="text-slate-500 font-medium">קבצי תמונה (JPG, PNG, WEBP) ו-PDF נתמכים. עד {maxFileSizeMB}MB.</p>
                         <input 
                             type="file" 
                             ref={fileInputRef}

@@ -138,6 +138,9 @@ const SeekerDashboard: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
 
+    const [enableCVUploads, setEnableCVUploads] = useState(true);
+    const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
+
     // Initial setup from user
     useEffect(() => {
         if (!user) return;
@@ -158,7 +161,7 @@ const SeekerDashboard: React.FC = () => {
     }, [user?.uid, auth.currentUser]);
 
     useEffect(() => {
-        const fetchTags = async () => {
+        const fetchSettings = async () => {
             try {
                 const docSnap = await getDoc(doc(db, 'settings', 'tags'));
                 if (docSnap.exists() && docSnap.data().jobTags) {
@@ -173,11 +176,17 @@ const SeekerDashboard: React.FC = () => {
                         'רפואה', 'רכב ותחבורה', 'עריכת דין ומשפטים'
                     ]);
                 }
+
+                const systemSnap = await getDoc(doc(db, 'settings', 'system'));
+                if (systemSnap.exists()) {
+                    setEnableCVUploads(systemSnap.data().enableCVUploads !== false);
+                    setMaxUserUploadSizeMB(systemSnap.data().maxUserUploadSizeMB || 1);
+                }
             } catch (error) {
                 console.error("Failed to load global tags", error);
             }
         };
-        fetchTags();
+        fetchSettings();
     }, []);
 
     const handleLinkGoogle = async () => {
@@ -411,7 +420,7 @@ const SeekerDashboard: React.FC = () => {
 
     const handleCVUpload = async (file: File) => {
         if (!user) return;
-        const validation = validateFile(file);
+        const validation = validateFile(file, maxUserUploadSizeMB);
         if (!validation.valid) {
             toast(validation.error || 'קובץ לא תקין', 'error');
             return;
@@ -419,11 +428,21 @@ const SeekerDashboard: React.FC = () => {
         setCvUploading(true);
         try {
             const cvRef = ref(storage, `cvs/${user.uid}/profile_${Date.now()}_${file.name}`);
-            await uploadBytes(cvRef, file);
+            
+            const fileName = file.name.toLowerCase();
+            let contentType = file.type || 'application/octet-stream';
+            if (fileName.endsWith('.pdf')) contentType = 'application/pdf';
+            else if (fileName.endsWith('.doc')) contentType = 'application/msword';
+            else if (fileName.endsWith('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+            const fileBytes = new Uint8Array(await file.arrayBuffer());
+            await uploadBytes(cvRef, fileBytes, { contentType });
+            
             const cvUrl = await getDownloadURL(cvRef);
             await setDoc(doc(db, 'users', user.uid), { cvUrl }, { merge: true });
             toast('קורות החיים הועלו בהצלחה!', 'success');
-        } catch (error) {
+        } catch (error: any) {
+            console.error('CV Upload Error:', error);
             handleFirestoreError(error, OperationType.UPDATE, 'users');
         } finally {
             setCvUploading(false);
@@ -471,7 +490,7 @@ const SeekerDashboard: React.FC = () => {
                                             <AlertTriangle size={16} />
                                             השלם פרופיל ({profileCompletionPercentage}%)
                                         </button>
-                                    ) : !user?.cvUrl ? (
+                                    ) : (!user?.cvUrl && enableCVUploads) ? (
                                         <button 
                                             onClick={() => setActiveTab('profile')}
                                             className="bg-brand-teal hover:bg-brand-teal/90 text-white px-5 py-2 rounded-xl font-bold text-sm shadow-lg shadow-teal-500/20 transition-all flex items-center gap-2"
@@ -816,42 +835,44 @@ const SeekerDashboard: React.FC = () => {
                                         </div>
                                     </form>
 
-                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                                            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                                                <FileText className="text-brand-orange" />
-                                                ניהול קורות חיים
-                                            </h3>
-                                            {user?.cvUrl && (
-                                                <a 
-                                                    href={user.cvUrl} 
-                                                    target="_blank" 
-                                                    rel="noreferrer"
-                                                    className="bg-brand-teal/10 text-brand-teal px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 hover:bg-brand-teal/20 transition-all"
-                                                >
-                                                    <ExternalLink size={18} />
-                                                    צפה בקובץ הנוכחי
-                                                </a>
-                                            )}
-                                        </div>
+                                    {enableCVUploads && (
+                                        <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                                                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                                                    <FileText className="text-brand-orange" />
+                                                    ניהול קורות חיים
+                                                </h3>
+                                                {user?.cvUrl && (
+                                                    <a 
+                                                        href={user.cvUrl} 
+                                                        target="_blank" 
+                                                        rel="noreferrer"
+                                                        className="bg-brand-teal/10 text-brand-teal px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 hover:bg-brand-teal/20 transition-all"
+                                                    >
+                                                        <ExternalLink size={18} />
+                                                        צפה בקובץ הנוכחי
+                                                    </a>
+                                                )}
+                                            </div>
 
-                                        <div className="relative group">
-                                            <input 
-                                                type="file" 
-                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                                                onChange={(e) => e.target.files?.[0] && handleCVUpload(e.target.files[0])}
-                                            />
-                                            <div className="border-4 border-dashed border-slate-50 rounded-[2rem] p-12 text-center group-hover:border-brand-teal transition-all bg-slate-50/50">
-                                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 transition-transform">
-                                                    <Upload size={32} className={cvUploading ? "text-slate-300 animate-bounce" : "text-brand-teal"} />
+                                            <div className="relative group">
+                                                <input 
+                                                    type="file" 
+                                                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                    onChange={(e) => e.target.files?.[0] && handleCVUpload(e.target.files[0])}
+                                                />
+                                                <div className="border-4 border-dashed border-slate-50 rounded-[2rem] p-12 text-center group-hover:border-brand-teal transition-all bg-slate-50/50">
+                                                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                                                        <Upload size={32} className={cvUploading ? "text-slate-300 animate-bounce" : "text-brand-teal"} />
+                                                    </div>
+                                                    <p className="font-black text-slate-900 mb-1">
+                                                        {cvUploading ? 'מעלה קובץ עכשיו...' : 'לחץ להעלאת קורות חיים חדשים'}
+                                                    </p>
+                                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">PDF, DOCX עד {maxUserUploadSizeMB}MB</p>
                                                 </div>
-                                                <p className="font-black text-slate-900 mb-1">
-                                                    {cvUploading ? 'מעלה קובץ עכשיו...' : 'לחץ להעלאת קורות חיים חדשים'}
-                                                </p>
-                                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">PDF, DOCX עד 5MB</p>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mt-8">
                                         <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3">

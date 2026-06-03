@@ -12,6 +12,8 @@ export const db = initializeFirestore(app, {
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+storage.maxUploadRetryTime = 10000; // 10 seconds max retry for uploads so it doesn't hang infinitely
+storage.maxOperationRetryTime = 10000;
 
 // Test Connection as per guidelines
 async function testConnection(retries = 3) {

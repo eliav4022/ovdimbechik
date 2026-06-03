@@ -99,6 +99,8 @@ const JobDetails: React.FC = () => {
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [enableCVUploads, setEnableCVUploads] = useState(true);
+  const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
 
   const isSaved = user?.savedJobs?.includes(job?.id || '');
 
@@ -214,6 +216,13 @@ const JobDetails: React.FC = () => {
           const appsSnap = await getDocs(appsQuery);
           if (!appsSnap.empty) setApplied(true);
         }
+
+        // Fetch settings
+        const systemSnap = await getDoc(doc(db, 'settings', 'system'));
+        if (systemSnap.exists()) {
+            setEnableCVUploads(systemSnap.data().enableCVUploads !== false);
+            setMaxUserUploadSizeMB(systemSnap.data().maxUserUploadSizeMB || 1);
+        }
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, `jobs/${id}`);
       } finally {
@@ -239,13 +248,13 @@ const JobDetails: React.FC = () => {
       toast('אנא הזן אימייל תקין', 'error');
       return;
     }
-    if (job.requireCV !== false && !cvFile && !user.cvUrl) {
+    if (enableCVUploads && job.requireCV !== false && !cvFile && !user.cvUrl) {
       toast('חובה לצרף קובץ קורות חיים', 'error');
       return;
     }
     
     if (cvFile) {
-      const validation = validateFile(cvFile);
+      const validation = validateFile(cvFile, maxUserUploadSizeMB);
       if (!validation.valid) {
         toast(validation.error || 'קובץ לא תקין', 'error');
         return;
@@ -263,7 +272,16 @@ const JobDetails: React.FC = () => {
       let finalCvUrl = user.cvUrl || '';
       if (cvFile) {
           const cvRef = ref(storage, `cvs/${user.uid}/${Date.now()}_${cvFile.name}`);
-          await uploadBytes(cvRef, cvFile);
+          
+          const fileName = cvFile.name.toLowerCase();
+          let contentType = cvFile.type || 'application/octet-stream';
+          if (fileName.endsWith('.pdf')) contentType = 'application/pdf';
+          else if (fileName.endsWith('.doc')) contentType = 'application/msword';
+          else if (fileName.endsWith('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+          const fileBytes = new Uint8Array(await cvFile.arrayBuffer());
+          await uploadBytes(cvRef, fileBytes, { contentType });
+          
           finalCvUrl = await getDownloadURL(cvRef);
       }
 
@@ -309,7 +327,8 @@ const JobDetails: React.FC = () => {
       setApplied(true);
       setShowApplyForm(false);
       setShowSuccess(true);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Job Apply Upload/Firestore Error:", error);
       handleFirestoreError(error, OperationType.WRITE, 'applications');
     } finally {
       setApplying(false);
@@ -730,28 +749,30 @@ const JobDetails: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div className="space-y-5 text-right">
-                                <label className="block text-sm font-black text-text-main pr-3">קורות חיים (PDF / WORD)</label>
-                                <div className="relative group overflow-hidden rounded-[2.5rem]">
-                                    <input
-                                        type="file"
-                                        required={job.requireCV !== false && !user?.cvUrl}
-                                        accept=".pdf,.doc,.docx"
-                                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                                        onChange={(e) => setCvFile(e.target.files?.[0] || null)}
-                                    />
-                                    <div className="border-4 border-dashed border-bg-light rounded-[2.5rem] p-8 md:p-14 text-center group-hover:border-primary transition-all bg-bg-light/30 group-hover:bg-primary/5">
-                                        <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 transition-transform border border-slate-100">
-                                            <FileText size={40} className="text-primary" />
+                        <div className={`grid grid-cols-1 ${enableCVUploads ? 'md:grid-cols-2' : ''} gap-10`}>
+                            {enableCVUploads && (
+                                <div className="space-y-5 text-right">
+                                    <label className="block text-sm font-black text-text-main pr-3">קורות חיים (PDF / WORD)</label>
+                                    <div className="relative group overflow-hidden rounded-[2.5rem]">
+                                        <input
+                                            type="file"
+                                            required={job.requireCV !== false && !user?.cvUrl}
+                                            accept=".pdf,.doc,.docx"
+                                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                            onChange={(e) => setCvFile(e.target.files?.[0] || null)}
+                                        />
+                                        <div className="border-4 border-dashed border-bg-light rounded-[2.5rem] p-8 md:p-14 text-center group-hover:border-primary transition-all bg-bg-light/30 group-hover:bg-primary/5">
+                                            <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl group-hover:scale-110 transition-transform border border-slate-100">
+                                                <FileText size={40} className="text-primary" />
+                                            </div>
+                                            <p className="font-black text-text-main text-lg mb-2">
+                                                {cvFile ? cvFile.name : (user?.cvUrl ? 'קורות החיים שלך בפרופיל ישלחו (לחץ להחלפה)' : 'לחץ להעלאת קובץ')}
+                                            </p>
+                                            <p className="text-text-muted text-xs font-black uppercase tracking-[0.2em]">{user?.cvUrl ? 'ניתן להעלות קובץ אחר' : (job.requireCV !== false ? 'חובה לצרף CV' : 'רשות לצרף CV')}</p>
                                         </div>
-                                        <p className="font-black text-text-main text-lg mb-2">
-                                            {cvFile ? cvFile.name : (user?.cvUrl ? 'קורות החיים שלך בפרופיל ישלחו (לחץ להחלפה)' : 'לחץ להעלאת קובץ')}
-                                        </p>
-                                        <p className="text-text-muted text-xs font-black uppercase tracking-[0.2em]">{user?.cvUrl ? 'ניתן להעלות קובץ אחר' : (job.requireCV !== false ? 'חובה לצרף CV' : 'רשות לצרף CV')}</p>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="space-y-5 text-right">
                                 <label className="block text-sm font-black text-text-main pr-3">המסר שלך למעסיק</label>

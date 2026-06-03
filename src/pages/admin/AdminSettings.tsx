@@ -15,6 +15,10 @@ import Papa from 'papaparse';
 interface SystemSettings {
     contactEmail: string;
     maintenanceMode: boolean;
+    enableCVUploads: boolean;
+    fileUploadPassword?: string;
+    maxUserUploadSizeMB?: number;
+    maxAdminUploadSizeMB?: number;
     seoSiteTitle: string;
     seoSiteDescription: string;
     socialFacebookUrl: string;
@@ -62,6 +66,10 @@ interface SystemSettings {
 const DEFAULT_SETTINGS: SystemSettings = {
     contactEmail: 'Ovdimbechik@gmail.com',
     maintenanceMode: false,
+    enableCVUploads: true,
+    fileUploadPassword: '',
+    maxUserUploadSizeMB: 1,
+    maxAdminUploadSizeMB: 5,
     seoSiteTitle: "Ovedim B'Chik - The Best Job Board",
     seoSiteDescription: 'The leading job board for finding work quickly and easily.',
     socialFacebookUrl: '',
@@ -1063,6 +1071,41 @@ export const AdminSettings: React.FC = () => {
                                         onChange={(v) => handleChange('maintenanceMode', v)}
                                         activeColorClass="peer-checked:bg-red-500"
                                     />
+                                    <ToggleSwitch
+                                        label="אפשר העלאת קורות חיים"
+                                        description="התרת העלאת קבצי קורות חיים למערכת עבור מחפשי עבודה."
+                                        checked={settings.enableCVUploads}
+                                        onChange={(v) => handleChange('enableCVUploads', v)}
+                                        activeColorClass="peer-checked:bg-indigo-600"
+                                    />
+                                    <Input
+                                        id="fileUploadPassword"
+                                        label="סיסמת העלאת קבצים (מנהל/משתמשים)"
+                                        type="password"
+                                        placeholder="השאר ריק כדי לבטל דרישת סיסמה"
+                                        value={settings.fileUploadPassword || ''}
+                                        onChange={(e) => handleChange('fileUploadPassword', e.target.value)}
+                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Input
+                                            id="maxUserUploadSizeMB"
+                                            label="גודל קובץ מקסימלי למשתמש רגיל (MB)"
+                                            type="number"
+                                            min="1"
+                                            max="50"
+                                            value={settings.maxUserUploadSizeMB?.toString() || '1'}
+                                            onChange={(e) => handleChange('maxUserUploadSizeMB', parseInt(e.target.value) || 1)}
+                                        />
+                                        <Input
+                                            id="maxAdminUploadSizeMB"
+                                            label="גודל קובץ מקסימלי למנהל (MB)"
+                                            type="number"
+                                            min="1"
+                                            max="50"
+                                            value={settings.maxAdminUploadSizeMB?.toString() || '5'}
+                                            onChange={(e) => handleChange('maxAdminUploadSizeMB', parseInt(e.target.value) || 5)}
+                                        />
+                                    </div>
                                 </div>
                             </Card>
 

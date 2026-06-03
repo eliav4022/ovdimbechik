@@ -46,6 +46,7 @@ const JobPost: React.FC = () => {
   const [globalCategories, setGlobalCategories] = useState<string[]>([]);
   const [globalTags, setGlobalTags] = useState<string[]>([]);
   const [globalLocations, setGlobalLocations] = useState<string[]>([]);
+  const [enableCVUploads, setEnableCVUploads] = useState(true);
   const [employers, setEmployers] = useState<{ id: string, name: string, company: string }[]>([]);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ const JobPost: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    const fetchGlobalTags = async () => {
+    const fetchGlobalSettings = async () => {
       try {
         const snap = await getDoc(doc(db, 'settings', 'tags'));
         if (snap.exists()) {
@@ -76,9 +77,14 @@ const JobPost: React.FC = () => {
            setGlobalTags(data.jobTags || []);
            setGlobalLocations(data.locations || []);
         }
+
+        const sysSnap = await getDoc(doc(db, 'settings', 'system'));
+        if (sysSnap.exists()) {
+            setEnableCVUploads(sysSnap.data().enableCVUploads !== false);
+        }
       } catch(error) { console.error("Failed to fetch settings/tags", error); }
     };
-    fetchGlobalTags();
+    fetchGlobalSettings();
   }, []);
 
   useEffect(() => {
@@ -465,7 +471,7 @@ const JobPost: React.FC = () => {
                 </datalist>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 h-full pt-6">
+                <div className={`grid grid-cols-1 ${enableCVUploads ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4 h-full pt-6`}>
                     <Button
                         type="button"
                         variant={formData.isUrgent ? 'outline' : 'ghost'}
@@ -488,17 +494,19 @@ const JobPost: React.FC = () => {
                     >
                         מיידי ⚡
                     </Button>
-                    <Button
-                        type="button"
-                        variant={formData.requireCV !== false ? 'outline' : 'ghost'}
-                        onClick={() => setFormData({ ...formData, requireCV: formData.requireCV === false })}
-                        className={cn(
-                            "py-4 rounded-2xl border-2 font-black h-14 w-full",
-                            formData.requireCV !== false ? "bg-teal-50 border-brand-teal text-brand-teal shadow-lg shadow-brand-teal/10" : "bg-white border-slate-50 text-slate-400"
-                        )}
-                    >
-                        דרישת CV 📄
-                    </Button>
+                    {enableCVUploads && (
+                        <Button
+                            type="button"
+                            variant={formData.requireCV !== false ? 'outline' : 'ghost'}
+                            onClick={() => setFormData({ ...formData, requireCV: formData.requireCV === false })}
+                            className={cn(
+                                "py-4 rounded-2xl border-2 font-black h-14 w-full",
+                                formData.requireCV !== false ? "bg-teal-50 border-brand-teal text-brand-teal shadow-lg shadow-brand-teal/10" : "bg-white border-slate-50 text-slate-400"
+                            )}
+                        >
+                            דרישת CV 📄
+                        </Button>
+                    )}
                 </div>
               </div>
             </div>
