@@ -189,8 +189,8 @@ export function AdminTable<T extends { id: string; status?: string }>({
           )}
         </div>
 
-        {/* The Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
+        {/* The Table (Desktop View) */}
+        <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-100">
           <table className="w-full text-right">
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 text-xs font-black border-b border-slate-100">
@@ -294,6 +294,107 @@ export function AdminTable<T extends { id: string; status?: string }>({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* The Cards (Mobile View) */}
+        <div className="block md:hidden space-y-4">
+          <div className="flex items-center justify-between bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+             <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                  checked={selectedItems.length === paginatedData.length && paginatedData.length > 0}
+                  onChange={toggleSelectAll}
+                />
+                <span className="text-xs font-bold text-slate-600">בחר הכל</span>
+             </div>
+             <span className="text-xs font-bold text-slate-500">{paginatedData.length} רשומות בדף זה</span>
+          </div>
+
+          {paginatedData.map((item) => (
+             <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3 relative hover:border-indigo-100 transition-colors">
+                  {/* Card Header (First Column) */}
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-50 pb-3">
+                      <div className="flex items-center gap-3 w-full overflow-hidden">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 w-5 h-5" 
+                            checked={selectedItems.includes(item.id)}
+                            onChange={() => toggleSelectItem(item.id)}
+                          />
+                          <div className="font-bold text-slate-800 truncate w-full text-sm flex items-center gap-3">
+                              {columns[0]?.render ? columns[0].render(item) : (item[columns[0]?.key as keyof T] as React.ReactNode)}
+                          </div>
+                      </div>
+                  </div>
+                  
+                  {/* Card Body (Remaining Columns) */}
+                  <div className="flex flex-col gap-3 pt-1">
+                      {columns.slice(1).map(col => (
+                          <div key={col.key as string} className="flex justify-between items-start gap-4 text-sm">
+                              <span className="text-slate-500 font-medium shrink-0">{col.header}</span>
+                              <div className="text-left text-slate-700 max-w-[65%] text-ellipsis overflow-hidden">
+                                  {col.render ? col.render(item) : (item[col.key as keyof T] as React.ReactNode)}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+                  
+                  {/* Card Footer (Actions) */}
+                  <div className="pt-3 mt-1 border-t border-slate-50 flex items-center justify-end gap-2 bg-slate-50/30 -mx-4 -mb-4 px-4 pb-4">
+                      {onView && (
+                          <Button variant="ghost" size="sm" onClick={() => onView(item)} className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 text-xs px-3 gap-1.5 rounded-lg border border-transparent hover:border-blue-100 h-9">
+                            <Eye size={16} /> <span>צפייה</span>
+                          </Button>
+                      )}
+                      {onEdit && (
+                          <Button variant="ghost" size="sm" onClick={() => onEdit(item)} className="text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 text-xs px-3 gap-1.5 rounded-lg border border-transparent hover:border-indigo-100 h-9">
+                            <Edit size={16} /> <span>עריכה</span>
+                          </Button>
+                      )}
+                      <div className="group relative">
+                          <Button variant="ghost" size="icon" className="text-slate-500 h-9 w-9 bg-slate-50 hover:bg-slate-100 border border-slate-200">
+                            <MoreHorizontal size={16} />
+                          </Button>
+                          <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 bg-white border border-slate-100 shadow-xl rounded-xl p-2 min-w-[160px] z-20 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            {onStatusChange && (
+                              <>
+                                <button 
+                                  onClick={() => onStatusChange(item, 'active')}
+                                  className="w-full text-right px-3 py-2.5 text-sm font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg flex items-center justify-between"
+                                >
+                                  אישור <CheckCircle size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => onStatusChange(item, 'rejected')}
+                                  className="w-full text-right px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg flex items-center justify-between"
+                                >
+                                  דחייה <XCircle size={14} />
+                                </button>
+                              </>
+                            )}
+                            <button className="w-full text-right px-3 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg flex items-center justify-between">
+                              לוג שינויים <History size={14} />
+                            </button>
+                            <div className="h-px bg-slate-100 my-1" />
+                            {onDelete && (
+                              <button 
+                                onClick={() => onDelete(item)}
+                                className="w-full text-right px-3 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 rounded-lg flex items-center justify-between"
+                              >
+                                מחיקה רכה <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                      </div>
+                  </div>
+             </div>
+          ))}
+          {paginatedData.length === 0 && (
+             <div className="text-center py-12 text-slate-500 font-medium bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                לא נמצאו תוצאות לחיפוש הנוכחי
+             </div>
+          )}
         </div>
 
         {/* Pagination */}

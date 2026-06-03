@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, doc, setDoc, where, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, setDoc, where, getDocs, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
-import { ref, deleteObject } from 'firebase/storage';
+import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
 import { User, UserRole } from '../../types';
-import { Trash2, ShieldCheck, Mail, Phone, Lock } from 'lucide-react';
+import { Trash2, ShieldCheck, Mail, Phone, Lock, User as UserIcon } from 'lucide-react';
 import { TwoStepConfirmModal } from '../../components/ui/TwoStepConfirmModal';
 import { softDelete } from '../../lib/adminUtils';
 import { useAuth } from '../../lib/AuthContext';
@@ -194,6 +194,7 @@ export const AdminUsers: React.FC = () => {
               email: userToEdit.email,
               role: userToEdit.role,
               permissions: userToEdit.permissions || [],
+              photoURL: userToEdit.photoURL || null,
               updatedAt: new Date().toISOString()
           }, { merge: true });
           
@@ -463,6 +464,53 @@ export const AdminUsers: React.FC = () => {
       >
           {userToEdit && (
               <form onSubmit={handleEditSubmit} className="space-y-6">
+                  <div className="flex gap-4 items-center mb-4">
+                      <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center relative">
+                          {userToEdit.photoURL ? (
+                              <img src={userToEdit.photoURL} alt={userToEdit.displayName} className="w-full h-full object-cover" />
+                          ) : (
+                              <UserIcon className="text-slate-300" size={32} />
+                          )}
+                      </div>
+                      <div className="flex-1">
+                          <label className="block text-sm font-bold text-slate-700 mb-2">תמונת פרופיל / לוגו</label>
+                          <input 
+                              type="file"
+                              accept="image/*"
+                              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                              onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  try {
+                                      const fileExt = file.name.split('.').pop();
+                                      const storageRef = ref(storage, `cvs/admin_${Date.now()}.${fileExt}`);
+                                      const fileBytes = new Uint8Array(await file.arrayBuffer());
+                                      await uploadBytes(storageRef, fileBytes, { contentType: file.type });
+                                      const url = await getDownloadURL(storageRef);
+                                      
+                                      // Save to files collection
+                                      const userName = userToEdit.displayName || userToEdit.fullName || 'משתמש_ללא_שם';
+                                      const cleanName = (userToEdit.companyName || userName).replace(/\s+/g, '_');
+                                      const formattedDate = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+                                      await addDoc(collection(db, 'files'), {
+                                          name: `לוגו-${cleanName}-${formattedDate}.${fileExt}`,
+                                          url,
+                                          type: file.type,
+                                          size: file.size,
+                                          createdAt: serverTimestamp(),
+                                          uploadedBy: currentUser?.uid
+                                      });
+                                      
+                                      setUserToEdit({ ...userToEdit, photoURL: url });
+                                      toast('התמונה הועלתה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)', 'success');
+                                  } catch (error) {
+                                      console.error('Error uploading image:', error);
+                                      toast('שגיאה בהעלאת התמונה', 'error');
+                                  }
+                              }}
+                          />
+                      </div>
+                  </div>
                   <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2">שם חדש</label>
                       <Input 

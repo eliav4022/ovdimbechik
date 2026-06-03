@@ -17,6 +17,23 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    import('../lib/firebase').then(({ db }) => {
+      import('firebase/firestore').then(({ doc, onSnapshot }) => {
+         const unsubscribe = onSnapshot(doc(db, 'settings', 'system'), (docSnap) => {
+             if (docSnap.exists() && docSnap.data().siteLogoUrl) {
+                 setLogoUrl(docSnap.data().siteLogoUrl);
+             } else {
+                 setLogoUrl(null);
+             }
+         });
+         return () => unsubscribe();
+      });
+    });
+  }, []);
+
   // Prevent background scroll when drawer is open
   useEffect(() => {
     if (isOpen) {
@@ -87,14 +104,18 @@ export const Navbar: React.FC = () => {
         <div className="flex justify-between items-center h-full">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2 group">
-                <div className="flex flex-col text-right">
-                    <span className="text-2xl font-black tracking-tighter">
-                        <span className="text-slate-900">עובדים</span>
-                        <span className="text-primary">בצ'יק</span>
-                        <CheckIcon />
-                    </span>
-                    <span className="text-[10px] font-black text-highlight -mt-1 uppercase tracking-wider">הפורטל המוביל למציאת עבודה</span>
-                </div>
+                {logoUrl ? (
+                    <img src={logoUrl} alt="עובדים בצ'יק" className="h-12 w-auto object-contain" />
+                ) : (
+                    <div className="flex flex-col text-right">
+                        <span className="text-2xl font-black tracking-tighter">
+                            <span className="text-slate-900">עובדים</span>
+                            <span className="text-primary">בצ'יק</span>
+                            <CheckIcon />
+                        </span>
+                        <span className="text-[10px] font-black text-highlight -mt-1 uppercase tracking-wider">הפורטל המוביל למציאת עבודה</span>
+                    </div>
+                )}
             </Link>
 
             {/* Desktop Nav */}

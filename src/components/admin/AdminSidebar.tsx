@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
@@ -17,6 +17,8 @@ import {
   ArrowRight,
   FolderOpen
 } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/AuthContext';
 import { UserRole } from '../../types';
@@ -55,6 +57,17 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = false, onClose }) => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+     const fetchLogo = async () => {
+         const settingsDoc = await getDoc(doc(db, 'settings', 'system'));
+         if (settingsDoc.exists() && settingsDoc.data().siteLogoUrl) {
+             setLogoUrl(settingsDoc.data().siteLogoUrl);
+         }
+     };
+     fetchLogo();
+  }, []);
   
   const filteredNavItems = adminNavItems.filter(item => {
     if (!user?.role) return false;
@@ -83,13 +96,19 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = false, onCl
     >
       <div className="p-6 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl">
-            ע
-          </div>
-          <div>
-            <h1 className="text-white font-bold leading-none">עובדים בצ׳יק</h1>
-            <span className="text-xs text-slate-500">ניהול מערכת</span>
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt="לוגו מערכת ניהול" className="h-10 w-auto object-contain brightness-0 invert" style={{ filter: 'brightness(0) invert(1)' }} />
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl">
+                ע
+              </div>
+              <div>
+                <h1 className="text-white font-bold leading-none">עובדים בצ׳יק</h1>
+                <span className="text-xs text-slate-500">ניהול מערכת</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

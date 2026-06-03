@@ -181,23 +181,23 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* General Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         {statsData.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="p-4 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-default">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-600`}>
-                  <Icon size={24} />
+            <Card key={stat.label} className="p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-default">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-slate-50 flex items-center justify-center text-slate-600 shrink-0`}>
+                  <Icon size={20} className="md:w-6 md:h-6" />
                 </div>
-                <Badge variant={stat.isUp ? 'success' : 'error'} className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px]">
+                <Badge variant={stat.isUp ? 'success' : 'error'} className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit">
                   {stat.isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                   {stat.trend}
                 </Badge>
               </div>
               <div>
-                <p className="text-slate-500 text-sm font-bold mb-1">{stat.label}</p>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{stat.value}</h3>
+                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">{stat.label}</p>
+                <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{stat.value}</h3>
               </div>
             </Card>
           );
@@ -208,79 +208,79 @@ export const AdminDashboard: React.FC = () => {
           <h2 className="text-2xl font-black text-slate-900 mb-2 font-sans tracking-tight mt-6">פעולות לביצוע</h2>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         {/* Tasks Card */}
-        <Card onClick={() => setShowTasksModal(true)} className="p-4 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-indigo-500">
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600`}>
-              <CheckCircle2 size={24} />
+        <Card onClick={() => setShowTasksModal(true)} className="p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-indigo-500">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
+            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0`}>
+              <CheckCircle2 size={20} className="md:w-6 md:h-6" />
             </div>
-            <Badge variant="warning" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px]">
+            <Badge variant="warning" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit">
               לביצוע
             </Badge>
           </div>
           <div>
-            <p className="text-slate-500 text-sm font-bold mb-1">משימות בטיפולי</p>
-            <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{myTasks.length}</h3>
+            <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">משימות</p>
+            <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{myTasks.length}</h3>
           </div>
         </Card>
 
         {/* Pending Job Reports Card */}
         <div onClick={() => navigate('/admin/reports?tab=users')} className="block outline-none">
-            <Card className="h-full p-4 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-red-500 bg-red-50/10">
-            <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-600`}>
-                <AlertTriangle size={24} />
+            <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-red-500 bg-red-50/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-red-50 flex items-center justify-center text-red-600 shrink-0`}>
+                <AlertTriangle size={20} className="md:w-6 md:h-6" />
                 </div>
                 {pendingJobReportsCount > 0 && (
-                     <Badge variant="error" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px]">
-                        דחיפות גבוהה
+                     <Badge variant="error" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit line-clamp-1">
+                        דחוף
                      </Badge>
                 )}
             </div>
             <div>
-                <p className="text-slate-500 text-sm font-bold mb-1">דיווחי משתמשים</p>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{pendingJobReportsCount}</h3>
+                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">דיווחים</p>
+                <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{pendingJobReportsCount}</h3>
             </div>
             </Card>
         </div>
 
         {/* Pending Jobs Card */}
         <div onClick={() => setShowPendingJobsModal(true)} className="block outline-none">
-            <Card className="h-full p-4 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-amber-500 bg-amber-50/10">
-            <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600`}>
-                <Clock size={24} />
+            <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-amber-500 bg-amber-50/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0`}>
+                <Clock size={20} className="md:w-6 md:h-6" />
                 </div>
                 {pendingJobsCount > 0 && (
-                     <Badge variant="warning" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px]">
-                        דורש טיפול
+                     <Badge variant="warning" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit line-clamp-1">
+                        טיפול
                      </Badge>
                 )}
             </div>
             <div>
-                <p className="text-slate-500 text-sm font-bold mb-1">משרות ממתינות</p>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{pendingJobsCount}</h3>
+                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">ממתינות</p>
+                <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{pendingJobsCount}</h3>
             </div>
             </Card>
         </div>
 
         {/* Unassigned Employers Card */}
         <div onClick={() => setShowUnassignedModal(true)} className="block outline-none">
-            <Card className="h-full p-4 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-emerald-500 bg-emerald-50/10">
-            <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600`}>
-                <UserPlus size={24} />
+            <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-emerald-500 bg-emerald-50/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0`}>
+                <UserPlus size={20} className="md:w-6 md:h-6" />
                 </div>
                 {unassignedEmployers > 0 && (
-                     <Badge variant="error" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px]">
-                        ללא שיוך
+                     <Badge variant="error" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit line-clamp-1">
+                        לשיוך
                      </Badge>
                 )}
             </div>
             <div>
-                <p className="text-slate-500 text-sm font-bold mb-1">מעסיקים יתומים</p>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{unassignedEmployers}</h3>
+                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">יתומים</p>
+                <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{unassignedEmployers}</h3>
             </div>
             </Card>
         </div>
@@ -289,7 +289,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Main Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         <Card className="lg:col-span-2 p-4 md:p-8 border-none shadow-xl shadow-slate-200/50 w-full overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-8">
             <div>
               <h3 className="text-xl font-black text-slate-900 leading-none">גרף צמיחה שימוש</h3>
               <p className="text-sm text-slate-500 mt-2">מעקב שבועי אחר משרות ומועמדויות</p>
@@ -299,7 +299,7 @@ export const AdminDashboard: React.FC = () => {
               <option>30 ימים אחרונים</option>
             </select>
           </div>
-          <div className="h-[250px] md:h-[350px] w-full" dir="ltr">
+          <div className="h-[200px] md:h-[350px] w-full" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>

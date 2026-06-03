@@ -14,6 +14,7 @@ import Papa from 'papaparse';
 
 interface SystemSettings {
     contactEmail: string;
+    siteLogoUrl?: string;
     maintenanceMode: boolean;
     enableCVUploads: boolean;
     fileUploadPassword?: string;
@@ -65,6 +66,7 @@ interface SystemSettings {
 
 const DEFAULT_SETTINGS: SystemSettings = {
     contactEmail: 'Ovdimbechik@gmail.com',
+    siteLogoUrl: '',
     maintenanceMode: false,
     enableCVUploads: true,
     fileUploadPassword: '',
@@ -1063,6 +1065,16 @@ export const AdminSettings: React.FC = () => {
                                         className="text-left"
                                         value={settings.contactEmail}
                                         onChange={(e) => handleChange('contactEmail', e.target.value)}
+                                    />
+                                    <Input
+                                        id="siteLogoUrl"
+                                        label="כתובת לוגו האתר (URL)"
+                                        type="url"
+                                        placeholder="https://..."
+                                        dir="ltr"
+                                        className="text-left"
+                                        value={settings.siteLogoUrl || ''}
+                                        onChange={(e) => handleChange('siteLogoUrl', e.target.value)}
                                     />
                                     <ToggleSwitch
                                         label="מצב תחזוקה"

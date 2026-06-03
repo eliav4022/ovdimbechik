@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, setDoc, updateDoc, collection, increment, runTransaction, getDocs, query, where, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, increment, runTransaction, getDocs, query, where, arrayUnion, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -230,6 +230,7 @@ const JobPost: React.FC = () => {
           employerName: nameToSet,
           title: formData.title || '',
           companyName: formData.companyName || compToSet || '',
+          companyLogo: formData.companyLogo || user.photoURL || '',
           companyDescription: formData.companyDescription || compToSet || '',
           location: formData.location || '',
           type: (formData.type as JobType) || JobType.FULL_TIME,
@@ -441,7 +442,7 @@ const JobPost: React.FC = () => {
                   }
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <Input
                   required
                   label="שם החברה"
@@ -451,6 +452,67 @@ const JobPost: React.FC = () => {
                   value={formData.companyName}
                   onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                 />
+                
+                {isEditing && user?.role === UserRole.ADMIN && (
+                    <div className="flex items-center gap-4 mt-2">
+                        <div className="flex-shrink-0 w-14 h-14 bg-slate-100 rounded-full overflow-hidden border border-slate-200 flex items-center justify-center">
+                            {formData.companyLogo ? (
+                                <img src={formData.companyLogo} alt="לוגו" className="w-full h-full object-cover" />
+                            ) : (
+                                <Briefcase className="text-slate-300" size={24} />
+                            )}
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-slate-500 mb-1">לוגו חברה יוצג במשרה זו (לחץ כדי לשנות/להוסיף)</label>
+                            <input 
+                                type="file"
+                                accept="image/*"
+                                className="block w-full text-sm text-slate-500
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-full file:border-0
+                                  file:text-sm file:font-semibold
+                                  file:bg-brand-teal/10 file:text-brand-teal
+                                  hover:file:bg-brand-teal/20"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    setLoading(true);
+                                    try {
+                                        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                                        const { storage } = await import('../lib/firebase');
+                                        const fileExt = file.name.split('.').pop();
+                                        const compName = formData.companyName || 'חברה_ללא_שם';
+                                        
+                                        // Save to storage
+                                        const storageRef = ref(storage, `cvs/${user?.uid}/joblogo_${Date.now()}.${fileExt}`);
+                                        const fileBytes = new Uint8Array(await file.arrayBuffer());
+                                        await uploadBytes(storageRef, fileBytes, { contentType: file.type });
+                                        const url = await getDownloadURL(storageRef);
+                                        
+                                        // Save to files collection
+                                        const formattedDate = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+                                        await addDoc(collection(db, 'files'), {
+                                            name: `לוגו-${compName}-${formattedDate}.${fileExt}`,
+                                            url,
+                                            type: file.type,
+                                            size: file.size,
+                                            createdAt: serverTimestamp(),
+                                            uploadedBy: user?.uid
+                                        });
+
+                                        setFormData(prev => ({ ...prev, companyLogo: url }));
+                                        toast('הלוגו הועלה בהצלחה נוסף לניהול קבצים (אל תשכח לשמור את המשרה)', 'success');
+                                    } catch (err) {
+                                        console.error('Error uploading logo:', err);
+                                        toast('שגיאה בהעלאת התמונה', 'error');
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
               </div>
             </div>
 

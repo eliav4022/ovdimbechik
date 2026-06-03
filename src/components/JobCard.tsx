@@ -67,21 +67,25 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
       className="group block"
     >
       <Card
-        className="group relative h-full overflow-hidden border-primary/5 p-5 md:p-8 flex flex-col justify-between shadow-soft hover:shadow-primary/10"
+        className="group relative h-full overflow-hidden border-primary/5 p-4 md:p-6 flex flex-col justify-between shadow-soft hover:shadow-primary/10"
       >
         <div className="absolute top-0 right-0 w-2 h-full bg-gradient-to-b from-primary to-highlight opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         
         <div>
-          <div className="flex justify-between items-start mb-6 md:mb-8 relative z-20">
-            <div className="flex gap-3 md:gap-4 pl-12">
-              <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl md:rounded-[2rem] bg-bg-light flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-inner border border-primary/5 flex-shrink-0">
-                <Building2 className="w-8 h-8 md:w-9 md:h-9" />
+          <div className="flex justify-between items-start mb-4 md:mb-6 relative z-20">
+            <div className="flex gap-3 md:gap-4 pl-10 md:pl-12">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-bg-light flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-inner border border-primary/10 flex-shrink-0 overflow-hidden">
+                {job.companyLogo ? (
+                    <img src={job.companyLogo} alt={job.companyName} className="w-full h-full object-cover" />
+                ) : (
+                    <Building2 className="w-6 h-6 md:w-8 md:h-8" />
+                )}
               </div>
               <div className="text-right">
-                <h3 className="font-black text-xl md:text-2xl text-text-main group-hover:text-primary transition-colors line-clamp-1 mb-1">
+                <h3 className="font-black text-lg md:text-xl text-text-main group-hover:text-primary transition-colors line-clamp-1 mb-1">
                   {job.title}
                 </h3>
-                <div className="flex flex-wrap items-center gap-2 mt-1 mb-2">
+                <div className="flex flex-wrap items-center gap-1.5 mt-1 mb-2">
                   {job.isUrgent && (
                     <Badge variant="danger" className="animate-pulse shadow-sm text-[10px] md:text-xs py-0.5">
                       <Zap size={10} fill="currentColor" />
@@ -121,37 +125,37 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-6">
-            <div className="flex items-center gap-1.5 md:gap-2 text-text-muted bg-bg-light/50 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
-              <MapPin size={14} className="text-primary md:w-4 md:h-4" />
+          <div className="flex flex-wrap gap-1.5 md:gap-3 mb-3 md:mb-6">
+            <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
+              <MapPin size={12} className="text-primary md:w-4 md:h-4" />
               {job.location}
             </div>
-            <div className="flex items-center gap-1.5 md:gap-2 text-text-muted bg-bg-light/50 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
-              <Clock size={14} className="text-primary md:w-4 md:h-4" />
+            <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
+              <Clock size={12} className="text-primary md:w-4 md:h-4" />
               {getJobTypeLabel(job.type)}
             </div>
             {job.salary && (
-            <div className="flex items-center gap-1.5 md:gap-2 text-primary-dark bg-primary/10 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-black border border-primary/10">
-              <Zap size={14} className="md:w-4 md:h-4" />
+            <div className="flex items-center gap-1 md:gap-2 text-primary-dark bg-primary/10 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-black border border-primary/10">
+              <Zap size={12} className="md:w-4 md:h-4" />
               {job.salary}
             </div>
             )}
             {job.workMode && (
-              <div className="flex items-center gap-1.5 md:gap-2 text-text-muted bg-bg-light/50 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
-                <Home size={14} className="text-primary md:w-4 md:h-4" />
+              <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
+                <Home size={12} className="text-primary md:w-4 md:h-4" />
                 {job.workMode}
               </div>
             )}
             {job.experienceLevel && (
-              <div className="flex items-center gap-1.5 md:gap-2 text-text-muted bg-bg-light/50 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
-                <Award size={14} className="text-primary md:w-4 md:h-4" />
+              <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
+                <Award size={12} className="text-primary md:w-4 md:h-4" />
                 {job.experienceLevel}
               </div>
             )}
           </div>
           
           {job.tags && job.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6 md:mb-8">
+            <div className="flex flex-wrap gap-1.5 mb-4 md:mb-8">
               {job.tags.slice(0, 3).map((tag, idx) => (
                 <span key={idx} className="flex items-center gap-1 text-[10px] text-text-muted bg-slate-100 px-2 py-1 rounded-md mb-2">
                     <Tags size={10} />

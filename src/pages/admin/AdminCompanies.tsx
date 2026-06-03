@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, onSnapshot, query, where, doc, setDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { collection, onSnapshot, query, where, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, storage } from '../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
 import { Building2, Globe, MapPin, ShieldCheck, Mail } from 'lucide-react';
@@ -328,6 +329,52 @@ export const AdminCompanies: React.FC = () => {
             >
                 {companyToEdit && (
                     <form onSubmit={handleEditSubmit} className="space-y-6">
+                        <div className="flex gap-4 items-center mb-4">
+                            <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center relative group">
+                                {companyToEdit.logoUrl ? (
+                                    <img src={companyToEdit.logoUrl} alt={companyToEdit.name} className="w-full h-full object-contain" />
+                                ) : (
+                                    <Building2 className="text-slate-300" size={32} />
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">לוגו החברה</label>
+                                <input 
+                                    type="file"
+                                    accept="image/*"
+                                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        try {
+                                            const fileExt = file.name.split('.').pop();
+                                            const storageRef = ref(storage, `cvs/admin_${Date.now()}.${fileExt}`);
+                                            const fileBytes = new Uint8Array(await file.arrayBuffer());
+                                            await uploadBytes(storageRef, fileBytes, { contentType: file.type });
+                                            const url = await getDownloadURL(storageRef);
+                                            
+                                            // Save to files collection
+                                            const compName = companyToEdit.name || 'חברה_ללא_שם';
+                                            const formattedDate = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+                                            await addDoc(collection(db, 'files'), {
+                                                name: `לוגו-${compName}-${formattedDate}.${fileExt}`,
+                                                url,
+                                                type: file.type,
+                                                size: file.size,
+                                                createdAt: serverTimestamp(),
+                                                uploadedBy: currentUser?.uid
+                                            });
+                                            
+                                            setCompanyToEdit({ ...companyToEdit, logoUrl: url });
+                                            toast('הלוגו הועלה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)', 'success');
+                                        } catch (error) {
+                                            console.error('Error uploading logo:', error);
+                                            toast('שגיאה בהעלאת התמונה', 'error');
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">שם חברה</label>
                             <Input 

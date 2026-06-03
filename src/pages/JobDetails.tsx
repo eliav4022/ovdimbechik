@@ -405,8 +405,12 @@ const JobDetails: React.FC = () => {
 
           <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
             <div className="flex flex-col md:flex-row gap-8 items-start">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2.5rem] bg-white/10 backdrop-blur-xl flex items-center justify-center text-white border-2 border-white/10 shadow-2xl overflow-hidden shrink-0">
-                <Building2 size={56} className="text-primary" />
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center text-white border-2 border-white/10 shadow-2xl overflow-hidden shrink-0">
+                {job.companyLogo ? (
+                    <img src={job.companyLogo} alt={job.companyName} className="w-full h-full object-cover" />
+                ) : (
+                    <Building2 size={56} className="text-primary" />
+                )}
               </div>
               <div className="space-y-4 text-right">
                 <div className="flex flex-wrap gap-2 mb-3">

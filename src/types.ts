@@ -135,6 +135,7 @@ export interface BaseJob {
   description: string;
   companyName: string;
   companyDescription?: string;
+  companyLogo?: string;
   location: string;
   type: JobType;
   workMode?: WorkMode;

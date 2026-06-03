@@ -96,7 +96,7 @@ export const AdminFiles: React.FC = () => {
 
         setUploading(true);
         try {
-            const storageRef = ref(storage, `site_files/${Date.now()}_${file.name}`);
+            const storageRef = ref(storage, `cvs/${user.uid}/admin_${Date.now()}_${file.name}`);
             
             // Convert to byte array to bypass Blob/iframe issues in Firebase SDK
             const fileBytes = new Uint8Array(await file.arrayBuffer());

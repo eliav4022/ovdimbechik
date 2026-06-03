@@ -11,32 +11,39 @@ import { UserRole } from '../types';
 export const Footer: React.FC = () => {
     const { user } = useAuth();
     const [contactEmail, setContactEmail] = useState('Ovdimbechik@gmail.com');
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchSettings = async () => {
              const settingsDoc = await getDoc(doc(db, 'settings', 'system'));
-             if (settingsDoc.exists() && settingsDoc.data().contactEmail) {
-                 setContactEmail(settingsDoc.data().contactEmail);
+             if (settingsDoc.exists()) {
+                 const data = settingsDoc.data();
+                 if (data.contactEmail) setContactEmail(data.contactEmail);
+                 if (data.siteLogoUrl) setLogoUrl(data.siteLogoUrl);
              }
         };
         fetchSettings();
     }, []);
 
     return (
-        <footer className="bg-slate-900 pt-16 pb-8 border-t border-white/5 relative overflow-hidden" dir="rtl">
+        <footer className="bg-slate-900 pt-10 md:pt-16 pb-6 md:pb-8 border-t border-white/5 relative overflow-hidden" dir="rtl">
             {/* Background Decorative Elements */}
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-highlight/5 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/3 pointer-events-none" />
 
             <div className="max-w-7xl mx-auto px-6 relative z-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12 lg:gap-8 mb-10 md:mb-16">
                     {/* Brand Section */}
-                    <div className="space-y-6 text-center md:text-right">
+                    <div className="space-y-4 md:space-y-6 text-center md:text-right">
                         <Link to="/" className="inline-block group">
-                            <div className="text-4xl font-black tracking-tighter">
-                                <span className="text-white group-hover:text-primary transition-colors">עובדים</span>
-                                <span className="text-primary">בצ'יק</span>
-                            </div>
+                            {logoUrl ? (
+                                <img src={logoUrl} alt="עובדים בצ'יק בגרסה מוקטנת" className="h-16 w-auto object-contain brightness-0 invert" style={{ filter: 'brightness(0) invert(1) contrast(1.2)' }} />
+                            ) : (
+                                <div className="text-4xl font-black tracking-tighter">
+                                    <span className="text-white group-hover:text-primary transition-colors">עובדים</span>
+                                    <span className="text-primary">בצ'יק</span>
+                                </div>
+                            )}
                         </Link>
                         <p className="text-slate-400 font-medium leading-relaxed text-lg max-w-sm mx-auto md:mx-0">
                             הפלטפורמה המתקדמת בישראל למציאת עבודה וגיוס עובדים. אנחנו מחברים בין אנשים מוכשרים להזדמנויות הנכונות, בשיא המהירות והנוחות.
@@ -62,12 +69,12 @@ export const Footer: React.FC = () => {
                     </div>
 
                     {/* Navigation Columns */}
-                    <div className="space-y-6 text-center md:text-right">
+                    <div className="space-y-4 md:space-y-6 text-center md:text-right">
                         <h4 className="text-highlight font-black text-lg flex items-center gap-3 justify-center md:justify-start">
-                            <span className="w-8 h-px bg-white/20" />
+                            <span className="hidden md:block w-8 h-px bg-white/20" />
                             ניווט מהיר
                         </h4>
-                        <ul className="space-y-5 text-slate-300 font-bold text-base">
+                        <ul className="space-y-3 md:space-y-5 text-slate-300 font-bold text-base md:text-base text-sm">
                             <li><Link to="/" className="hover:text-primary transition-all flex items-center gap-3 justify-center md:justify-start group">
                                 <span className="w-2 h-2 bg-slate-800 rounded-full group-hover:bg-primary transition-colors" />
                                 לוח המשרות
@@ -87,12 +94,12 @@ export const Footer: React.FC = () => {
                         </ul>
                     </div>
 
-                    <div className="space-y-6 text-center md:text-right">
+                    <div className="space-y-4 md:space-y-6 text-center md:text-right">
                         <h4 className="text-highlight font-black text-lg flex items-center gap-3 justify-center md:justify-start">
-                            <span className="w-8 h-px bg-white/20" />
+                            <span className="hidden md:block w-8 h-px bg-white/20" />
                             מרכז המעסיקים
                         </h4>
-                        <ul className="space-y-5 text-slate-300 font-bold text-base">
+                        <ul className="space-y-3 md:space-y-5 text-slate-300 font-bold text-base md:text-base text-sm">
                             <li><Link to="/employer/post-job" className="hover:text-highlight transition-all flex items-center gap-3 justify-center md:justify-start group text-white">
                                 <Zap size={20} className="text-highlight animate-pulse" />
                                 פרסום משרה מהיר
@@ -111,12 +118,12 @@ export const Footer: React.FC = () => {
                     </div>
 
                     {/* Contact Info Column */}
-                    <div className="space-y-6 text-center md:text-right">
+                    <div className="space-y-4 md:space-y-6 text-center md:text-right">
                         <h4 className="text-highlight font-black text-lg flex items-center gap-3 justify-center md:justify-start">
-                            <span className="w-8 h-px bg-white/20" />
+                            <span className="hidden md:block w-8 h-px bg-white/20" />
                             פרטי התקשרות
                         </h4>
-                        <div className="text-slate-300 font-bold space-y-6 text-base">
+                        <div className="text-slate-300 font-bold space-y-4 md:space-y-6 text-sm md:text-base">
                             <div className="flex items-start gap-4 justify-center md:justify-start">
                                 <Mail size={24} className="text-primary mt-1 shrink-0" />
                                 <div className="text-right">

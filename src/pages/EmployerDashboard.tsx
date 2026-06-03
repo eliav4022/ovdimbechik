@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, addDoc, getDocs, writeBatch, getDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Helmet } from 'react-helmet-async';
