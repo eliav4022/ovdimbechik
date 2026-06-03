@@ -200,10 +200,12 @@ const Register: React.FC = () => {
           <form onSubmit={handleRegister} className="space-y-4 text-right">
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5 flex flex-col">
-                  <label className="block text-xs font-black text-slate-400 uppercase pr-2">שם פרטי</label>
+                  <label htmlFor="firstName" className="block text-xs font-black text-slate-400 uppercase pr-2">שם פרטי</label>
                   <div className="relative group">
                     <UserIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-teal transition-colors" size={20} />
                     <input
+                      id="firstName"
+                      name="firstName"
                       type="text"
                       required
                       className="w-full pr-12 pl-4 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-teal transition-all outline-none text-right font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
@@ -215,10 +217,12 @@ const Register: React.FC = () => {
                 </div>
 
                 <div className="space-y-1.5 flex flex-col">
-                  <label className="block text-xs font-black text-slate-400 uppercase pr-2">שם משפחה</label>
+                  <label htmlFor="lastName" className="block text-xs font-black text-slate-400 uppercase pr-2">שם משפחה</label>
                   <div className="relative group">
                     <UserIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-teal transition-colors" size={20} />
                     <input
+                      id="lastName"
+                      name="lastName"
                       type="text"
                       required
                       className="w-full pr-12 pl-4 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-teal transition-all outline-none text-right font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
@@ -231,10 +235,12 @@ const Register: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-black text-slate-400 uppercase pr-2">אימייל</label>
+              <label htmlFor="email" className="block text-xs font-black text-slate-400 uppercase pr-2">אימייל</label>
               <div className="relative group">
                 <Mail className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-teal transition-colors" size={20} />
                 <input
+                  id="email"
+                  name="email"
                   type="email"
                   required
                   className="w-full pr-12 pl-4 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-teal transition-all outline-none text-right font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
@@ -246,10 +252,12 @@ const Register: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-black text-slate-400 uppercase pr-2">סיסמה</label>
+              <label htmlFor="password" className="block text-xs font-black text-slate-400 uppercase pr-2">סיסמה</label>
               <div className="relative group">
                 <Lock className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-teal transition-colors" size={20} />
                     <input
+                      id="password"
+                      name="password"
                       type="password"
                       required
                       minLength={6}

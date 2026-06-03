@@ -159,10 +159,12 @@ const Login: React.FC = () => {
 
           <form onSubmit={handleLogin} className="space-y-5 text-right">
             <div className="space-y-1.5">
-              <label className="block text-xs font-black text-slate-400 uppercase pr-2">אימייל</label>
+              <label htmlFor="email" className="block text-xs font-black text-slate-400 uppercase pr-2">אימייל</label>
               <div className="relative group">
                 <Mail className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-teal transition-colors" size={20} />
                 <input
+                  id="email"
+                  name="email"
                   type="email"
                   required
                   className="w-full pr-12 pl-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-teal transition-all outline-none text-right font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
@@ -174,10 +176,12 @@ const Login: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-black text-slate-400 uppercase pr-2">סיסמה</label>
+              <label htmlFor="password" className="block text-xs font-black text-slate-400 uppercase pr-2">סיסמה</label>
               <div className="relative group">
                 <Lock className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-teal transition-colors" size={20} />
                 <input
+                  id="password"
+                  name="password"
                   type="password"
                   required
                   className="w-full pr-12 pl-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-teal transition-all outline-none text-right font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
