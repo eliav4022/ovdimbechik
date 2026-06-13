@@ -13,7 +13,8 @@ import {
   RefreshCcw,
   CheckCircle,
   XCircle,
-  Eye
+  Eye,
+  Copy
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -33,6 +34,7 @@ interface AdminTableProps<T> {
   data: T[];
   columns: Column<T>[];
   onEdit?: (item: T) => void;
+  onClone?: (item: T) => void;
   onDelete?: (item: T) => void;
   onView?: (item: T) => void;
   onStatusChange?: (item: T, newStatus: string) => void;
@@ -49,6 +51,7 @@ export function AdminTable<T extends { id: string; status?: string }>({
   data, 
   columns, 
   onEdit, 
+  onClone,
   onDelete,
   onView,
   onStatusChange,
@@ -190,10 +193,10 @@ export function AdminTable<T extends { id: string; status?: string }>({
         </div>
 
         {/* The Table (Desktop View) */}
-        <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full text-right">
-            <thead>
-              <tr className="bg-slate-50/50 text-slate-500 text-xs font-black border-b border-slate-100">
+        <div className="hidden md:block overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] rounded-2xl border border-slate-100 relative">
+          <table className="w-full text-right min-w-max">
+            <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-sm">
+              <tr className="text-slate-500 text-xs font-black border-b border-slate-100">
                 <th className="px-6 py-4 w-10">
                   <input 
                     type="checkbox" 
@@ -203,14 +206,14 @@ export function AdminTable<T extends { id: string; status?: string }>({
                   />
                 </th>
                 {columns.map(col => (
-                  <th key={col.key as string} className="px-6 py-4">
+                  <th key={col.key as string} className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2 group cursor-pointer hover:text-slate-900 transition-colors">
                       {col.header}
                       {col.sortable && <ArrowUpDown size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
                     </div>
                   </th>
                 ))}
-                <th className="px-6 py-4 text-left">פעולות</th>
+                <th className="px-6 py-4 text-left whitespace-nowrap">פעולות</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -246,15 +249,22 @@ export function AdminTable<T extends { id: string; status?: string }>({
                       </Button>
                     )}
                     {onEdit && (
-                      <Button variant="ghost" size="icon" onClick={() => onEdit(item)} className="text-slate-400 hover:text-indigo-600 h-8 w-8">
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(item)} className="text-slate-400 hover:text-indigo-600 h-8 w-8 text-xs relative group/tooltip">
                         <Edit size={16} />
+                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible whitespace-nowrap transition-all z-10">עריכה</span>
+                      </Button>
+                    )}
+                    {onClone && (
+                      <Button variant="ghost" size="icon" onClick={() => onClone(item)} className="text-slate-400 hover:text-emerald-600 h-8 w-8 text-xs relative group/tooltip">
+                        <Copy size={16} />
+                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible whitespace-nowrap transition-all z-10">שכפול</span>
                       </Button>
                     )}
                     <div className="group relative">
                       <Button variant="ghost" size="icon" className="text-slate-400 h-8 w-8">
                         <MoreHorizontal size={16} />
                       </Button>
-                      <div className="hidden group-hover:block absolute left-0 top-full mt-1 bg-white border border-slate-100 shadow-xl rounded-xl p-2 min-w-[140px] z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="hidden group-hover:block absolute left-0 top-full mt-1 bg-white border border-slate-100 shadow-xl rounded-xl p-2 min-w-[140px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                         {onStatusChange && (
                           <>
                             <button 
@@ -350,6 +360,11 @@ export function AdminTable<T extends { id: string; status?: string }>({
                       {onEdit && (
                           <Button variant="ghost" size="sm" onClick={() => onEdit(item)} className="text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 text-xs px-3 gap-1.5 rounded-lg border border-transparent hover:border-indigo-100 h-9">
                             <Edit size={16} /> <span>עריכה</span>
+                          </Button>
+                      )}
+                      {onClone && (
+                          <Button variant="ghost" size="sm" onClick={() => onClone(item)} className="text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-xs px-3 gap-1.5 rounded-lg border border-transparent hover:border-emerald-100 h-9">
+                            <Copy size={16} /> <span>שכפול</span>
                           </Button>
                       )}
                       <div className="group relative">

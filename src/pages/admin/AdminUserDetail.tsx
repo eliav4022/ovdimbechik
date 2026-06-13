@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, getDocs, documentId, setDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, storage } from '../../lib/firebase';
+import { doc, getDoc, collection, query, where, getDocs, documentId, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { User, Job, Application, UserRole } from '../../types';
-import { ArrowRight, UserCircle, Briefcase, FileText, CheckCircle, XCircle, Mail, Clock, CalendarDays, Loader2, Edit2, Lock } from 'lucide-react';
+import { ArrowRight, UserCircle, Briefcase, FileText, CheckCircle, XCircle, Mail, Clock, CalendarDays, Loader2, Edit2, Lock, User as UserIcon } from 'lucide-react';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { useToast } from '../../context/ToastContext';
 import { Badge } from '../../components/ui/Badge';
@@ -11,12 +12,15 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { adminNavItems } from '../../components/admin/AdminSidebar';
+import { useAuth } from '../../lib/AuthContext';
 
 export const AdminUserDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { user: currentUser } = useAuth();
 
     const [user, setUser] = useState<User | null>(null);
     const [savedJobs, setSavedJobs] = useState<Job[]>([]);
@@ -26,6 +30,97 @@ export const AdminUserDetail: React.FC = () => {
     
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState<{ role: UserRole, permissions: string[] }>({ role: UserRole.SEEKER, permissions: [] });
+
+    const [isGeneralEditOpen, setIsGeneralEditOpen] = useState(false);
+    const [generalEditData, setGeneralEditData] = useState<User | null>(null);
+    const [newPasswordForUser, setNewPasswordForUser] = useState('');
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+    const handleGeneralEditSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!generalEditData || !id) return;
+        try {
+            if (!generalEditData.email || !generalEditData.displayName) {
+               toast('נא למלא את כל שדות החובה', 'error');
+               return;
+            }
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(generalEditData.email)) {
+               toast('נא להזין כתובת אימייל תקינה', 'error');
+               return;
+            }
+            
+            await setDoc(doc(db, 'users', id), {
+                displayName: generalEditData.displayName,
+                email: generalEditData.email,
+                phone: generalEditData.phone || null,
+                location: (generalEditData as any).location || null,
+                photoURL: generalEditData.photoURL || null,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+            
+            try {
+                if (generalEditData.email !== user?.email) {
+                    const token = await currentUser?.getIdToken();
+                    await fetch('/api/admin/update-user-email', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            targetUid: id,
+                            newEmail: generalEditData.email
+                        })
+                    });
+                }
+            } catch (err) {
+                 console.error("Failed to update email in Auth", err);
+            }
+
+            toast('המשתמש עודכן בהצלחה', 'success');
+            setUser(generalEditData);
+            setIsGeneralEditOpen(false);
+        } catch (error) {
+            console.error("Error updating user:", error);
+            toast('שגיאה בעדכון המשתמש', 'error');
+        }
+    };
+
+    const handlePasswordReset = async () => {
+        if (!generalEditData || !newPasswordForUser || newPasswordForUser.length < 6) {
+            toast('חובה להזין סיסמה של 6 תווים לפחות', 'error');
+            return;
+        }
+        setIsUpdatingPassword(true);
+        try {
+            const token = await currentUser?.getIdToken();
+            const res = await fetch('/api/admin/update-user-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    targetUid: id,
+                    newPassword: newPasswordForUser
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast('הסיסמה עודכנה בהצלחה', 'success');
+                setNewPasswordForUser('');
+            } else {
+                const errMsg = data.error === "Firebase Admin config missing" ? "יש להגדיר FIREBASE_SERVICE_ACCOUNT בהגדרות כדי לעדכן סיסמה" : data.error;
+                toast(errMsg || 'שגיאה בעדכון הסיסמה', 'error');
+            }
+        } catch (err: any) {
+             toast('שגיאה בתקשורת עם השרת', 'error');
+        } finally {
+            setIsUpdatingPassword(false);
+        }
+    };
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -190,15 +285,27 @@ export const AdminUserDetail: React.FC = () => {
                     </div>
                 </div>
                 
-                <Button 
-                    onClick={() => {
-                        setEditData({ role: user.role || UserRole.SEEKER, permissions: user.permissions || [] });
-                        setIsEditModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold"
-                >
-                    <Edit2 size={16} /> עריכת הרשאות ותפקיד
-                </Button>
+                <div className="flex gap-2">
+                    <Button 
+                        onClick={() => {
+                            setGeneralEditData(user);
+                            setNewPasswordForUser('');
+                            setIsGeneralEditOpen(true);
+                        }}
+                        className="flex items-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold"
+                    >
+                        <Edit2 size={16} /> עריכה כללית
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            setEditData({ role: user.role || UserRole.SEEKER, permissions: user.permissions || [] });
+                            setIsEditModalOpen(true);
+                        }}
+                        className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold"
+                    >
+                        <Lock size={16} /> הרשאות
+                    </Button>
+                </div>
             </div>
 
             {/* Tabs */}
@@ -396,6 +503,124 @@ export const AdminUserDetail: React.FC = () => {
                         <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור שינויים</Button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal
+                isOpen={isGeneralEditOpen}
+                onClose={() => setIsGeneralEditOpen(false)}
+                title="עריכת פרטי משתמש"
+            >
+                {generalEditData && (
+                    <form onSubmit={handleGeneralEditSubmit} className="space-y-6">
+                        <div className="flex gap-4 items-center mb-4">
+                            <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center relative">
+                                {generalEditData.photoURL ? (
+                                    <img src={generalEditData.photoURL} alt={generalEditData.displayName} className="w-full h-full object-cover" />
+                                ) : (
+                                    <UserIcon className="text-slate-300" size={32} />
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">תמונת פרופיל / לוגו</label>
+                                <input 
+                                    type="file"
+                                    accept="image/*"
+                                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        try {
+                                            const fileExt = file.name.split('.').pop();
+                                            const storageRef = ref(storage, `cvs/admin_${Date.now()}.${fileExt}`);
+                                            const fileBytes = new Uint8Array(await file.arrayBuffer());
+                                            await uploadBytes(storageRef, fileBytes, { contentType: file.type });
+                                            const url = await getDownloadURL(storageRef);
+                                            
+                                            // Save to files collection
+                                            const userName = generalEditData.displayName || generalEditData.fullName || 'משתמש_ללא_שם';
+                                            const cleanName = ((generalEditData as any).companyName || userName).replace(/\s+/g, '_');
+                                            const formattedDate = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+                                            await addDoc(collection(db, 'files'), {
+                                                name: `לוגו-${cleanName}-${formattedDate}.${fileExt}`,
+                                                url,
+                                                type: file.type,
+                                                size: file.size,
+                                                createdAt: serverTimestamp(),
+                                                uploadedBy: currentUser?.uid
+                                            });
+                                            
+                                            setGeneralEditData({ ...generalEditData, photoURL: url });
+                                            toast('התמונה הועלתה בהצלחה, יש צורך לשמור כדי להחל השינוי', 'success');
+                                        } catch (error) {
+                                            console.error('Error uploading image:', error);
+                                            toast('שגיאה בהעלאת התמונה', 'error');
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">שם חדש</label>
+                            <Input 
+                                required
+                                value={generalEditData.displayName}
+                                onChange={(e) => setGeneralEditData({ ...generalEditData, displayName: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">אימייל</label>
+                            <Input 
+                                type="email"
+                                required
+                                value={generalEditData.email}
+                                onChange={(e) => setGeneralEditData({ ...generalEditData, email: e.target.value })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                                <Input 
+                                    value={generalEditData.phone || ''}
+                                    onChange={(e) => setGeneralEditData({ ...generalEditData, phone: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
+                                <Input 
+                                    value={(generalEditData as any).location || ''}
+                                    onChange={(e) => setGeneralEditData({ ...generalEditData, location: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 mt-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">איפוס סיסמה למשתמש</label>
+                            <div className="flex gap-2">
+                                <Input 
+                                    type="text"
+                                    placeholder="הזן סיסמה חדשה (לפחות 6 תווים)"
+                                    value={newPasswordForUser}
+                                    onChange={(e) => setNewPasswordForUser(e.target.value)}
+                                    className="flex-1"
+                                />
+                                <Button 
+                                    type="button" 
+                                    onClick={handlePasswordReset}
+                                    disabled={isUpdatingPassword || newPasswordForUser.length < 6}
+                                    className="bg-slate-800 hover:bg-slate-900 text-white shrink-0"
+                                >
+                                    {isUpdatingPassword ? 'מעדכן...' : 'עדכן סיסמה'}
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">שינוי סיסמה למשתמשי טסטים / קליינטים בלי גישה למייל</p>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+                            <Button type="button" variant="ghost" onClick={() => setIsGeneralEditOpen(false)}>ביטול</Button>
+                            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור שינויים</Button>
+                        </div>
+                    </form>
+                )}
             </Modal>
         </div>
     );

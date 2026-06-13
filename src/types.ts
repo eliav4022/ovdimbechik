@@ -30,6 +30,7 @@ export interface User {
   companyName?: string;
   companyId?: string; // Links this user to a company
   isCompanyAdmin?: boolean; // Can manage company tokens
+  canViewRelevantSeekers?: boolean; // Can this employer explicitly view relevant seekers?
   companyDescription?: string;
   cvUrl?: string; // Kept for compatibility
   savedJobs?: string[]; // Kept for compatibility

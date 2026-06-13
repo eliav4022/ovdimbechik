@@ -83,7 +83,7 @@ export const AdminLayout: React.FC = () => {
         />
       )}
 
-      <main className="flex-grow md:mr-64 p-4 md:p-8 w-full md:w-auto relative">
+      <main className="flex-1 min-w-0 md:mr-64 p-4 md:p-8 w-full md:w-[calc(100%-16rem)] relative">
         <div className="max-w-7xl mx-auto">
           {hasAccess ? (
               <Outlet />

@@ -25,6 +25,8 @@ export const AdminEmployers: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [employerToEdit, setEmployerToEdit] = useState<User | null>(null);
+    const [newPasswordForUser, setNewPasswordForUser] = useState('');
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
     const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
     const [employerForCredits, setEmployerForCredits] = useState<User | null>(null);
@@ -34,7 +36,10 @@ export const AdminEmployers: React.FC = () => {
     const [newEmployer, setNewEmployer] = useState({
         displayName: '',
         email: '',
-        companyName: ''
+        companyName: '',
+        phone: '',
+        location: '',
+        password: ''
     });
 
     const [searchParams] = useSearchParams();
@@ -70,7 +75,37 @@ export const AdminEmployers: React.FC = () => {
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const uid = 'emp_' + Date.now();
+            if (!newEmployer.email) {
+                toast('נא למלא אימייל', 'error');
+                return;
+            }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(newEmployer.email)) {
+                toast('נא להזין כתובת אימייל תקינה', 'error');
+                return;
+            }
+
+            let uid = 'emp_' + Date.now();
+
+            if (newEmployer.password) {
+                const token = await currentUser?.getIdToken();
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        email: newEmployer.email,
+                        password: newEmployer.password,
+                        displayName: newEmployer.displayName,
+                        uid: uid
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error === "Firebase Admin config missing" ? "שגיאה: הגדר מפתח פיירבייס SERVICE ACCOUNT בסודות כדי להוסיף סיסמה לחשבון משתמש חדש" : data.error || 'Failed to create user in Auth');
+            }
+
             const companyId = 'comp_' + Date.now();
             
             await setDoc(doc(db, 'companies', companyId), {
@@ -84,6 +119,8 @@ export const AdminEmployers: React.FC = () => {
                 uid,
                 email: newEmployer.email,
                 displayName: newEmployer.displayName,
+                phone: newEmployer.phone,
+                location: newEmployer.location,
                 role: UserRole.EMPLOYER,
                 companyId,
                 companyName: newEmployer.companyName, // Added to fix missing company mapping
@@ -93,16 +130,59 @@ export const AdminEmployers: React.FC = () => {
             
             toast('מעסיק חדש התווסף בהצלחה', 'success');
             setIsAddModalOpen(false);
-            setNewEmployer({ displayName: '', email: '', companyName: '' });
-        } catch (error) {
+            setNewEmployer({ displayName: '', email: '', companyName: '', phone: '', location: '', password: '' });
+        } catch (error: any) {
             console.error("Error adding employer:", error);
-            toast('שגיאה בהוספת המעסיק', 'error');
+            toast(error.message || 'שגיאה בהוספת המעסיק', 'error');
         }
     };
 
     const handleEditOpen = (user: User) => {
         setEmployerToEdit(user);
+        setNewPasswordForUser('');
         setIsEditModalOpen(true);
+    };
+
+    const handlePasswordReset = async () => {
+        if (!employerToEdit || !newPasswordForUser || newPasswordForUser.length < 6) {
+            toast('חובה להזין סיסמה של 6 תווים לפחות', 'error');
+            return;
+        }
+        setIsUpdatingPassword(true);
+        try {
+            const token = await currentUser?.getIdToken();
+            const res = await fetch('/api/admin/update-user-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    targetUid: (employerToEdit as any).id || employerToEdit.uid,
+                    newPassword: newPasswordForUser
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast('הסיסמה עודכנה בהצלחה', 'success');
+                setNewPasswordForUser('');
+            } else {
+                toast(data.error || 'שגיאה בעדכון הסיסמה', 'error');
+            }
+        } catch (err: any) {
+             toast('שגיאה בתקשורת עם השרת', 'error');
+        } finally {
+            setIsUpdatingPassword(false);
+        }
+    };
+
+    const handleClone = (user: User) => {
+        setNewEmployer({
+            displayName: user.displayName ? user.displayName + ' (עותק)' : '',
+            email: user.email ? 'copy_' + user.email : '',
+            companyName: (user as any).employerProfile?.companyName || ''
+        });
+        setIsAddModalOpen(true);
     };
 
     const handleEditSubmit = async (e: React.FormEvent) => {
@@ -112,8 +192,28 @@ export const AdminEmployers: React.FC = () => {
             await setDoc(doc(db, 'users', (employerToEdit as any).id || employerToEdit.uid), {
                 displayName: employerToEdit.displayName,
                 email: employerToEdit.email,
+                phone: employerToEdit.phone || null,
+                location: (employerToEdit as any).location || null,
+                canViewRelevantSeekers: !!employerToEdit.canViewRelevantSeekers,
                 updatedAt: new Date().toISOString()
             }, { merge: true });
+
+            try {
+                const token = await currentUser?.getIdToken();
+                await fetch('/api/admin/update-user-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        targetUid: (employerToEdit as any).id || employerToEdit.uid,
+                        newEmail: employerToEdit.email
+                    })
+                });
+            } catch (err) {
+                 console.error("Failed to update email in Auth", err);
+            }
             
             toast('המעסיק עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
@@ -277,6 +377,7 @@ export const AdminEmployers: React.FC = () => {
                 searchFields={['displayName', 'email']}
                 onAdd={() => setIsAddModalOpen(true)}
                 onEdit={handleEditOpen}
+                onClone={handleClone}
                 onDelete={handleDelete}
                 onStatusChange={handleStatusChange}
                 bulkActions={[
@@ -338,6 +439,34 @@ export const AdminEmployers: React.FC = () => {
                             onChange={(e) => setNewEmployer(prev => ({...prev, companyName: e.target.value}))}
                         />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                            <Input 
+                                placeholder="למשל: 050-1234567" 
+                                value={newEmployer.phone || ''}
+                                onChange={(e) => setNewEmployer(prev => ({...prev, phone: e.target.value}))}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">מיקום / מטה</label>
+                            <Input 
+                                placeholder="למשל: תל אביב, חיפה..." 
+                                value={newEmployer.location || ''}
+                                onChange={(e) => setNewEmployer(prev => ({...prev, location: e.target.value}))}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">סיסמה (אופציונלי - ליצירת משתמש אמיתי)</label>
+                        <Input 
+                            type="password"
+                            placeholder="סיסמה (לפחות 6 תווים)" 
+                            value={newEmployer.password || ''}
+                            onChange={(e) => setNewEmployer(prev => ({...prev, password: e.target.value}))}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">אם תוזן סיסמה, משתמש זה יוצר במערכת ההזדהות ויוכל להתחבר מיד.</p>
+                    </div>
                     <div className="flex justify-end gap-3 pt-6">
                         <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)}>ביטול</Button>
                         <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור מעסיק</Button>
@@ -369,6 +498,54 @@ export const AdminEmployers: React.FC = () => {
                                 onChange={(e) => setEmployerToEdit({ ...employerToEdit, email: e.target.value })}
                             />
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                                <Input 
+                                    value={employerToEdit.phone || ''}
+                                    onChange={(e) => setEmployerToEdit({ ...employerToEdit, phone: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">מיקום / מטה</label>
+                                <Input 
+                                    value={(employerToEdit as any).location || ''}
+                                    onChange={(e) => setEmployerToEdit({ ...employerToEdit, location: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-200 transition-colors" onClick={() => setEmployerToEdit({...employerToEdit, canViewRelevantSeekers: !employerToEdit.canViewRelevantSeekers})}>
+                            <div className={`w-12 h-6 rounded-full p-1 transition-colors ${employerToEdit.canViewRelevantSeekers ? 'bg-indigo-500' : 'bg-slate-200'}`}>
+                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${employerToEdit.canViewRelevantSeekers ? 'translate-x-min-6 rtl:translate-x-6' : 'translate-x-0'}`} style={{ transform: employerToEdit.canViewRelevantSeekers ? 'translateX(-24px)' : 'translateX(0)' }} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900">רשאי לראות עובדים רלוונטים</h4>
+                                <p className="text-xs text-slate-500">אפשר למעסיק ספציפי זה לצפות במשתמשים רלוונטים למסרות שלו.</p>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 mt-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">איפוס סיסמה למעסיק</label>
+                            <div className="flex gap-2">
+                                <Input 
+                                    type="text"
+                                    placeholder="הזן סיסמה חדשה (לפחות 6 תווים)"
+                                    value={newPasswordForUser}
+                                    onChange={(e) => setNewPasswordForUser(e.target.value)}
+                                    className="flex-1"
+                                />
+                                <Button 
+                                    type="button" 
+                                    onClick={handlePasswordReset}
+                                    disabled={isUpdatingPassword || newPasswordForUser.length < 6}
+                                    className="bg-slate-800 hover:bg-slate-900 text-white shrink-0"
+                                >
+                                    {isUpdatingPassword ? 'מעדכן...' : 'עדכן סיסמה'}
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">שינוי סיסמה למשתמשי טסטים / קליינטים בלי גישה למייל</p>
+                        </div>
+
                         <div className="flex justify-end gap-3 pt-6">
                             <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>ביטול</Button>
                             <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור שינויים</Button>

@@ -87,6 +87,16 @@ export const AdminCompanies: React.FC = () => {
         setIsEditModalOpen(true);
     };
 
+    const handleClone = (company: any) => {
+        setNewCompany({
+            name: company.name ? company.name + ' (עותק)' : '',
+            employerId: company.employerId || '',
+            industry: company.industry || '',
+            location: company.location || ''
+        });
+        setIsAddModalOpen(true);
+    };
+
     const handleEditSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!companyToEdit) return;
@@ -243,6 +253,7 @@ export const AdminCompanies: React.FC = () => {
                 searchFields={['name', 'industry', 'location']}
                 onAdd={() => setIsAddModalOpen(true)}
                 onEdit={handleEditOpen}
+                onClone={handleClone}
                 onDelete={handleDelete}
                 onStatusChange={handleStatusChange}
                 onExport={() => console.log('Exporting companies...')}

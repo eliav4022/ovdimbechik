@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, doc, setDoc, where, getDocs, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
+import { moveToRecycleBin } from '../../lib/recycleBin';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
@@ -27,12 +28,17 @@ export const AdminUsers: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [newPasswordForUser, setNewPasswordForUser] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const [newUser, setNewUser] = useState({
     displayName: '',
     email: '',
     role: UserRole.SEEKER,
-    permissions: [] as string[]
+    permissions: [] as string[],
+    phone: '',
+    location: '',
+    password: ''
   });
 
   useEffect(() => {
@@ -63,20 +69,48 @@ export const AdminUsers: React.FC = () => {
              return;
           }
           
-          const q = query(collection(db, 'users'), where('email', '==', newUser.email));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-              toast('שגיאה: המייל כבר קיים במערכת', 'error');
-              return;
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(newUser.email)) {
+             toast('נא להזין כתובת אימייל תקינה', 'error');
+             return;
           }
 
-          const uid = 'usr_' + Date.now();
+          let uid = 'usr_' + Date.now();
+          
+          if (newUser.password) {
+              const token = await currentUser?.getIdToken();
+              const res = await fetch('/api/admin/create-user', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                      email: newUser.email,
+                      password: newUser.password,
+                      displayName: newUser.displayName,
+                      uid: uid
+                  })
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error === "Firebase Admin config missing" ? "שגיאה: כדי ליצור משתמשים עם סיסמה, יש להגדיר מפתח FIREBASE_SERVICE_ACCOUNT בהגדרות ה-Secrets" : data.error || 'Failed to create user in Auth');
+          } else {
+             // Basic duplicate check if not using auth
+              const q = query(collection(db, 'users'), where('email', '==', newUser.email));
+              const querySnapshot = await getDocs(q);
+              if (!querySnapshot.empty) {
+                  toast('שגיאה: המייל כבר קיים במערכת', 'error');
+                  return;
+              }
+          }
           
           await setDoc(doc(db, 'users', uid), {
               uid,
               email: newUser.email,
               displayName: newUser.displayName,
               fullName: newUser.displayName,
+              phone: newUser.phone,
+              location: newUser.location,
               role: newUser.role,
               permissions: newUser.permissions,
               isVerified: true,
@@ -85,10 +119,10 @@ export const AdminUsers: React.FC = () => {
           
           toast('משתמש חדש התווסף בהצלחה', 'success');
           setIsAddModalOpen(false);
-          setNewUser({ displayName: '', email: '', role: UserRole.SEEKER, permissions: [] });
-      } catch (error) {
+          setNewUser({ displayName: '', email: '', role: UserRole.SEEKER, permissions: [], phone: '', location: '', password: '' });
+      } catch (error: any) {
           console.error("Error adding user:", error);
-          toast('שגיאה בהוספת משתמש', 'error');
+          toast(error.message || 'שגיאה בהוספת משתמש', 'error');
       }
   };
 
@@ -107,56 +141,47 @@ export const AdminUsers: React.FC = () => {
       const batches = [];
       let currentBatch = writeBatch(db);
       let count = 0;
+      let relatedData: any[] = [];
 
-      const addToBatch = (ref: any) => {
+      const addToBatch = (ref: any, data: any, collectionName: string) => {
           if (count >= 499) {
               batches.push(currentBatch);
               currentBatch = writeBatch(db);
               count = 0;
           }
+          relatedData.push({ collection: collectionName, id: ref.id, data });
           currentBatch.delete(ref);
           count++;
       };
 
-      // If employer, delete their jobs and applications for those jobs
       if (role === UserRole.EMPLOYER) {
           const jobsQuery = query(collection(db, 'jobs'), where('employerId', '==', uid));
           const jobsSnap = await getDocs(jobsQuery);
           
           for (const jobDoc of jobsSnap.docs) {
-              addToBatch(jobDoc.ref);
+              addToBatch(jobDoc.ref, jobDoc.data(), 'jobs');
               
-              // Applications for this job
               const appsQuery = query(collection(db, 'applications'), where('jobId', '==', jobDoc.id));
               const appsSnap = await getDocs(appsQuery);
-              appsSnap.forEach(appDoc => addToBatch(appDoc.ref));
+              appsSnap.forEach(appDoc => addToBatch(appDoc.ref, appDoc.data(), 'applications'));
           }
       } 
-      // If seeker, delete their applications and profile CV
       else {
           const appsQuery = query(collection(db, 'applications'), where('seekerId', '==', uid));
           const appsSnap = await getDocs(appsQuery);
-          appsSnap.forEach(appDoc => addToBatch(appDoc.ref));
-          
-          if (userToDelete.cvUrl) {
-              try {
-                  const cvRef = ref(storage, userToDelete.cvUrl);
-                  await deleteObject(cvRef);
-              } catch (e) {
-                  console.error("Failed to delete CV:", e);
-              }
-          }
+          appsSnap.forEach(appDoc => addToBatch(appDoc.ref, appDoc.data(), 'applications'));
       }
 
-      // Finally, delete the user document itself
-      addToBatch(doc(db, 'users', uid));
+      await moveToRecycleBin('users', uid, { ...userToDelete, deleteReason: reason }, relatedData, currentUser.uid);
+
+      currentBatch.delete(doc(db, 'users', uid));
       batches.push(currentBatch);
 
       for (const b of batches) {
           await b.commit();
       }
 
-      toast('המשתמש וכל הנתונים המשויכים אליו נמחקו בהצלחה!', 'success');
+      toast('המשתמש הועבר לסל המיחזור בהצלחה!', 'success');
     } catch (error) {
       console.error("Delete failed:", error);
       toast('שגיאה במחיקת המשתמש', 'error');
@@ -168,7 +193,56 @@ export const AdminUsers: React.FC = () => {
 
   const handleEditOpen = (user: User) => {
       setUserToEdit({ ...user, permissions: user.permissions || [] });
+      setNewPasswordForUser('');
       setIsEditModalOpen(true);
+  };
+
+  const handlePasswordReset = async () => {
+      if (!userToEdit || !newPasswordForUser || newPasswordForUser.length < 6) {
+          toast('חובה להזין סיסמה של 6 תווים לפחות', 'error');
+          return;
+      }
+      setIsUpdatingPassword(true);
+      try {
+          const token = await currentUser?.getIdToken();
+          const res = await fetch('/api/admin/update-user-password', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                  targetUid: (userToEdit as any).id || userToEdit.uid,
+                  newPassword: newPasswordForUser
+              })
+          });
+          const data = await res.json();
+          if (data.success) {
+              toast('הסיסמה עודכנה בהצלחה', 'success');
+              setNewPasswordForUser('');
+          } else {
+              const errMsg = data.error === "Firebase Admin config missing" ? "יש להגדיר FIREBASE_SERVICE_ACCOUNT בהגדרות כדי לעדכן סיסמה" : data.error;
+              toast(errMsg || 'שגיאה בעדכון הסיסמה', 'error');
+          }
+      } catch (err: any) {
+           toast('שגיאה בתקשורת עם השרת', 'error');
+      } finally {
+          setIsUpdatingPassword(false);
+      }
+  };
+
+  const handleClone = (user: User) => {
+
+      setNewUser({
+          displayName: user.displayName ? user.displayName + ' (עותק)' : '',
+          email: user.email ? 'copy_' + user.email : '',
+          role: user.role || UserRole.SEEKER,
+          permissions: user.permissions || [],
+          phone: user.phone || '',
+          location: (user as any).location || '',
+          password: ''
+      });
+      setIsAddModalOpen(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -179,6 +253,13 @@ export const AdminUsers: React.FC = () => {
              toast('נא למלא את כל שדות החובה', 'error');
              return;
           }
+
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(userToEdit.email)) {
+             toast('נא להזין כתובת אימייל תקינה', 'error');
+             return;
+          }
+
           const id = (userToEdit as any).id || userToEdit.uid;
           
           const q = query(collection(db, 'users'), where('email', '==', userToEdit.email));
@@ -192,12 +273,31 @@ export const AdminUsers: React.FC = () => {
           await setDoc(doc(db, 'users', id), {
               displayName: userToEdit.displayName,
               email: userToEdit.email,
+              phone: userToEdit.phone || null,
+              location: (userToEdit as any).location || null,
               role: userToEdit.role,
               permissions: userToEdit.permissions || [],
               photoURL: userToEdit.photoURL || null,
               updatedAt: new Date().toISOString()
           }, { merge: true });
           
+          try {
+              const token = await currentUser?.getIdToken();
+              await fetch('/api/admin/update-user-email', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                      targetUid: id,
+                      newEmail: userToEdit.email
+                  })
+              });
+          } catch (err) {
+               console.error("Failed to update email in Auth", err);
+          }
+
           toast('המשתמש עודכן בהצלחה', 'success');
           setIsEditModalOpen(false);
           setUserToEdit(null);
@@ -279,12 +379,23 @@ export const AdminUsers: React.FC = () => {
       header: 'שם מלא',
       render: (u: any) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-black">
-            {u.displayName ? u.displayName[0] : '?'}
+          <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-black relative overflow-hidden">
+             {u.photoURL ? (
+                <img src={u.photoURL} alt={u.displayName} className="w-full h-full object-cover" />
+             ) : (
+                u.displayName ? u.displayName[0] : '?'
+             )}
           </div>
           <div>
             <p className="font-black text-slate-900 leading-tight">{u.displayName || 'ללא שם'}</p>
-            <p className="text-xs text-slate-500 font-medium lowercase">{u.email || ''}</p>
+            <p className="text-[11px] text-slate-500 font-medium">{u.email || ''}</p>
+            {(u.phone || u.location) && (
+              <p className="text-[10px] text-slate-400 font-medium">
+                  {u.phone && <span>{u.phone}</span>}
+                  {u.phone && u.location && <span className="mx-1">•</span>}
+                  {u.location && <span>{u.location}</span>}
+              </p>
+            )}
           </div>
         </div>
       )
@@ -369,6 +480,7 @@ export const AdminUsers: React.FC = () => {
         searchFields={['displayName', 'email']}
         onAdd={() => setIsAddModalOpen(true)}
         onEdit={handleEditOpen}
+        onClone={handleClone}
         onDelete={handleDelete}
         onView={(u: any) => navigate(`/admin/users/${u.id || u.uid}`)}
         onStatusChange={handleStatusChange}
@@ -435,6 +547,24 @@ export const AdminUsers: React.FC = () => {
                       onChange={(e) => setNewUser(prev => ({...prev, email: e.target.value}))}
                   />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                      <Input 
+                          placeholder="למשל: 050-1234567" 
+                          value={newUser.phone || ''}
+                          onChange={(e) => setNewUser(prev => ({...prev, phone: e.target.value}))}
+                      />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
+                      <Input 
+                          placeholder="תל אביב..." 
+                          value={newUser.location || ''}
+                          onChange={(e) => setNewUser(prev => ({...prev, location: e.target.value}))}
+                      />
+                  </div>
+              </div>
               <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">תפקיד</label>
                   <select 
@@ -448,6 +578,17 @@ export const AdminUsers: React.FC = () => {
                   </select>
               </div>
               
+              <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">סיסמה (אופציונלי - ליצירת משתמש אמיתי)</label>
+                  <Input 
+                      type="password"
+                      placeholder="סיסמה (לפחות 6 תווים)" 
+                      value={newUser.password || ''}
+                      onChange={(e) => setNewUser(prev => ({...prev, password: e.target.value}))}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">אם תוזן סיסמה, המשתמש יוכל להתחבר למערכת מיד.</p>
+              </div>
+
               {renderPermissionsSelector(newUser.role, newUser.permissions, false)}
 
               <div className="flex justify-end gap-3 pt-6">
@@ -528,6 +669,22 @@ export const AdminUsers: React.FC = () => {
                           onChange={(e) => setUserToEdit({ ...userToEdit, email: e.target.value })}
                       />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                          <Input 
+                              value={userToEdit.phone || ''}
+                              onChange={(e) => setUserToEdit({ ...userToEdit, phone: e.target.value })}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
+                          <Input 
+                              value={(userToEdit as any).location || ''}
+                              onChange={(e) => setUserToEdit({ ...userToEdit, location: e.target.value })}
+                          />
+                      </div>
+                  </div>
                   <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2">תפקיד</label>
                       <select 
@@ -542,6 +699,28 @@ export const AdminUsers: React.FC = () => {
                   </div>
 
                   {renderPermissionsSelector(userToEdit.role, userToEdit.permissions || [], true)}
+
+                  <div className="pt-4 border-t border-slate-200 mt-6">
+                      <label className="block text-sm font-bold text-slate-700 mb-2">איפוס סיסמה למשתמש</label>
+                      <div className="flex gap-2">
+                          <Input 
+                              type="text"
+                              placeholder="הזן סיסמה חדשה (לפחות 6 תווים)"
+                              value={newPasswordForUser}
+                              onChange={(e) => setNewPasswordForUser(e.target.value)}
+                              className="flex-1"
+                          />
+                          <Button 
+                              type="button" 
+                              onClick={handlePasswordReset}
+                              disabled={isUpdatingPassword || newPasswordForUser.length < 6}
+                              className="bg-slate-800 hover:bg-slate-900 text-white shrink-0"
+                          >
+                              {isUpdatingPassword ? 'מעדכן...' : 'עדכן סיסמה'}
+                          </Button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">שינוי סיסמה למשתמשי טסטים / קליינטים בלי גישה למייל</p>
+                  </div>
 
                   <div className="flex justify-end gap-3 pt-6">
                       <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>ביטול</Button>

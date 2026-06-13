@@ -124,6 +124,18 @@ export const AdminApplications: React.FC = () => {
         setIsEditModalOpen(true);
     };
 
+    const handleClone = (application: any) => {
+        setNewApplication({
+            jobId: application.jobId || '',
+            seekerId: application.seekerId || '',
+            applicantName: application.applicantName ? application.applicantName + ' (עותק)' : '',
+            applicantEmail: application.applicantEmail || '',
+            applicantPhone: application.applicantPhone || '',
+            coverLetter: application.coverLetter || ''
+        });
+        setIsAddModalOpen(true);
+    };
+
     const handleEditSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!applicationToEdit) return;
@@ -325,6 +337,7 @@ export const AdminApplications: React.FC = () => {
                 searchFields={['applicantName', 'applicantEmail', 'jobTitle']}
                 onAdd={() => setIsAddModalOpen(true)}
                 onEdit={handleEditOpen}
+                onClone={handleClone}
                 onDelete={handleDelete}
                 onStatusChange={handleStatusChange}
                 bulkActions={bulkActions}

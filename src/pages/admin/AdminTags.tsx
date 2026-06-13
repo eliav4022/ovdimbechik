@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/Input';
 import { Save, Tag as TagIcon, X, Plus, FolderTree, MapPin, Briefcase, Users, Lock, AlertTriangle, Cog, Edit2, CheckCircle2, Trash2 } from 'lucide-react';
 import { doc, getDoc, setDoc, collection, getDocs, query, updateDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { Link } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { cn } from '../../lib/utils';
@@ -91,6 +92,10 @@ export const AdminTags: React.FC = () => {
     const [newTag, setNewTag] = useState('');
     const [newLocation, setNewLocation] = useState('');
     const [selectedCategoryForTag, setSelectedCategoryForTag] = useState('');
+    
+    // Search states for tags
+    const [searchTag, setSearchTag] = useState('');
+    const [minJobsFilter, setMinJobsFilter] = useState('');
 
     useEffect(() => {
         const fetchTags = async () => {
@@ -819,19 +824,45 @@ export const AdminTags: React.FC = () => {
                     </Card>
 
                     <Card className="p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl max-w-4xl mx-auto">
-                        <h3 className="text-xl font-black text-slate-800 mb-6">מיפוי תגיות לקטגוריות</h3>
-                        <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                            <h3 className="text-xl font-black text-slate-800">מיפוי תגיות לקטגוריות</h3>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <Input 
+                                    placeholder="חיפוש תגית..." 
+                                    className="w-full sm:w-48 bg-slate-50 border-slate-200 text-sm"
+                                    value={searchTag}
+                                    onChange={(e) => setSearchTag(e.target.value)}
+                                />
+                                <Input 
+                                    type="number"
+                                    placeholder="מינימום משרות" 
+                                    className="w-full sm:w-36 bg-slate-50 border-slate-200 text-sm"
+                                    value={minJobsFilter}
+                                    onChange={(e) => setMinJobsFilter(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-8">
                             {Array.from(new Set([...categories, ...Object.keys(predefinedTagsByCategory)])).map(cat => {
                                 const customTags = tagsByCategory[cat] || [];
                                 const predefinedTags = predefinedTagsByCategory[cat] || [];
                                 const allLinkedTags = Array.from(new Set([...customTags, ...predefinedTags]));
                                 
-                                if (allLinkedTags.length === 0) return null;
+                                const filteredTags = allLinkedTags.filter(tag => {
+                                    const jobCount = jobsMap.tags[tag] || 0;
+                                    const matchesSearch = tag.toLowerCase().includes(searchTag.toLowerCase());
+                                    const minJobs = parseInt(minJobsFilter) || 0;
+                                    const matchesJobs = jobCount >= minJobs;
+                                    return matchesSearch && matchesJobs;
+                                });
+
+                                if (filteredTags.length === 0) return null;
                                 return (
                                     <div key={cat} className="space-y-3">
                                         <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest">{cat}</h4>
                                         <div className="flex flex-wrap gap-2">
-                                            {allLinkedTags.map(tag => {
+                                            {filteredTags.map(tag => {
                                                 const jobCount = jobsMap.tags[tag] || 0;
                                                 const isPredefined = predefinedTags.includes(tag);
                                                 return (
@@ -865,8 +896,87 @@ export const AdminTags: React.FC = () => {
                                 );
                             })}
                             
-                           {Array.from(new Set([...categories, ...Object.keys(predefinedTagsByCategory)])).length === 0 && (
-                                <p className="text-slate-500 py-4 font-medium w-full text-center">לא שוייכו תגיות לאף קטגוריה עדיין.</p>
+                            {/* Unassigned Tags Section */}
+                            {(() => {
+                                const allAssignedTags = new Set([
+                                    ...Object.values(tagsByCategory).flat(),
+                                    ...Object.values(predefinedTagsByCategory).flat()
+                                ]);
+                                const unassignedTags = legacyJobTags.filter(t => !allAssignedTags.has(t));
+                                
+                                const filteredUnassigned = unassignedTags.filter(tag => {
+                                    const jobCount = jobsMap.tags[tag] || 0;
+                                    const matchesSearch = tag.toLowerCase().includes(searchTag.toLowerCase());
+                                    const minJobs = parseInt(minJobsFilter) || 0;
+                                    const matchesJobs = jobCount >= minJobs;
+                                    return matchesSearch && matchesJobs;
+                                });
+
+                                if (filteredUnassigned.length === 0) return null;
+
+                                return (
+                                    <div className="space-y-3 pt-6 border-t border-slate-100 mt-6">
+                                        <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest text-orange-500 flex items-center gap-2">
+                                            <AlertTriangle size={14} /> תגיות יתומות (ללא קטגוריה)
+                                        </h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {filteredUnassigned.map(tag => {
+                                                const jobCount = jobsMap.tags[tag] || 0;
+                                                return (
+                                                    <div 
+                                                        key={tag} 
+                                                        className="flex items-center gap-2 border font-bold px-4 py-2 rounded-xl text-sm cursor-pointer transition-all shadow-sm hover:shadow bg-slate-50 border-orange-200 text-slate-800 hover:border-orange-500 hover:bg-orange-50/50"
+                                                        onClick={() => setViewTagModal(tag)}
+                                                    >
+                                                        <span>{tag}</span>
+                                                        <span className={cn("px-1.5 py-0.5 rounded text-[10px]", jobCount > 0 ? "bg-orange-100 text-orange-700" : "bg-slate-200 text-slate-500")}>
+                                                            {jobCount} משרות
+                                                        </span>
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                requestConfirmAction(`האם אתה בטוח שברצונך למחוק מכל המערכת את התגית היתומה "${tag}"? המחיקה תסיר את התגית גם מכל המשרות שקשורות אליה!`, async () => {
+                                                                    setSaving(true);
+                                                                    try {
+                                                                        setLegacyJobTags(prev => prev.filter(t => t !== tag));
+                                                                        const tagsRef = doc(db, 'settings', 'tags');
+                                                                        const newJobTags = legacyJobTags.filter(t => t !== tag);
+                                                                        await setDoc(tagsRef, { jobTags: newJobTags }, { merge: true });
+                                                                        
+                                                                        const jobsWithTag = allJobs.filter(j => j.tags?.includes(tag) || j.category === tag);
+                                                                        let updatedCount = 0;
+                                                                        for (const j of jobsWithTag) {
+                                                                            if (j.id) {
+                                                                                const updatedTags = (j.tags || []).filter((t: string) => t !== tag);
+                                                                                await updateDoc(doc(db, 'jobs', j.id), { tags: updatedTags });
+                                                                                updatedCount++;
+                                                                            }
+                                                                        }
+                                                                        
+                                                                        toast(`תגית נמחקה בהצלחה (הוסרה מ-${updatedCount} משרות)`, 'success');
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        toast('שגיאה במחיקת תגית', 'error');
+                                                                    } finally {
+                                                                        setSaving(false);
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="text-slate-400 hover:text-red-500 transition-colors mr-2"
+                                                            title="מחק הכל"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            
+                           {Array.from(new Set([...categories, ...Object.keys(predefinedTagsByCategory)])).length === 0 && legacyJobTags.length === 0 && (
+                                <p className="text-slate-500 py-4 font-medium w-full text-center">לא שוייכו תגיות לאף קטגוריה עדיין ואין תגיות יתומות.</p>
                             )}
                         </div>
                     </Card>
@@ -1067,7 +1177,7 @@ export const AdminTags: React.FC = () => {
                                 <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Briefcase size={16} /> משרות מקושרות ({jobsMap.categories[viewCategoryModal] || 0})</h4>
                                 <div className="space-y-3">
                                     {allJobs.filter(j => j.category === viewCategoryModal || (tagsByCategory[viewCategoryModal] || []).includes(j.category as string) || (j.tags || []).some(t => (tagsByCategory[viewCategoryModal] || []).includes(t))).map(job => (
-                                        <div key={job.id || Math.random()} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <Link key={job.id || Math.random()} to={job.id ? `/admin/jobs/${job.id}` : '#'} className="block p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
                                             <div className="font-bold text-slate-800">{job.title}</div>
                                             <div className="text-sm text-slate-500 mt-1 flex gap-3">
                                                 <span>{job.companyName}</span>
@@ -1076,7 +1186,7 @@ export const AdminTags: React.FC = () => {
                                                 <span>•</span>
                                                 <span className="text-brand-teal font-semibold">{job.category}</span>
                                             </div>
-                                        </div>
+                                        </Link>
                                     ))}
                                     {allJobs.filter(j => j.category === viewCategoryModal || (tagsByCategory[viewCategoryModal] || []).includes(j.category as string) || (j.tags || []).some(t => (tagsByCategory[viewCategoryModal] || []).includes(t))).length === 0 && <p className="text-slate-500 text-sm">אין משרות לקטגוריה זו.</p>}
                                 </div>
@@ -1115,7 +1225,7 @@ export const AdminTags: React.FC = () => {
                                 <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Briefcase size={16} /> משרות בעלות תגית זו ({jobsMap.tags[viewTagModal] || 0})</h4>
                                 <div className="space-y-3">
                                     {allJobs.filter(j => j.tags?.includes(viewTagModal) || (j.category === viewTagModal && !Object.keys(tagsByCategory).includes(j.category as string))).map(job => (
-                                        <div key={job.id || Math.random()} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <Link key={job.id || Math.random()} to={job.id ? `/admin/jobs/${job.id}` : '#'} className="block p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
                                             <div className="font-bold text-slate-800">{job.title}</div>
                                             <div className="text-sm text-slate-500 mt-1 flex gap-3">
                                                 <span>{job.companyName}</span>
@@ -1124,7 +1234,7 @@ export const AdminTags: React.FC = () => {
                                                 <span>•</span>
                                                 <span className="text-brand-teal font-semibold">{job.category}</span>
                                             </div>
-                                        </div>
+                                        </Link>
                                     ))}
                                     {allJobs.filter(j => j.tags?.includes(viewTagModal) || (j.category === viewTagModal && !Object.keys(tagsByCategory).includes(j.category as string))).length === 0 && <p className="text-slate-500 text-sm">אין משרות עם תגית זו.</p>}
                                 </div>
@@ -1151,14 +1261,14 @@ export const AdminTags: React.FC = () => {
                                 <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Briefcase size={16} /> משרות באזור זה ({jobsMap.locations[viewLocationModal] || 0})</h4>
                                 <div className="space-y-3">
                                     {allJobs.filter(j => j.location === viewLocationModal).map(job => (
-                                        <div key={job.id || Math.random()} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <Link key={job.id || Math.random()} to={job.id ? `/admin/jobs/${job.id}` : '#'} className="block p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
                                             <div className="font-bold text-slate-800">{job.title}</div>
                                             <div className="text-sm text-slate-500 mt-1 flex gap-3">
                                                 <span>{job.companyName}</span>
                                                 <span>•</span>
                                                 <span className="text-brand-teal font-semibold">{job.category}</span>
                                             </div>
-                                        </div>
+                                        </Link>
                                     ))}
                                     {allJobs.filter(j => j.location === viewLocationModal).length === 0 && <p className="text-slate-500 text-sm">אין משרות באזור זה.</p>}
                                 </div>

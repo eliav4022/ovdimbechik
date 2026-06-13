@@ -11,9 +11,13 @@ import { UserRole, JobType, WorkMode, ExperienceLevel } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import Papa from 'papaparse';
+import { AdminTable } from '../../components/admin/AdminTable';
+import { RecycleBinTab } from '../../components/admin/RecycleBinTab';
+
 
 interface SystemSettings {
     contactEmail: string;
+    systemSenderEmail?: string;
     siteLogoUrl?: string;
     maintenanceMode: boolean;
     enableCVUploads: boolean;
@@ -32,6 +36,7 @@ interface SystemSettings {
     requireResumeUpload: boolean;
     maxFailedLoginAttempts: number;
     enableAdminRoleManagement: boolean;
+    enableEmployersToViewRelevantSeekers: boolean;
 
     autoApproveJobs: boolean;
     defaultJobValidityDays: number;
@@ -66,6 +71,7 @@ interface SystemSettings {
 
 const DEFAULT_SETTINGS: SystemSettings = {
     contactEmail: 'Ovdimbechik@gmail.com',
+    systemSenderEmail: 'noreply@ovdimbechik.com',
     siteLogoUrl: '',
     maintenanceMode: false,
     enableCVUploads: true,
@@ -84,6 +90,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
     requireResumeUpload: false,
     maxFailedLoginAttempts: 5,
     enableAdminRoleManagement: false,
+    enableEmployersToViewRelevantSeekers: false,
 
     autoApproveJobs: false,
     defaultJobValidityDays: 30,
@@ -698,6 +705,7 @@ export const AdminSettings: React.FC = () => {
         { id: 'integrations', label: 'אינטגרציות', icon: <Webhook size={18} /> },
         { id: 'ai', label: 'עוזר חכם (AI)', icon: <Bot size={18} /> },
         { id: 'data', label: 'ניהול דאטה ואחסון', icon: <Database size={18} /> },
+        { id: 'recycle', label: 'סל מחזור', icon: <Trash2 size={18} /> },
     ];
 
     if (previewJobs) {
@@ -1067,6 +1075,15 @@ export const AdminSettings: React.FC = () => {
                                         onChange={(e) => handleChange('contactEmail', e.target.value)}
                                     />
                                     <Input
+                                        label="כתובת אימייל לשליחת הודעות מערכת (Sender)"
+                                        type="email"
+                                        placeholder="noreply@ovdimbechik.com"
+                                        dir="ltr"
+                                        className="text-left"
+                                        value={settings.systemSenderEmail || ''}
+                                        onChange={(e) => handleChange('systemSenderEmail', e.target.value)}
+                                    />
+                                    <Input
                                         id="siteLogoUrl"
                                         label="כתובת לוגו האתר (URL)"
                                         type="url"
@@ -1227,6 +1244,13 @@ export const AdminSettings: React.FC = () => {
                                         checked={settings.requireResumeUpload}
                                         onChange={(v) => handleChange('requireResumeUpload', v)}
                                         activeColorClass="peer-checked:bg-emerald-500"
+                                    />
+                                    <ToggleSwitch
+                                        label="אפשר למעסיקים לראות מחפשי עבודה רלוונטים"
+                                        description="יאפשר למעסיקים לראות נתונים של מחפשי עבודה שעונים על דרישות המשרות שלהם (בהירות והתאמה למשרה)."
+                                        checked={settings.enableEmployersToViewRelevantSeekers}
+                                        onChange={(v) => handleChange('enableEmployersToViewRelevantSeekers', v)}
+                                        activeColorClass="peer-checked:bg-indigo-500"
                                     />
                                 </div>
                             </Card>
@@ -1962,6 +1986,13 @@ export const AdminSettings: React.FC = () => {
                                     </div>
                                 </div>
                             </Card>
+                        </div>
+                    )}
+
+                    {/* 8. Recycle Bin */}
+                    {activeTab === 'recycle' && (
+                        <div className="space-y-6 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
+                            <RecycleBinTab />
                         </div>
                     )}
                 </div>

@@ -31,12 +31,20 @@ const Register: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const redirectPath = searchParams.get('redirect') || '/';
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
+      if (!emailRegex.test(email)) {
+        setError('אנא הזן כתובת אימייל תקינה');
+        setLoading(false);
+        return;
+      }
+
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       const fullDisplayName = `${firstName} ${lastName}`.trim();
       await updateProfile(user, { displayName: fullDisplayName });

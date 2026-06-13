@@ -50,8 +50,10 @@ const EmployerDashboard: React.FC = () => {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [applications, setApplications] = useState<Application[]>([]);
     const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
+    const [systemSettings, setSystemSettings] = useState<any>(null);
+    const [allSeekers, setAllSeekers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'jobs' | 'applicants' | 'stats' | 'profile' | 'credits'>('jobs');
+    const [activeTab, setActiveTab] = useState<'jobs' | 'applicants' | 'stats' | 'profile' | 'credits' | 'relevantSeekers'>('jobs');
     const [jobSubTab, setJobSubTab] = useState<'long-term' | 'casual'>('long-term');
     const [searchQuery, setSearchQuery] = useState('');
     const [company, setCompany] = useState<any | null>(null);
@@ -214,6 +216,24 @@ const EmployerDashboard: React.FC = () => {
         }, (error) => {
             handleFirestoreError(error, OperationType.LIST, 'credit_transactions');
         });
+
+        const fetchSettingsAndSeekers = async () => {
+            try {
+                const sysSnap = await getDoc(doc(db, 'settings', 'system'));
+                if (sysSnap.exists()) {
+                    const settings = sysSnap.data();
+                    setSystemSettings(settings);
+                    if (settings.enableEmployersToViewRelevantSeekers && user?.canViewRelevantSeekers) {
+                        const maxSeekersQuery = query(collection(db, 'users'), where('role', '==', 'SEEKER'));
+                        const seekersSnap = await getDocs(maxSeekersQuery);
+                        setAllSeekers(seekersSnap.docs.map(d => ({id: d.id, ...d.data()})));
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching settings/seekers", err);
+            }
+        };
+        fetchSettingsAndSeekers();
 
         return () => {
             unsubJobs();
@@ -407,27 +427,33 @@ const EmployerDashboard: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 -mt-20 relative z-20">
                 {/* Tabs */}
                 <div className="flex flex-wrap gap-4 mb-8">
-                    {[
-                        { id: 'jobs', label: 'המשרות שלי', icon: Briefcase },
-                        { id: 'applicants', label: 'מועמדים', icon: Users },
-                        { id: 'stats', label: 'דוחות וביצועים', icon: BarChart3 },
-                        { id: 'profile', label: 'עריכת פרופיל', icon: Building2 },
-                        { id: 'credits', label: 'היסטוריית זכיינות', icon: CreditCard },
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={cn(
-                                "flex items-center gap-3 px-8 py-4 rounded-2xl font-black transition-all shadow-xl",
-                                activeTab === tab.id 
-                                    ? "bg-white text-brand-dark scale-105" 
-                                    : "bg-brand-dark/20 text-white/70 hover:bg-brand-dark/30 backdrop-blur-md"
-                            )}
-                        >
-                            <tab.icon size={20} />
-                            {tab.label}
-                        </button>
-                    ))}
+                    {(() => {
+                        const baseTabs = [
+                            { id: 'jobs', label: 'המשרות שלי', icon: Briefcase },
+                            { id: 'applicants', label: 'מועמדים', icon: Users },
+                            { id: 'stats', label: 'דוחות וביצועים', icon: BarChart3 },
+                            { id: 'profile', label: 'עריכת פרופיל', icon: Building2 },
+                            { id: 'credits', label: 'היסטוריית זכיינות', icon: CreditCard },
+                        ];
+                        if (systemSettings?.enableEmployersToViewRelevantSeekers && user?.canViewRelevantSeekers) {
+                            baseTabs.splice(2, 0, { id: 'relevantSeekers', label: 'מחפשי עבודה רלוונטים', icon: Zap });
+                        }
+                        return baseTabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={cn(
+                                    "flex items-center gap-3 px-8 py-4 rounded-2xl font-black transition-all shadow-xl",
+                                    activeTab === tab.id 
+                                        ? "bg-white text-brand-dark scale-105" 
+                                        : "bg-brand-dark/20 text-white/70 hover:bg-brand-dark/30 backdrop-blur-md"
+                                )}
+                            >
+                                <tab.icon size={20} />
+                                {tab.label}
+                            </button>
+                        ));
+                    })()}
                 </div>
 
                 {/* Search and Filters */}
@@ -1082,6 +1108,91 @@ const EmployerDashboard: React.FC = () => {
                                     </div>
                                 )}
                             </Card>
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'relevantSeekers' && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            key="relevant-seekers"
+                            className="space-y-6"
+                        >
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">מחפשי עבודה רלוונטים אלייך</h2>
+                                    <p className="text-slate-500 font-medium mt-2">רשימת מועמדים שעשויה להתאים למשרות שלך.</p>
+                                </div>
+                            </div>
+                            
+                            {(() => {
+                                // Match logic: for each active job, find seekers whose preferredCategories match job.category
+                                const activeJobs = jobs.filter(j => j.status === JobStatus.ACTIVE || j.status === 'Published');
+                                const matches: {seeker: any, matchedJobs: Job[]}[] = [];
+                                
+                                allSeekers.forEach(seeker => {
+                                    const matched = activeJobs.filter(job => {
+                                        const categoryMatch = seeker.preferredCategories && Array.isArray(seeker.preferredCategories) && seeker.preferredCategories.includes(job.category);
+                                        const locationMatch = seeker.preferredLocation && job.location && (job.location.includes(seeker.preferredLocation) || seeker.preferredLocation.includes(job.location));
+                                        return categoryMatch || locationMatch;
+                                    });
+                                    if (matched.length > 0) {
+                                        matches.push({ seeker, matchedJobs: matched });
+                                    }
+                                });
+
+                                if (matches.length === 0) {
+                                    return (
+                                        <EmptyState
+                                            title="אין מועמדים רלוונטים כרגע"
+                                            description="לא נמצאו מחפשי עבודה עם העדפות התואמות למשרות הפעילות שלך."
+                                            icon={Zap}
+                                        />
+                                    );
+                                }
+
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {matches.map((match, i) => (
+                                            <Card key={match.seeker.id || i} className="p-6 relative group overflow-hidden border border-slate-100 hover:border-brand-teal/20 transition-all rounded-[2rem]">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-teal/5 rounded-bl-[100px] -z-10 transition-transform group-hover:scale-110" />
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-400 group-hover:text-brand-teal group-hover:bg-brand-teal/10 transition-colors">
+                                                            {match.seeker.displayName ? match.seeker.displayName.charAt(0) : '?'}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-black text-slate-800 group-hover:text-brand-teal transition-colors">{match.seeker.displayName || 'משתמש אנונימי'}</h3>
+                                                            {match.seeker.phone && (
+                                                                <p className="text-sm font-bold text-slate-500" dir="ltr">{match.seeker.phone}</p>
+                                                            )}
+                                                            {match.seeker.email && (
+                                                                <p className="text-xs text-slate-400">{match.seeker.email}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4 pt-4 border-t border-slate-50 space-y-3">
+                                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">רלוונטי למשרות:</div>
+                                                    {match.matchedJobs.map(job => (
+                                                        <div key={job.id} className="text-sm font-black text-slate-700 bg-slate-50 p-2 rounded-xl flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full bg-brand-teal" />
+                                                            {job.title}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                {match.seeker.cvUrl && (
+                                                    <div className="mt-6 pt-4 border-t border-slate-50">
+                                                        <a href={match.seeker.cvUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-colors">
+                                                            <Download size={16} /> קורות חיים
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </Card>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </motion.div>
                     )}
                 </AnimatePresence>

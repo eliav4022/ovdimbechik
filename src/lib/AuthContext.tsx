@@ -31,6 +31,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let lastActivity = Date.now();
+    const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+    let intervalId: any;
+
+    const resetActivity = () => {
+      lastActivity = Date.now();
+    };
+
+    if (user) {
+      window.addEventListener('mousemove', resetActivity);
+      window.addEventListener('keydown', resetActivity);
+      window.addEventListener('mousedown', resetActivity);
+      window.addEventListener('touchstart', resetActivity);
+      window.addEventListener('scroll', resetActivity);
+
+      intervalId = setInterval(() => {
+        if (Date.now() - lastActivity > TIMEOUT_MS) {
+          console.log('User inactive for 15 minutes. Logging out...');
+          auth.signOut();
+        }
+      }, 60000); // Check every minute
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', resetActivity);
+      window.removeEventListener('keydown', resetActivity);
+      window.removeEventListener('mousedown', resetActivity);
+      window.removeEventListener('touchstart', resetActivity);
+      window.removeEventListener('scroll', resetActivity);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user]);
+
+  useEffect(() => {
     let unsubUser: (() => void) | null = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (fUser) => {

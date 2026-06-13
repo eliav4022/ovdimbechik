@@ -24,11 +24,16 @@ export const AdminSeekers: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [seekerToEdit, setSeekerToEdit] = useState<User | null>(null);
+    const [newPasswordForUser, setNewPasswordForUser] = useState('');
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
     const [newSeeker, setNewSeeker] = useState({
         displayName: '',
         email: '',
-        jobTitle: ''
+        jobTitle: '',
+        phone: '',
+        location: '',
+        password: ''
     });
 
     useEffect(() => {
@@ -54,12 +59,43 @@ export const AdminSeekers: React.FC = () => {
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const uid = 'seek_' + Date.now();
+            if (!newSeeker.email) {
+                toast('נא למלא אימייל', 'error');
+                return;
+            }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(newSeeker.email)) {
+                toast('נא להזין כתובת אימייל תקינה', 'error');
+                return;
+            }
+
+            let uid = 'seek_' + Date.now();
+            
+            if (newSeeker.password) {
+                const token = await currentUser?.getIdToken();
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        email: newSeeker.email,
+                        password: newSeeker.password,
+                        displayName: newSeeker.displayName,
+                        uid: uid
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error === "Firebase Admin config missing" ? "שגיאה: כדי ליצור משתמשים עם סיסמה דרך ממשק הניהול, עליך להגדיר את מפתח FIREBASE_SERVICE_ACCOUNT בהגדרות הסודות" : data.error || 'Failed to create user in Auth');
+            }
             
             await setDoc(doc(db, 'users', uid), {
                 uid,
                 email: newSeeker.email,
                 displayName: newSeeker.displayName,
+                phone: newSeeker.phone,
+                location: newSeeker.location,
                 role: UserRole.SEEKER,
                 isVerified: false,
                 createdAt: new Date().toISOString(),
@@ -71,10 +107,10 @@ export const AdminSeekers: React.FC = () => {
             
             toast('מחפש עבודה התווסף בהצלחה', 'success');
             setIsAddModalOpen(false);
-            setNewSeeker({ displayName: '', email: '', jobTitle: '' });
-        } catch (error) {
+            setNewSeeker({ displayName: '', email: '', jobTitle: '', phone: '', location: '', password: '' });
+        } catch (error: any) {
             console.error("Error adding seeker:", error);
-            toast('שגיאה בהוספת המועמד', 'error');
+            toast(error.message || 'שגיאה בהוספת המועמד', 'error');
         }
     };
 
@@ -103,7 +139,50 @@ export const AdminSeekers: React.FC = () => {
 
     const handleEditOpen = (user: User) => {
         setSeekerToEdit(user);
+        setNewPasswordForUser('');
         setIsEditModalOpen(true);
+    };
+
+    const handlePasswordReset = async () => {
+        if (!seekerToEdit || !newPasswordForUser || newPasswordForUser.length < 6) {
+            toast('חובה להזין סיסמה של 6 תווים לפחות', 'error');
+            return;
+        }
+        setIsUpdatingPassword(true);
+        try {
+            const token = await currentUser?.getIdToken();
+            const res = await fetch('/api/admin/update-user-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    targetUid: (seekerToEdit as any).id || seekerToEdit.uid,
+                    newPassword: newPasswordForUser
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast('הסיסמה עודכנה בהצלחה', 'success');
+                setNewPasswordForUser('');
+            } else {
+                toast(data.error || 'שגיאה בעדכון הסיסמה', 'error');
+            }
+        } catch (err: any) {
+             toast('שגיאה בתקשורת עם השרת', 'error');
+        } finally {
+            setIsUpdatingPassword(false);
+        }
+    };
+
+    const handleClone = (user: User) => {
+        setNewSeeker({
+            displayName: user.displayName ? user.displayName + ' (עותק)' : '',
+            email: user.email ? 'copy_' + user.email : '',
+            jobTitle: (user as any).seekerProfile?.jobTitle || ''
+        });
+        setIsAddModalOpen(true);
     };
 
     const handleEditSubmit = async (e: React.FormEvent) => {
@@ -113,9 +192,28 @@ export const AdminSeekers: React.FC = () => {
             await setDoc(doc(db, 'users', (seekerToEdit as any).id || seekerToEdit.uid), {
                 displayName: seekerToEdit.displayName,
                 email: seekerToEdit.email,
+                phone: seekerToEdit.phone || null,
+                location: (seekerToEdit as any).location || null,
                 updatedAt: new Date().toISOString()
             }, { merge: true });
             
+            try {
+                const token = await currentUser?.getIdToken();
+                await fetch('/api/admin/update-user-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        targetUid: (seekerToEdit as any).id || seekerToEdit.uid,
+                        newEmail: seekerToEdit.email
+                    })
+                });
+            } catch (err) {
+                 console.error("Failed to update email in Auth", err);
+            }
+
             toast('מחפש העבודה עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setSeekerToEdit(null);
@@ -203,6 +301,7 @@ export const AdminSeekers: React.FC = () => {
                 searchFields={['displayName', 'email']}
                 onAdd={() => setIsAddModalOpen(true)}
                 onEdit={handleEditOpen}
+                onClone={handleClone}
                 onDelete={handleDelete}
                 onStatusChange={handleStatusChange}
                 onExport={() => console.log('Exporting seekers...')}
@@ -255,6 +354,34 @@ export const AdminSeekers: React.FC = () => {
                             onChange={(e) => setNewSeeker(prev => ({...prev, jobTitle: e.target.value}))}
                         />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                            <Input 
+                                placeholder="למשל: 050-1234567" 
+                                value={newSeeker.phone || ''}
+                                onChange={(e) => setNewSeeker(prev => ({...prev, phone: e.target.value}))}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
+                            <Input 
+                                placeholder="למשל: תל אביב, חיפה..." 
+                                value={newSeeker.location || ''}
+                                onChange={(e) => setNewSeeker(prev => ({...prev, location: e.target.value}))}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">סיסמה (אופציונלי - ליצירת משתמש אמיתי)</label>
+                        <Input 
+                            type="password"
+                            placeholder="סיסמה (לפחות 6 תווים)" 
+                            value={newSeeker.password || ''}
+                            onChange={(e) => setNewSeeker(prev => ({...prev, password: e.target.value}))}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">אם תוזן סיסמה, המשתמש יוכל להתחבר למערכת מיד.</p>
+                    </div>
                     <div className="flex justify-end gap-3 pt-6">
                         <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)}>ביטול</Button>
                         <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור מועמד</Button>
@@ -286,6 +413,45 @@ export const AdminSeekers: React.FC = () => {
                                 onChange={(e) => setSeekerToEdit({ ...seekerToEdit, email: e.target.value })}
                             />
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
+                                <Input 
+                                    value={seekerToEdit.phone || ''}
+                                    onChange={(e) => setSeekerToEdit({ ...seekerToEdit, phone: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
+                                <Input 
+                                    value={(seekerToEdit as any).location || ''}
+                                    onChange={(e) => setSeekerToEdit({ ...seekerToEdit, location: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 mt-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">איפוס סיסמה למשתמש</label>
+                            <div className="flex gap-2">
+                                <Input 
+                                    type="text"
+                                    placeholder="הזן סיסמה חדשה (לפחות 6 תווים)"
+                                    value={newPasswordForUser}
+                                    onChange={(e) => setNewPasswordForUser(e.target.value)}
+                                    className="flex-1"
+                                />
+                                <Button 
+                                    type="button" 
+                                    onClick={handlePasswordReset}
+                                    disabled={isUpdatingPassword || newPasswordForUser.length < 6}
+                                    className="bg-slate-800 hover:bg-slate-900 text-white shrink-0"
+                                >
+                                    {isUpdatingPassword ? 'מעדכן...' : 'עדכן סיסמה'}
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">שינוי סיסמה למשתמשי טסטים / קליינטים בלי גישה למייל</p>
+                        </div>
+
                         <div className="flex justify-end gap-3 pt-6">
                             <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>ביטול</Button>
                             <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור שינויים</Button>

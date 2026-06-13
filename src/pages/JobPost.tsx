@@ -207,6 +207,18 @@ const JobPost: React.FC = () => {
            hasPendingTags: unapprovedTags.length > 0,
           updatedAt: now,
         });
+
+        if (isAdmin && approvedTags.length > 0) {
+            try {
+                const newGlobalTags = approvedTags.filter((t: string) => !isTagApproved(t));
+                if (newGlobalTags.length > 0) {
+                    const tagUpdates: any = { jobTags: arrayUnion(...newGlobalTags) };
+                    if (formData.category) tagUpdates[`tagsByCategory.${formData.category}`] = arrayUnion(...newGlobalTags);
+                    await setDoc(doc(db, 'settings', 'tags'), tagUpdates, { merge: true });
+                }
+            } catch(e) { console.error("Failed to update global tags", e); }
+        }
+
         toast('המשרה עודכנה בהצלחה!', 'success');
       } else {
         const newJobRef = doc(collection(db, 'jobs'));
@@ -523,11 +535,14 @@ const JobPost: React.FC = () => {
                   list="locations-list"
                   label="מיקום"
                   icon={<MapPin size={18} />}
-                  placeholder="כתובת מדוייקת (לדוגמה: יגאל אלון 98, תל אביב)"
+                  placeholder="לדוגמה: יגאל אלון 98 תל אביב"
                   className="h-14 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-brand-teal/10 outline-none text-right font-bold text-slate-700 shadow-inner"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 />
+                <p className="text-xs text-slate-400 px-2 mt-1 -mt-1 font-medium">
+                  נא להזין בשפה חופשית ללא סימני פיסוק (לדוגמה: תל אביב יפו)
+                </p>
                 <datalist id="locations-list">
                     {globalLocations.map(loc => <option key={loc} value={loc} />)}
                 </datalist>

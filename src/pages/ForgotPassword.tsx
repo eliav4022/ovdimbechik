@@ -22,7 +22,11 @@ const ForgotPassword = () => {
 
     try {
       // Create native Firebase password reset flow
-      await sendPasswordResetEmail(auth, email);
+      const actionCodeSettings = {
+        url: window.location.origin + '/login', // Fallback redirect if they use default Firebase page
+        handleCodeInApp: false
+      };
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
 
       // Create a record in password_resets for audit/custom req as requested
       const resetId = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

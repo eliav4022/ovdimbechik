@@ -523,6 +523,11 @@ const JobDetails: React.FC = () => {
                        <CheckCircle size={24} />
                        מועמדות הוגשה
                    </div>
+               ) : user?.uid === job.employerId || user?.companyId === job.employerId || user?.role === 'EMPLOYER' ? (
+                   <div className="flex-1 md:flex-none bg-slate-200 text-slate-500 px-10 py-5 rounded-[1.5rem] font-black flex items-center justify-center gap-3">
+                       <Briefcase size={24} />
+                       תצוגת מעסיק
+                   </div>
                ) : (
                    <button 
                         onClick={() => {

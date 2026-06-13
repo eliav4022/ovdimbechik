@@ -28,8 +28,17 @@ service cloud.firestore {
       );
     }
     
+    function isEmployerWithSeekerAccess() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'EMPLOYER' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('canViewRelevantSeekers', false) == true &&
+        exists(/databases/$(database)/documents/settings/system) &&
+        get(/databases/$(database)/documents/settings/system).data.get('enableEmployersToViewRelevantSeekers', false) == true;
+    }
+
     match /users/{userId} {
-      allow read: if isAdmin() || (isSignedIn() && isOwner(userId)) || (resource.data.role == 'EMPLOYER') || (resource.data.role == 'ADMIN');
+      allow read: if isAdmin() || (isSignedIn() && isOwner(userId)) || (resource.data.role == 'EMPLOYER') || (resource.data.role == 'ADMIN') || isEmployerWithSeekerAccess();
       allow create: if isAdmin() || (isSignedIn() && isOwner(userId) && request.resource.data.role in ['SEEKER', 'EMPLOYER', 'CANDIDATE']);
       allow delete: if isAdmin() || (isSignedIn() && isOwner(userId));
       allow update: if isAdmin() || (
@@ -146,6 +155,9 @@ service cloud.firestore {
     match /mail/{mailId} {
       allow create: if true;
       allow read, update, delete: if isAdmin();
+    }
+    match /recycle_bin/{binId} {
+      allow read, write: if isAdmin();
     }
   }
 }

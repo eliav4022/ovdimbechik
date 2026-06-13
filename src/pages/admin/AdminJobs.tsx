@@ -130,10 +130,38 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
       setIsEditModalOpen(true);
   };
 
+  const handleClone = (job: Job) => {
+      setNewJob({
+          title: job.title + ' (עותק)',
+          description: job.description || '',
+          employerId: job.employerId || '',
+          companyName: job.companyName || '',
+          companyDescription: job.companyDescription || '',
+          location: job.location || '',
+          type: job.type as JobType || JobType.FULL_TIME,
+          workMode: job.workMode as WorkMode || WorkMode.HYBRID,
+          experienceLevel: job.experienceLevel as ExperienceLevel || ExperienceLevel.MIDDLE,
+          category: job.category || '',
+          tags: Array.isArray(job.tags) ? job.tags.join(', ') : (job.tags || ''),
+          salary: job.salary || '',
+          status: JobStatus.ACTIVE,
+          scheduledPublishDate: job.scheduledPublishDate || '',
+          scheduledRemovalDate: job.scheduledRemovalDate || '',
+          isImmediate: job.isImmediate || false,
+          isUrgent: job.isUrgent || false,
+          requireCV: job.requireCV ?? true,
+          isCasual: isCasual,
+          promotionLevel: job.promotionLevel as PromotionLevel || PromotionLevel.REGULAR
+      } as any); // Type assertion if needed
+      setIsAddModalOpen(true);
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!jobToEdit) return;
       try {
+          const finalTags = typeof jobToEdit.tags === 'string' ? (jobToEdit.tags as string).split(',').map((t: string) => t.trim()).filter((t: string) => t) : (jobToEdit.tags || []);
+          
           await setDoc(doc(db, 'jobs', (jobToEdit as any).id), {
               title: jobToEdit.title,
               description: jobToEdit.description || '',
@@ -141,7 +169,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               companyDescription: jobToEdit.companyDescription || '',
               location: jobToEdit.location,
               category: jobToEdit.category || '',
-              tags: typeof jobToEdit.tags === 'string' ? (jobToEdit.tags as string).split(',').map((t: string) => t.trim()).filter((t: string) => t) : (jobToEdit.tags || []),
+              tags: finalTags,
               salary: jobToEdit.salary || '',
               type: jobToEdit.type,
               workMode: jobToEdit.workMode || WorkMode.HYBRID,
@@ -156,6 +184,16 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               scheduledRemovalDate: jobToEdit.scheduledRemovalDate || '',
               updatedAt: new Date().toISOString()
           }, { merge: true });
+
+          if (finalTags.length > 0) {
+              try {
+                  const tagUpdates: any = { jobTags: arrayUnion(...finalTags) };
+                  if (jobToEdit.category) {
+                      tagUpdates[`tagsByCategory.${jobToEdit.category}`] = arrayUnion(...finalTags);
+                  }
+                  await setDoc(doc(db, 'settings', 'tags'), tagUpdates, { merge: true });
+              } catch(e) { console.error("Failed to update global tags", e); }
+          }
           
           toast('המשרה עודכנה בהצלחה', 'success');
           setIsEditModalOpen(false);
@@ -176,6 +214,8 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
           const selectedEmp = employers.find(e => e.uid === employerId || (e as any).id === employerId);
           const employerName = selectedEmp ? selectedEmp.displayName || selectedEmp.fullName : (currentUser?.displayName || 'מנהל משרות');
           
+          const finalTags = newJob.tags ? newJob.tags.split(',').map(t => t.trim()).filter(t => t) : [];
+
           await setDoc(doc(db, 'jobs', jobId), {
               employerId,
               ownerId: employerId,
@@ -186,7 +226,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               companyDescription: newJob.companyDescription || '',
               location: newJob.location || '',
               category: newJob.category || '',
-              tags: newJob.tags ? newJob.tags.split(',').map(t => t.trim()).filter(t => t) : [],
+              tags: finalTags,
               salary: newJob.salary || '',
               type: newJob.type || 'Full Time',
               workMode: newJob.workMode || WorkMode.HYBRID,
@@ -204,6 +244,16 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               applicationsCount: 0,
               viewsCount: 0
           });
+
+          if (finalTags.length > 0) {
+              try {
+                  const tagUpdates: any = { jobTags: arrayUnion(...finalTags) };
+                  if (newJob.category) {
+                      tagUpdates[`tagsByCategory.${newJob.category}`] = arrayUnion(...finalTags);
+                  }
+                  await setDoc(doc(db, 'settings', 'tags'), tagUpdates, { merge: true });
+              } catch(e) { console.error("Failed to update global tags", e); }
+          }
           
           toast('משרה חדשה התווספה בהצלחה', 'success');
           setIsAddModalOpen(false);
@@ -294,6 +344,30 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
 
           await updateDoc(doc(db, 'jobs', (job as any).id), updates);
           
+          if (isApproving && job.status !== JobStatus.ACTIVE && job.status !== 'Published') {
+              const emp = employers.find(e => (e as any).id === job.employerId || e.uid === job.employerId);
+              if (emp && emp.email) {
+                  try {
+                      // Import sendEmail dynamically to avoid circular dependencies if any, or regular import
+                      const { sendEmail } = await import('../../lib/emailUtils');
+                      await sendEmail({
+                          to: emp.email,
+                          subject: `המשרה שלך "${job.title}" אושרה!`,
+                          html: `
+                            <div dir="rtl" style="font-family: Arial, sans-serif;">
+                                <h2>שלום ${emp.displayName || emp.employerProfile?.companyName || 'מעסיק יקר'},</h2>
+                                <p>אנו שמחים לעדכן אותך שהמשרה <strong>"${job.title}"</strong> אושרה על ידי צוות האתר והיא כעת מפורסמת וזמינה למועמדים.</p>
+                                <p>בהצלחה בגיוס!</p>
+                                <p>בברכה,<br>צוות האתר</p>
+                            </div>
+                          `
+                      });
+                  } catch (e) {
+                      console.error("Failed to queue approval email:", e);
+                  }
+              }
+          }
+
           toast(`סטטוס משרה שונה ל-${status}`, 'success');
       } catch (error) {
           console.error("Error updating status:", error);
@@ -422,6 +496,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
         searchFields={['title', 'companyName']}
         onAdd={() => setIsAddModalOpen(true)}
         onEdit={handleEditOpen}
+        onClone={handleClone}
         onDelete={handleDelete}
         onView={(j) => navigate('/admin/' + (isCasual ? 'jobs-casual/' : 'jobs/') + (j as any).id)}
         onStatusChange={handleStatusChange}
@@ -616,10 +691,13 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
                   <Input 
-                      placeholder="למשל: תל אביב / היברידי" 
+                      placeholder="לדוגמה: יגאל אלון 98 תל אביב" 
                       value={newJob.location}
                       onChange={(e) => setNewJob(prev => ({...prev, location: e.target.value}))}
                   />
+                   <p className="text-xs text-slate-400 mt-1.5 font-medium">
+                      נא להזין בשפה חופשית ללא סימני פיסוק (לדוגמה: תל אביב יפו)
+                   </p>
               </div>
               <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">מודל עבודה</label>
@@ -904,9 +982,13 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
                   <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
                       <Input 
+                          placeholder="לדוגמה: יגאל אלון 98 תל אביב"
                           value={jobToEdit.location || ''}
                           onChange={(e) => setJobToEdit({ ...jobToEdit, location: e.target.value })}
                       />
+                       <p className="text-xs text-slate-400 mt-1.5 font-medium">
+                          נא להזין בשפה חופשית ללא סימני פיסוק (לדוגמה: תל אביב יפו)
+                       </p>
                   </div>
                   <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2">מודל עבודה</label>

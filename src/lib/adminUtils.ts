@@ -1,6 +1,7 @@
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { UserRole } from '../types';
+import { moveToRecycleBin } from './recycleBin';
 
 export interface SoftDeleteParams {
   collectionName: string;
@@ -10,18 +11,16 @@ export interface SoftDeleteParams {
 }
 
 /**
- * Performs a soft delete by setting deletedAt, deletedBy, and deleteReason fields.
- * Security rules must be configured to allow this update but block access to documents with deletedAt.
+ * Moves document to recycle bin and deletes it from original collection
  */
 export const softDelete = async ({ collectionName, id, deletedBy, reason }: SoftDeleteParams) => {
   const docRef = doc(db, collectionName, id);
+  const snap = await getDoc(docRef);
   
-  await updateDoc(docRef, {
-    deletedAt: serverTimestamp(),
-    deletedBy,
-    deleteReason: reason,
-    status: 'deleted' // Optional: update status for easier filtering
-  });
+  if (snap.exists()) {
+      await moveToRecycleBin(collectionName, id, { ...snap.data(), deleteReason: reason }, [], deletedBy);
+      await deleteDoc(docRef);
+  }
 };
 
 /**
