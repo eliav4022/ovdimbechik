@@ -67,9 +67,15 @@ interface SystemSettings {
     aiTone: string;
     aiTemperature: number;
     aiAdditionalPrompt: string;
+    enableWelcomePopup?: boolean;
+    welcomePopupHtml?: string;
+    welcomePopupCss?: string;
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
+    enableWelcomePopup: false,
+    welcomePopupHtml: '<div class="text-center p-6">\n  <h2 class="text-2xl font-bold mb-4">ברוכים הבאים!</h2>\n  <p>תוכן הפופאפ יופיע כאן</p>\n</div>',
+    welcomePopupCss: '',
     contactEmail: 'Ovdimbechik@gmail.com',
     systemSenderEmail: 'noreply@ovdimbechik.com',
     siteLogoUrl: '',
@@ -1201,6 +1207,47 @@ export const AdminSettings: React.FC = () => {
                                         onChange={(e) => handleChange('socialInstagramUrl', e.target.value)}
                                         placeholder="https://instagram.com/..."
                                     />
+                                </div>
+                            </Card>
+
+                            <Card className="p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                                        <LayoutTemplate size={20} />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-800">פופאפ כניסה (Welcome Popup)</h3>
+                                </div>
+                                <div className="space-y-6">
+                                    <ToggleSwitch
+                                        label="הפעל פופאפ בכניסה לאתר"
+                                        description="הצג חלון קופץ למשתמשים כאשר הם נכנסים לאתר (מוצג פעם ביום באמצעות Session/Cookie)."
+                                        checked={!!settings.enableWelcomePopup}
+                                        onChange={(v) => handleChange('enableWelcomePopup', v)}
+                                    />
+                                    {settings.enableWelcomePopup && (
+                                        <div className="space-y-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                                            <div>
+                                                <label className="block text-sm font-bold text-slate-700 mb-2">תוכן HTML (Popup Content)</label>
+                                                <textarea
+                                                    className="w-full h-40 px-4 py-3 bg-white border border-slate-200 rounded-xl font-mono text-sm text-left focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal transition-all shadow-sm"
+                                                    dir="ltr"
+                                                    placeholder={`<div class="text-center p-6">\n  <img src="..." />\n  <h2>מבצע!</h2>\n</div>`}
+                                                    value={settings.welcomePopupHtml || ''}
+                                                    onChange={(e) => handleChange('welcomePopupHtml', e.target.value)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-slate-700 mb-2">עיצוב CSS (אופציונלי)</label>
+                                                <textarea
+                                                    className="w-full h-32 px-4 py-3 bg-white border border-slate-200 rounded-xl font-mono text-sm text-left focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal transition-all shadow-sm"
+                                                    dir="ltr"
+                                                    placeholder=".popup-title { color: red; }"
+                                                    value={settings.welcomePopupCss || ''}
+                                                    onChange={(e) => handleChange('welcomePopupCss', e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </Card>
                         </div>

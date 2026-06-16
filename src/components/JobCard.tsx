@@ -126,10 +126,12 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
           </div>
 
           <div className="flex flex-wrap gap-1.5 md:gap-3 mb-3 md:mb-6">
-            <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
-              <MapPin size={12} className="text-primary md:w-4 md:h-4" />
-              {job.location}
-            </div>
+            {job.location && (
+              <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
+                <MapPin size={12} className="text-primary md:w-4 md:h-4" />
+                {job.location}
+              </div>
+            )}
             <div className="flex items-center gap-1 md:gap-2 text-text-muted bg-bg-light/50 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold border border-primary/5">
               <Clock size={12} className="text-primary md:w-4 md:h-4" />
               {getJobTypeLabel(job.type)}

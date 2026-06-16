@@ -386,7 +386,7 @@ const JobDetails: React.FC = () => {
     <div className="min-h-screen bg-slate-50/50 pb-20" dir="rtl">
       <Helmet>
         <title>{`${job.title} | ${job.companyName} | עובדים בצ'יק`}</title>
-        <meta name="description" content={`משרת ${job.title} בחברת ${job.companyName} ב${job.location}. הגש מועמדות עכשיו בצ'יק!`} />
+        <meta name="description" content={`משרת ${job.title} בחברת ${job.companyName} ${job.location ? `ב${job.location}` : ''}. הגש מועמדות עכשיו בצ'יק!`.replace('  ', ' ')} />
       </Helmet>
       {/* Hero Header */}
       <div className="bg-slate-900 text-white pt-24 pb-32 relative overflow-hidden">
@@ -439,20 +439,24 @@ const JobDetails: React.FC = () => {
                     </Link>
                     {employer?.isVerified && <TrustBadge type="verified-employer" size="sm" label="VERIFIED" />}
                   </p>
-                  <span className="w-2 h-2 bg-white/10 rounded-full" />
-                  <p className="flex items-center gap-2">
-                    <MapPin size={20} className="text-highlight" />
-                    {job.location}
-                    <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.location)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] text-white/30 hover:text-white flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 transition-all"
-                    >
-                        <ExternalLink size={12} />
-                        מפה
-                    </a>
-                  </p>
+                  {job.location && (
+                    <>
+                      <span className="w-2 h-2 bg-white/10 rounded-full" />
+                      <p className="flex items-center gap-2">
+                        <MapPin size={20} className="text-highlight" />
+                        {job.location}
+                        <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.location)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-white/30 hover:text-white flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 transition-all"
+                        >
+                            <ExternalLink size={12} />
+                            מפה
+                        </a>
+                      </p>
+                    </>
+                  )}
                   <span className="w-2 h-2 bg-white/10 rounded-full" />
                   <p className="flex items-center gap-2">
                     <Eye size={20} className="text-primary" />
@@ -559,15 +563,17 @@ const JobDetails: React.FC = () => {
                 <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-8 border-b border-bg-light pb-6 text-center">מפרט המשרה</h3>
                 
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-6">
-                    <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                        <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
-                            <DollarSign size={28} />
+                    {job.salary && (
+                        <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
+                            <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
+                                <DollarSign size={28} />
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">שכר חודשי</p>
+                                <p className="font-black text-text-main text-lg">{job.salary}</p>
+                            </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">שכר חודשי</p>
-                            <p className="font-black text-text-main text-lg">{job.salary}</p>
-                        </div>
-                    </div>
+                    )}
 
                     <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
                         <div className="w-14 h-14 rounded-2xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
@@ -579,25 +585,29 @@ const JobDetails: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                        <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
-                            <Home size={28} />
+                    {job.workMode && (
+                        <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
+                            <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
+                                <Home size={28} />
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">מודל עבודה</p>
+                                <p className="font-black text-text-main text-lg">{getWorkModeLabel(job.workMode)}</p>
+                            </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">מודל עבודה</p>
-                            <p className="font-black text-text-main text-lg">{getWorkModeLabel(job.workMode)}</p>
-                        </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                        <div className="w-14 h-14 rounded-2xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
-                            <Award size={28} />
+                    {job.experienceLevel && (
+                        <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
+                            <div className="w-14 h-14 rounded-2xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
+                                <Award size={28} />
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">ניסיון נדרש</p>
+                                <p className="font-black text-text-main text-lg">{getExperienceLabel(job.experienceLevel)}</p>
+                            </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">ניסיון נדרש</p>
-                            <p className="font-black text-text-main text-lg">{getExperienceLabel(job.experienceLevel)}</p>
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="mt-8 pt-8 border-t border-bg-light space-y-4">
@@ -640,15 +650,17 @@ const JobDetails: React.FC = () => {
           {/* Job Description & Details */}
           <div className="lg:col-span-8 lg:order-1 space-y-8 relative z-20">
             <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] p-6 sm:p-10 md:p-14 shadow-2xl shadow-slate-200/60 border border-slate-100">
-              <div className="mb-14">
-                <h3 className="text-3xl font-black text-text-main mb-8 flex items-center gap-4">
-                    <div className="w-2 h-10 bg-primary rounded-full" />
-                    תיאור התפקיד
-                </h3>
-                <div className="text-text-main text-lg leading-relaxed whitespace-pre-wrap font-medium md:pr-6">
-                  {job.description}
+              {job.description && (
+                <div className="mb-14">
+                  <h3 className="text-3xl font-black text-text-main mb-8 flex items-center gap-4">
+                      <div className="w-2 h-10 bg-primary rounded-full" />
+                      תיאור התפקיד
+                  </h3>
+                  <div className="text-text-main text-lg leading-relaxed whitespace-pre-wrap font-medium md:pr-6">
+                    {job.description}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {job.tags && job.tags.length > 0 && (
                 <div className="pt-12 border-t border-bg-light">

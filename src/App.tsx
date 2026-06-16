@@ -6,6 +6,7 @@ import { Footer } from './components/Footer';
 import { AIAssistant } from './components/AIAssistant';
 import { AccessibilityMenu } from './components/AccessibilityMenu';
 import { CookieConsent } from './components/CookieConsent';
+import { WelcomePopup } from './components/WelcomePopup';
 import { LoadingSpinner, FullPageLoading } from './components/ui/Loading';
 import { UserRole } from './types';
 import { Phone, Facebook, Mail, Send as TelegramIcon } from 'lucide-react';
@@ -98,6 +99,7 @@ const AppContent = () => {
       {!isAdminRoute && <AIAssistant />}
       <AccessibilityMenu />
       <CookieConsent />
+      <WelcomePopup />
       <main className="flex-grow flex flex-col">
         <ErrorBoundary>
           <Suspense fallback={<LoadingSpinner message="טוען עמוד..." />}>

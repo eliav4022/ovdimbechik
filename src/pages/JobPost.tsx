@@ -156,20 +156,22 @@ const JobPost: React.FC = () => {
       setLoading(false);
       return;
     }
-    if (!formData.description || formData.description.length < 20) {
-      toast('תיאור המשרה קצר מדי. אנא פירוט רחב יותר (לפחות 20 תווים)', 'error');
-      setLoading(false);
-      return;
-    }
-    if (!formData.location) {
-      toast('אנא ציין מיקום למשרה', 'error');
-      setLoading(false);
-      return;
-    }
-    if (!formData.category) {
-      toast('אנא בחר קטגוריה למשרה', 'error');
-      setLoading(false);
-      return;
+    if (!formData.isCasual) {
+      if (!formData.description || formData.description.length < 20) {
+        toast('תיאור המשרה קצר מדי. אנא פירוט רחב יותר (לפחות 20 תווים)', 'error');
+        setLoading(false);
+        return;
+      }
+      if (!formData.location) {
+        toast('אנא ציין מיקום למשרה', 'error');
+        setLoading(false);
+        return;
+      }
+      if (!formData.category) {
+        toast('אנא בחר קטגוריה למשרה', 'error');
+        setLoading(false);
+        return;
+      }
     }
 
     const cost = 5; // 5 credits = 1 job post
@@ -531,9 +533,9 @@ const JobPost: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="space-y-2 relative">
                 <Input
-                  required
+                  required={!formData.isCasual}
                   list="locations-list"
-                  label="מיקום"
+                  label={formData.isCasual ? "מיקום (אופציונלי)" : "מיקום"}
                   icon={<MapPin size={18} />}
                   placeholder="לדוגמה: יגאל אלון 98 תל אביב"
                   className="h-14 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-brand-teal/10 outline-none text-right font-bold text-slate-700 shadow-inner"
@@ -724,9 +726,9 @@ const JobPost: React.FC = () => {
                         className="flex-1 h-14 px-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-brand-teal/10 outline-none font-bold text-slate-700 shadow-inner"
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        required
+                        required={!formData.isCasual}
                     >
-                        <option value="">בחר קטגוריה...</option>
+                        <option value="">{formData.isCasual ? "בחר קטגוריה (אופציונלי)" : "בחר קטגוריה..."}</option>
                         {Array.from(new Set([...Object.keys(predefinedTagsByCategory), ...globalCategories])).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         {formData.category && !Array.from(new Set([...Object.keys(predefinedTagsByCategory), ...globalCategories])).includes(formData.category) && (
                             <option value={formData.category}>{formData.category} (מותאם אישית)</option>
@@ -825,9 +827,9 @@ const JobPost: React.FC = () => {
                 </button>
               </label>
               <textarea
-                required
+                required={!formData.isCasual}
                 rows={10}
-                placeholder="ספרו למה כדאי לעבוד אצלכם, מה הדרישות ומה תחומי האחריות..."
+                placeholder={formData.isCasual ? "ספרו בקצרה על המשרה (אופציונלי)..." : "ספרו למה כדאי לעבוד אצלכם, מה הדרישות ומה תחומי האחריות..."}
                 className="w-full px-6 py-6 bg-slate-50 border-none rounded-[2rem] focus:ring-4 focus:ring-brand-teal/10 outline-none transition-all resize-none text-right font-medium text-slate-700 shadow-inner leading-relaxed"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
