@@ -15,6 +15,19 @@ export enum UserStatus {
   active = 'active', // Kept for backward compatibility
 }
 
+export interface Popup {
+  id: string;
+  name: string;
+  isActive: boolean;
+  position: 'center' | 'top' | 'bottom';
+  targetPage: string;
+  targetUserType: 'all' | 'seeker' | 'employer' | 'guest';
+  htmlContent: string;
+  cssContent: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface User {
   id: string; // the primary ID as requested
   uid: string; // kept for Firebase auth & backward compatibility

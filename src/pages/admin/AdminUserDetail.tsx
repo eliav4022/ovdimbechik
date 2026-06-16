@@ -62,7 +62,7 @@ export const AdminUserDetail: React.FC = () => {
             
             try {
                 if (generalEditData.email !== user?.email) {
-                    const token = await currentUser?.getIdToken();
+                    const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
                     await fetch('/api/admin/update-user-email', {
                         method: 'POST',
                         headers: {
@@ -95,7 +95,7 @@ export const AdminUserDetail: React.FC = () => {
         }
         setIsUpdatingPassword(true);
         try {
-            const token = await currentUser?.getIdToken();
+            const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
             const res = await fetch('/api/admin/update-user-password', {
                 method: 'POST',
                 headers: {
@@ -588,7 +588,7 @@ export const AdminUserDetail: React.FC = () => {
                                 <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
                                 <Input 
                                     value={(generalEditData as any).location || ''}
-                                    onChange={(e) => setGeneralEditData({ ...generalEditData, location: e.target.value })}
+                                    onChange={(e) => setGeneralEditData({ ...generalEditData, location: e.target.value } as any)}
                                 />
                             </div>
                         </div>

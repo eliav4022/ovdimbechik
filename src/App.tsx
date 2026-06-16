@@ -6,7 +6,7 @@ import { Footer } from './components/Footer';
 import { AIAssistant } from './components/AIAssistant';
 import { AccessibilityMenu } from './components/AccessibilityMenu';
 import { CookieConsent } from './components/CookieConsent';
-import { WelcomePopup } from './components/WelcomePopup';
+import { PopupsManager } from './components/PopupsManager';
 import { LoadingSpinner, FullPageLoading } from './components/ui/Loading';
 import { UserRole } from './types';
 import { Phone, Facebook, Mail, Send as TelegramIcon } from 'lucide-react';
@@ -50,6 +50,7 @@ const AdminContacts = React.lazy(() => import('./pages/admin/AdminContacts').the
 const AdminReports = React.lazy(() => import('./pages/admin/AdminReports').then(m => ({ default: m.AdminReports })));
 const AdminAudit = React.lazy(() => import('./pages/admin/AdminAudit').then(m => ({ default: m.AdminAudit })));
 const AdminSettings = React.lazy(() => import('./pages/admin/AdminSettings').then(m => ({ default: m.AdminSettings })));
+const AdminPopups = React.lazy(() => import('./pages/admin/AdminPopups').then(m => ({ default: m.AdminPopups })));
 const AdminTags = React.lazy(() => import('./pages/admin/AdminTags').then(m => ({ default: m.AdminTags })));
 const AdminFiles = React.lazy(() => import('./pages/admin/AdminFiles').then(m => ({ default: m.AdminFiles })));
 
@@ -99,7 +100,7 @@ const AppContent = () => {
       {!isAdminRoute && <AIAssistant />}
       <AccessibilityMenu />
       <CookieConsent />
-      <WelcomePopup />
+      <PopupsManager />
       <main className="flex-grow flex flex-col">
         <ErrorBoundary>
           <Suspense fallback={<LoadingSpinner message="טוען עמוד..." />}>
@@ -167,6 +168,7 @@ const AppContent = () => {
                 <Route path="reports" element={<AdminReports />} />
                 <Route path="audit" element={<AdminAudit />} />
                 <Route path="settings" element={<AdminSettings />} />
+                <Route path="popups" element={<AdminPopups />} />
                 <Route path="tags" element={<AdminTags />} />
                 <Route path="files" element={<AdminFiles />} />
               </Route>

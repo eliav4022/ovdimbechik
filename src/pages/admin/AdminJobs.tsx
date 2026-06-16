@@ -355,7 +355,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
                           subject: `המשרה שלך "${job.title}" אושרה!`,
                           html: `
                             <div dir="rtl" style="font-family: Arial, sans-serif;">
-                                <h2>שלום ${emp.displayName || emp.employerProfile?.companyName || 'מעסיק יקר'},</h2>
+                                <h2>שלום ${emp.displayName || (emp as any).employerProfile?.companyName || 'מעסיק יקר'},</h2>
                                 <p>אנו שמחים לעדכן אותך שהמשרה <strong>"${job.title}"</strong> אושרה על ידי צוות האתר והיא כעת מפורסמת וזמינה למועמדים.</p>
                                 <p>בהצלחה בגיוס!</p>
                                 <p>בברכה,<br>צוות האתר</p>
@@ -984,7 +984,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
                       <Input 
                           placeholder="לדוגמה: יגאל אלון 98 תל אביב"
                           value={jobToEdit.location || ''}
-                          onChange={(e) => setJobToEdit({ ...jobToEdit, location: e.target.value })}
+                          onChange={(e) => setJobToEdit({ ...jobToEdit, location: e.target.value } as any)}
                       />
                        <p className="text-xs text-slate-400 mt-1.5 font-medium">
                           נא להזין בשפה חופשית ללא סימני פיסוק (לדוגמה: תל אביב יפו)

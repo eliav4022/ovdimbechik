@@ -46,6 +46,7 @@ export const adminNavItems: NavItem[] = [
   { id: 'reports', label: 'דיווחים', href: '/admin/reports', icon: AlertCircle, roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPPORT_AGENT] },
   { id: 'audit', label: 'לוג פעילות', href: '/admin/audit', icon: History, roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
   { id: 'settings', label: 'הגדרות', href: '/admin/settings', icon: Settings, roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+  { id: 'popups', label: 'ניהול פופאפים', href: '/admin/popups', icon: MessageSquare, roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER] },
   { id: 'tags', label: 'תגיות', href: '/admin/tags', icon: FileText, roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER] },
 ];
 

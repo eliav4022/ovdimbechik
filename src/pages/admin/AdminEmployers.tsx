@@ -88,7 +88,7 @@ export const AdminEmployers: React.FC = () => {
             let uid = 'emp_' + Date.now();
 
             if (newEmployer.password) {
-                const token = await currentUser?.getIdToken();
+                const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
                 const res = await fetch('/api/admin/create-user', {
                     method: 'POST',
                     headers: {
@@ -150,7 +150,7 @@ export const AdminEmployers: React.FC = () => {
         }
         setIsUpdatingPassword(true);
         try {
-            const token = await currentUser?.getIdToken();
+            const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
             const res = await fetch('/api/admin/update-user-password', {
                 method: 'POST',
                 headers: {
@@ -180,7 +180,10 @@ export const AdminEmployers: React.FC = () => {
         setNewEmployer({
             displayName: user.displayName ? user.displayName + ' (עותק)' : '',
             email: user.email ? 'copy_' + user.email : '',
-            companyName: (user as any).employerProfile?.companyName || ''
+            companyName: (user as any).employerProfile?.companyName || '',
+            phone: '',
+            location: '',
+            password: ''
         });
         setIsAddModalOpen(true);
     };
@@ -199,7 +202,7 @@ export const AdminEmployers: React.FC = () => {
             }, { merge: true });
 
             try {
-                const token = await currentUser?.getIdToken();
+                const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
                 await fetch('/api/admin/update-user-email', {
                     method: 'POST',
                     headers: {
@@ -510,7 +513,7 @@ export const AdminEmployers: React.FC = () => {
                                 <label className="block text-sm font-bold text-slate-700 mb-2">מיקום / מטה</label>
                                 <Input 
                                     value={(employerToEdit as any).location || ''}
-                                    onChange={(e) => setEmployerToEdit({ ...employerToEdit, location: e.target.value })}
+                                    onChange={(e) => setEmployerToEdit({ ...employerToEdit, location: e.target.value } as any)}
                                 />
                             </div>
                         </div>

@@ -72,7 +72,7 @@ export const AdminSeekers: React.FC = () => {
             let uid = 'seek_' + Date.now();
             
             if (newSeeker.password) {
-                const token = await currentUser?.getIdToken();
+                const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
                 const res = await fetch('/api/admin/create-user', {
                     method: 'POST',
                     headers: {
@@ -150,7 +150,7 @@ export const AdminSeekers: React.FC = () => {
         }
         setIsUpdatingPassword(true);
         try {
-            const token = await currentUser?.getIdToken();
+            const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
             const res = await fetch('/api/admin/update-user-password', {
                 method: 'POST',
                 headers: {
@@ -180,7 +180,10 @@ export const AdminSeekers: React.FC = () => {
         setNewSeeker({
             displayName: user.displayName ? user.displayName + ' (עותק)' : '',
             email: user.email ? 'copy_' + user.email : '',
-            jobTitle: (user as any).seekerProfile?.jobTitle || ''
+            jobTitle: (user as any).seekerProfile?.jobTitle || '',
+            phone: '',
+            location: '',
+            password: ''
         });
         setIsAddModalOpen(true);
     };
@@ -198,7 +201,7 @@ export const AdminSeekers: React.FC = () => {
             }, { merge: true });
             
             try {
-                const token = await currentUser?.getIdToken();
+                const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
                 await fetch('/api/admin/update-user-email', {
                     method: 'POST',
                     headers: {
@@ -425,7 +428,7 @@ export const AdminSeekers: React.FC = () => {
                                 <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
                                 <Input 
                                     value={(seekerToEdit as any).location || ''}
-                                    onChange={(e) => setSeekerToEdit({ ...seekerToEdit, location: e.target.value })}
+                                    onChange={(e) => setSeekerToEdit({ ...seekerToEdit, location: e.target.value } as any)}
                                 />
                             </div>
                         </div>

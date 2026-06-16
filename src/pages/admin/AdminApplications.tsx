@@ -131,7 +131,7 @@ export const AdminApplications: React.FC = () => {
             applicantName: application.applicantName ? application.applicantName + ' (עותק)' : '',
             applicantEmail: application.applicantEmail || '',
             applicantPhone: application.applicantPhone || '',
-            coverLetter: application.coverLetter || ''
+            
         });
         setIsAddModalOpen(true);
     };

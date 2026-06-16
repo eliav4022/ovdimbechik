@@ -78,7 +78,7 @@ export const AdminUsers: React.FC = () => {
           let uid = 'usr_' + Date.now();
           
           if (newUser.password) {
-              const token = await currentUser?.getIdToken();
+              const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
               const res = await fetch('/api/admin/create-user', {
                   method: 'POST',
                   headers: {
@@ -204,7 +204,7 @@ export const AdminUsers: React.FC = () => {
       }
       setIsUpdatingPassword(true);
       try {
-          const token = await currentUser?.getIdToken();
+          const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
           const res = await fetch('/api/admin/update-user-password', {
               method: 'POST',
               headers: {
@@ -282,7 +282,7 @@ export const AdminUsers: React.FC = () => {
           }, { merge: true });
           
           try {
-              const token = await currentUser?.getIdToken();
+              const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();
               await fetch('/api/admin/update-user-email', {
                   method: 'POST',
                   headers: {
@@ -681,7 +681,7 @@ export const AdminUsers: React.FC = () => {
                           <label className="block text-sm font-bold text-slate-700 mb-2">מיקום</label>
                           <Input 
                               value={(userToEdit as any).location || ''}
-                              onChange={(e) => setUserToEdit({ ...userToEdit, location: e.target.value })}
+                              onChange={(e) => setUserToEdit({ ...userToEdit, location: e.target.value } as any)}
                           />
                       </div>
                   </div>
