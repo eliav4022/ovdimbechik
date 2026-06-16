@@ -27,7 +27,7 @@ const PreviewPopup: React.FC<{ popup: Partial<Popup>, onClose: () => void }> = (
                         <X size={20} />
                     </button>
                     {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                    <div className="w-full max-h-[40vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
+                    <div className="w-full max-h-[40vh] overflow-y-auto hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} />
                 </div>
             </motion.div>
         );
@@ -48,19 +48,41 @@ const PreviewPopup: React.FC<{ popup: Partial<Popup>, onClose: () => void }> = (
                         <X size={20} />
                     </button>
                     {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                    <div className="w-full max-h-[40vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
+                    <div className="w-full max-h-[40vh] overflow-y-auto hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} />
                 </div>
             </motion.div>
         );
     }
     // center
     return (
-        <Modal isOpen={true} onClose={onClose} title="">
-            <div className="relative">
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-2"
+        >
+            <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="relative max-w-full max-h-[100vh] overflow-y-auto"
+                style={{ backgroundColor: 'transparent', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+                <style>{`
+                    .hide-scrollbar::-webkit-scrollbar {
+                        display: none;
+                    }
+                `}</style>
+                <button 
+                    onClick={onClose}
+                    className="absolute top-2 right-2 z-50 p-2 text-slate-400 hover:text-slate-600 bg-white/80 hover:bg-white rounded-full transition-colors shadow-sm"
+                >
+                    <X size={20} />
+                </button>
                 {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                <div dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
-            </div>
-        </Modal>
+                <div className="hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
+            </motion.div>
+        </motion.div>
     );
 };
 
@@ -132,6 +154,18 @@ export const AdminPopups: React.FC = () => {
                 updatedAt: Date.now()
             };
 
+            if (popupData.isActive) {
+                const conflictingPopups = popups.filter(p => 
+                    p.id !== popupId && 
+                    p.isActive && 
+                    p.targetPage === popupData.targetPage && 
+                    p.position === popupData.position
+                );
+                for (const p of conflictingPopups) {
+                    await setDoc(doc(db, 'popups', p.id), { ...p, isActive: false, updatedAt: Date.now() });
+                }
+            }
+
             await setDoc(doc(db, 'popups', popupId), popupData);
             toast.success(editingPopup ? 'פופאפ עודכן בהצלחה' : 'פופאפ נוצר בהצלחה');
             setIsModalOpen(false);
@@ -157,7 +191,21 @@ export const AdminPopups: React.FC = () => {
 
     const handleToggleActive = async (popup: Popup) => {
         try {
-            const updatedPopup = { ...popup, isActive: !popup.isActive, updatedAt: Date.now() };
+            const newState = !popup.isActive;
+            const updatedPopup = { ...popup, isActive: newState, updatedAt: Date.now() };
+
+            if (newState) {
+                const conflictingPopups = popups.filter(p => 
+                    p.id !== popup.id && 
+                    p.isActive && 
+                    p.targetPage === popup.targetPage && 
+                    p.position === popup.position
+                );
+                for (const p of conflictingPopups) {
+                    await setDoc(doc(db, 'popups', p.id), { ...p, isActive: false, updatedAt: Date.now() });
+                }
+            }
+
             await setDoc(doc(db, 'popups', popup.id), updatedPopup);
             fetchPopups();
             toast.success('סטטוס פופאפ עודכן');

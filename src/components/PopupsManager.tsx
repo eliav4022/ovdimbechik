@@ -121,7 +121,7 @@ export const PopupsManager: React.FC = () => {
                                 <X size={20} />
                             </button>
                             {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                            <div className="w-full max-h-[40vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: popup.htmlContent }} />
+                            <div className="w-full max-h-[40vh] overflow-y-auto hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent }} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} />
                         </div>
                     </motion.div>
                 ))}
@@ -145,29 +145,46 @@ export const PopupsManager: React.FC = () => {
                                 <X size={20} />
                             </button>
                             {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                            <div className="w-full max-h-[40vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: popup.htmlContent }} />
+                            <div className="w-full max-h-[40vh] overflow-y-auto hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent }} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} />
                         </div>
                     </motion.div>
                 ))}
             </AnimatePresence>
 
             {/* Center Modals */}
-            {centerPopups.map((popup, index) => (
-                // Use a standard modal for center popups but we need to render them safely 
-                // Only one modal can comfortably be presented at the top layer, 
-                // but if there are multiple, they will stack visually. We render them with z-indexes incrementally.
-                <Modal 
-                    key={popup.id} 
-                    isOpen={true} 
-                    onClose={() => handleClose(popup.id)} 
-                    title="" 
-                >
-                    <div className="relative">
-                        {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                        <div dangerouslySetInnerHTML={{ __html: popup.htmlContent }} />
-                    </div>
-                </Modal>
-            ))}
+            <AnimatePresence>
+                {centerPopups.map((popup) => (
+                    <motion.div
+                        key={popup.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-2"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            className="relative max-w-full max-h-[100vh] overflow-y-auto"
+                            style={{ backgroundColor: 'transparent', scrollbarWidth: 'none', msOverflowStyle: 'none' }} // Let the user's popup HTML determine background
+                        >
+                            <style>{`
+                                .hide-scrollbar::-webkit-scrollbar {
+                                    display: none;
+                                }
+                            `}</style>
+                            <button 
+                                onClick={() => handleClose(popup.id)}
+                                className="absolute top-2 right-2 z-50 p-2 text-slate-400 hover:text-slate-600 bg-white/80 hover:bg-white rounded-full transition-colors shadow-sm"
+                            >
+                                <X size={20} />
+                            </button>
+                            {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
+                            <div className="hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
+                        </motion.div>
+                    </motion.div>
+                ))}
+            </AnimatePresence>
         </>
     );
 };
