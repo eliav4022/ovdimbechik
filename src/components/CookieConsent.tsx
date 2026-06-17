@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie, X, ShieldCheck, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export const CookieConsent: React.FC = () => {
     const [isVisible, setIsVisible] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
     const [preferences, setPreferences] = useState({
         necessary: true,
         analytics: true,
@@ -13,11 +16,36 @@ export const CookieConsent: React.FC = () => {
     });
 
     useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const cookieDoc = await getDoc(doc(db, 'settings', 'cookieConsent'));
+                if (cookieDoc.exists()) {
+                    setSettings(cookieDoc.data());
+                } else {
+                    setSettings({
+                        isActive: true,
+                        title: 'העוגיות שלנו 🍪',
+                        message: 'אנחנו משתמשים בעוגיות כדי לשפר את חווית הגלישה שלך, להציג משרות רלוונטיות ולנתח את השימוש באתר שלנו. האם תרצה לאשר את כל העוגיות?',
+                        analyticsDesc: 'עוזר לנו להבין איך משתמשים באתר ולשפר ביצועים.',
+                        marketingDesc: 'מאפשר לנו להציג לך משרות ומודעות שבאמת רלוונטיות עבורך.'
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching cookie settings:", error);
+            }
+        };
+
         const consent = localStorage.getItem('cookie-consent');
         if (!consent) {
-            setIsVisible(true);
+            fetchSettings();
         }
     }, []);
+
+    useEffect(() => {
+        if (settings && settings.isActive) {
+            setIsVisible(true);
+        }
+    }, [settings]);
 
     const handleAcceptAll = () => {
         localStorage.setItem('cookie-consent', 'all');
@@ -41,7 +69,7 @@ export const CookieConsent: React.FC = () => {
                     initial={{ y: 100, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 100, opacity: 0 }}
-                    className="fixed bottom-6 left-6 right-6 lg:left-12 lg:right-auto lg:max-w-md z-[110] bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100 overflow-hidden"
+                    className="fixed bottom-6 left-6 right-6 lg:left-12 lg:right-auto lg:max-w-md z-[10005] bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100 overflow-hidden"
                     dir="rtl"
                 >
                     <div className="p-8">
@@ -51,10 +79,10 @@ export const CookieConsent: React.FC = () => {
                                     <div className="w-12 h-12 bg-highlight/10 text-primary-dark rounded-xl flex items-center justify-center">
                                         <Cookie size={28} />
                                     </div>
-                                    <h3 className="text-xl font-black text-text-main">העוגיות שלנו 🍪</h3>
+                                    <h3 className="text-xl font-black text-text-main">{settings?.title || 'העוגיות שלנו 🍪'}</h3>
                                 </div>
                                 <p className="text-text-muted font-bold text-sm leading-relaxed mb-8">
-                                    אנחנו משתמשים בעוגיות כדי לשפר את חווית הגלישה שלך, להציג משרות רלוונטיות ולנתח את השימוש באתר שלנו. האם תרצה לאשר את כל העוגיות?
+                                    {settings?.message || 'אנחנו משתמשים בעוגיות כדי לשפר את חווית הגלישה שלך, להציג משרות רלוונטיות ולנתח את השימוש באתר שלנו. האם תרצה לאשר את כל העוגיות?'}
                                 </p>
                                 <div className="flex flex-col gap-3">
                                     <button 
@@ -103,13 +131,13 @@ export const CookieConsent: React.FC = () => {
                                     />
                                     <PreferenceToggle 
                                         label="ניתוח נתונים" 
-                                        desc="עוזר לנו להבין איך משתמשים באתר ולשפר ביצועים." 
+                                        desc={settings?.analyticsDesc || "עוזר לנו להבין איך משתמשים באתר ולשפר ביצועים."}
                                         checked={preferences.analytics} 
                                         onChange={(v) => setPreferences(p => ({ ...p, analytics: v }))}
                                     />
                                     <PreferenceToggle 
                                         label="שיווק והתאמה" 
-                                        desc="מאפשר לנו להציג לך משרות ומודעות שבאמת רלוונטיות עבורך." 
+                                        desc={settings?.marketingDesc || "מאפשר לנו להציג לך משרות ומודעות שבאמת רלוונטיות עבורך."}
                                         checked={preferences.marketing} 
                                         onChange={(v) => setPreferences(p => ({ ...p, marketing: v }))}
                                     />

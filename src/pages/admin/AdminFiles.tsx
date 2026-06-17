@@ -30,6 +30,9 @@ export const AdminFiles: React.FC = () => {
     const [uploadPassword, setUploadPassword] = useState('');
     const [systemPassword, setSystemPassword] = useState('');
     const [maxFileSizeMB, setMaxFileSizeMB] = useState(5);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [customFileName, setCustomFileName] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { user } = useAuth();
@@ -67,22 +70,7 @@ export const AdminFiles: React.FC = () => {
         return () => unsubscribe();
     }, [toast]);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        if (!user) {
-            toast('רק משתמש מחובר יכול להעלות קבצים', 'error');
-            return;
-        }
-
-        if (systemPassword && uploadPassword !== systemPassword) {
-            toast('סיסמת העלאה שגויה', 'error');
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
-        }
-
-        // Validation
+    const validateAndSetFile = (file: File) => {
         const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
         if (!allowedTypes.includes(file.type)) {
             toast('סוג קובץ אינו נתמך (רק תמונות או PDF)', 'error');
@@ -94,27 +82,72 @@ export const AdminFiles: React.FC = () => {
             return;
         }
 
+        setSelectedFile(file);
+        setCustomFileName(file.name);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            validateAndSetFile(e.dataTransfer.files[0]);
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            validateAndSetFile(e.target.files[0]);
+        }
+    };
+
+    const handleUpload = async () => {
+        if (!selectedFile) return;
+
+        if (!user) {
+            toast('רק משתמש מחובר יכול להעלות קבצים', 'error');
+            return;
+        }
+
+        if (systemPassword && uploadPassword !== systemPassword) {
+            toast('סיסמת העלאה שגויה', 'error');
+            return;
+        }
+
         setUploading(true);
         try {
-            const storageRef = ref(storage, `cvs/${user.uid}/admin_${Date.now()}_${file.name}`);
+            const finalName = customFileName.trim() || selectedFile.name;
+            const storageRef = ref(storage, `cvs/${user.uid}/admin_${Date.now()}_${finalName}`);
             
             // Convert to byte array to bypass Blob/iframe issues in Firebase SDK
-            const fileBytes = new Uint8Array(await file.arrayBuffer());
+            const fileBytes = new Uint8Array(await selectedFile.arrayBuffer());
             
-            await uploadBytes(storageRef, fileBytes, { contentType: file.type });
+            await uploadBytes(storageRef, fileBytes, { contentType: selectedFile.type });
             const url = await getDownloadURL(storageRef);
 
             await addDoc(collection(db, 'files'), {
-                name: file.name,
+                name: finalName,
                 url,
-                type: file.type,
-                size: file.size,
+                type: selectedFile.type,
+                size: selectedFile.size,
                 createdAt: serverTimestamp(),
                 uploadedBy: user?.uid
             });
 
             toast('הקובץ הועלה בהצלחה', 'success');
             setIsUploadModalOpen(false);
+            setSelectedFile(null);
+            setCustomFileName('');
+            setUploadPassword('');
         } catch (error) {
             console.error("Error uploading file:", error);
             toast('שגיאה בהעלאת קובץ', 'error');
@@ -127,20 +160,18 @@ export const AdminFiles: React.FC = () => {
     };
 
     const handleDelete = async (file: SiteFile) => {
-        if (!window.confirm('האם אתה בטוח שברצונך למחוק קובץ זה לצמיתות?')) return;
+        if (!window.confirm('האם אתה בטוח שברצונך למחוק קובץ זה להעברה לסל המחזור?')) return;
         
         try {
-            // Because we don't store the exact storage path, we can extract it from the URL
-            // Or ideally we should have stored `storagePath`. For now, we try to extract it.
-            try {
-               const fileRef = ref(storage, file.url);
-               await deleteObject(fileRef);
-            } catch (err) {
-               console.warn("Could not delete from storage (maybe already deleted or weird URL). Proceeding to delete doc.", err);
-            }
+            const { softDelete } = await import('../../lib/adminUtils');
+            await softDelete({
+                collectionName: 'files',
+                id: file.id,
+                deletedBy: user?.uid || 'admin',
+                reason: 'נמחק ממסך ניהול קבצים'
+            });
             
-            await deleteDoc(doc(db, 'files', file.id));
-            toast('הקובץ נמחק בהצלחה', 'success');
+            toast('הקובץ הועבר לסל מחזור בהצלחה', 'success');
         } catch (error) {
             console.error("Error deleting file:", error);
             toast('שגיאה במחיקת קובץ', 'error');
@@ -163,15 +194,15 @@ export const AdminFiles: React.FC = () => {
             render: (file: SiteFile) => {
                 if (file.type.startsWith('image/')) {
                     return (
-                        <div className="w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center">
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity">
                             <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
-                        </div>
+                        </a>
                     );
                 }
                 return (
-                    <div className="w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500">
+                    <a href={file.url} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity">
                         <File size={24} />
-                    </div>
+                    </a>
                 );
             }
         },
@@ -181,7 +212,7 @@ export const AdminFiles: React.FC = () => {
             sortable: true,
             render: (file: SiteFile) => (
                 <div className="flex flex-col">
-                    <span className="font-bold text-slate-900 max-w-[200px] truncate" title={file.name}>{file.name}</span>
+                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</a>
                     <span className="text-xs text-slate-500">{formatBytes(file.size)}</span>
                 </div>
             )
@@ -189,11 +220,20 @@ export const AdminFiles: React.FC = () => {
         {
             key: 'type',
             header: 'סוג',
-            render: (file: SiteFile) => (
-                <Badge variant={file.type.includes('pdf') ? 'warning' : 'neutral'}>
-                    {file.type.includes('pdf') ? 'PDF' : 'תמונה'}
-                </Badge>
-            )
+            render: (file: SiteFile) => {
+                let displayType = 'תמונה';
+                if (file.type.includes('pdf')) displayType = 'PDF';
+                else if (file.type.includes('png')) displayType = 'PNG';
+                else if (file.type.includes('jpeg') || file.type.includes('jpg')) displayType = 'JPG';
+                else if (file.type.includes('webp')) displayType = 'WEBP';
+                else if (file.type.includes('gif')) displayType = 'GIF';
+
+                return (
+                    <Badge variant={file.type.includes('pdf') ? 'warning' : 'neutral'}>
+                        {displayType}
+                    </Badge>
+                );
+            }
         },
         {
             key: 'createdAt',
@@ -260,28 +300,70 @@ export const AdminFiles: React.FC = () => {
                             />
                         </div>
                     )}
-                    <div 
-                        className="border-2 border-dashed border-slate-200 rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-4">
-                            <UploadCloud size={40} />
+                    {!selectedFile ? (
+                        <div 
+                            className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
+                                isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-4 pointer-events-none">
+                                <UploadCloud size={40} />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900 mb-2 pointer-events-none">לחץ לבחירת קובץ או גרור לכאן</h3>
+                            <p className="text-slate-500 font-medium pointer-events-none">קבצי תמונה (JPG, PNG, WEBP) ו-PDF נתמכים. עד {maxFileSizeMB}MB.</p>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef}
+                                className="hidden" 
+                                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                                onChange={handleFileChange}
+                                disabled={uploading}
+                            />
                         </div>
-                        <h3 className="text-lg font-black text-slate-900 mb-2">לחץ כאן כדי לבחור קובץ להעלאה</h3>
-                        <p className="text-slate-500 font-medium">קבצי תמונה (JPG, PNG, WEBP) ו-PDF נתמכים. עד {maxFileSizeMB}MB.</p>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef}
-                            className="hidden" 
-                            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                            onChange={handleFileChange}
-                            disabled={uploading}
-                        />
-                    </div>
-                    
-                    {uploading && (
-                        <div className="mt-4 text-center">
-                            <p className="text-sm font-bold text-indigo-600 animate-pulse">מעלה קובץ, אנא המתן...</p>
+                    ) : (
+                        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600">
+                                    {selectedFile.type.includes('pdf') ? <File size={32} /> : <ImageIcon size={32} />}
+                                </div>
+                                <div className="flex-1 overflow-hidden">
+                                    <p className="text-slate-800 font-bold truncate">{selectedFile.name}</p>
+                                    <p className="text-slate-500 text-sm">{formatBytes(selectedFile.size)}</p>
+                                </div>
+                                <button 
+                                    onClick={() => setSelectedFile(null)}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    disabled={uploading}
+                                >
+                                    החלף
+                                </button>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">שם לקובץ (אופציונלי - יופיע בניהול)</label>
+                                <input 
+                                    type="text" 
+                                    value={customFileName}
+                                    onChange={(e) => setCustomFileName(e.target.value)}
+                                    placeholder="הזן שם לקובץ..."
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700"
+                                    disabled={uploading}
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleUpload}
+                                disabled={uploading || (!!systemPassword && !uploadPassword)}
+                                className={`w-full py-3 rounded-xl font-bold transition-all ${
+                                    uploading ? 'bg-indigo-400 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg hover:shadow-xl'
+                                }`}
+                            >
+                                {uploading ? 'מעלה קובץ, אנא המתן...' : 'העלה קובץ'}
+                            </button>
                         </div>
                     )}
                 </div>

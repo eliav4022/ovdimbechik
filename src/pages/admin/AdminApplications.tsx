@@ -165,14 +165,15 @@ export const AdminApplications: React.FC = () => {
     const confirmDelete = async (reason: string) => {
         if (!applicationToDelete || !currentUser) return;
         try {
-            // Need to update the doc's deletedAt softly
-            await setDoc(doc(db, 'applications', applicationToDelete.id), {
-                deletedAt: new Date().toISOString(),
+            const { softDelete } = await import('../../lib/adminUtils');
+            await softDelete({
+                collectionName: 'applications',
+                id: applicationToDelete.id,
                 deletedBy: currentUser.uid,
-                deleteReason: reason
-            }, { merge: true });
+                reason
+            });
             
-            toast('המועמדות נמחקה (ארכיון)', 'success');
+            toast('המועמדות נמחקה והועברה לסל מחזור', 'success');
         } catch (error) {
             console.error("Delete failed:", error);
             toast('שגיאה במחיקה', 'error');
@@ -198,18 +199,20 @@ export const AdminApplications: React.FC = () => {
 
     const handleBulkDelete = async (items: any[]) => {
         if (!currentUser) return;
-        if (!window.confirm(`האם אתה בטוח שברצונך למחוק ${items.length} מועמדויות?`)) return;
+        if (!window.confirm(`האם אתה בטוח שברצונך למחוק ${items.length} מועמדויות לסל מחזור?`)) return;
         
         try {
+            const { softDelete } = await import('../../lib/adminUtils');
             const promises = items.map(item => 
-                setDoc(doc(db, 'applications', item.id), { 
-                    deletedAt: new Date().toISOString(),
+                softDelete({
+                    collectionName: 'applications',
+                    id: item.id,
                     deletedBy: currentUser.uid,
-                    deleteReason: 'Bulk delete'
-                }, { merge: true })
+                    reason: 'מחיקה מרוכזת'
+                })
             );
             await Promise.all(promises);
-            toast(`${items.length} מועמדויות נמחקו בהצלחה`, 'success');
+            toast(`${items.length} מועמדויות הועברו לסל מחזור`, 'success');
         } catch (e) {
             toast('שגיאה במחיקה מרוכזת', 'error');
         }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Popup, UserRole } from '../types';
 import { useAuth } from '../lib/AuthContext';
@@ -17,17 +17,15 @@ export const PopupsManager: React.FC = () => {
 
     // Load popups from Firestore (only active ones) on mount
     useEffect(() => {
-        const fetchPopups = async () => {
-            try {
-                const q = query(collection(db, 'popups'), where('isActive', '==', true));
-                const snapshot = await getDocs(q);
-                const popupsData = snapshot.docs.map(doc => doc.data() as Popup);
-                setPopups(popupsData);
-            } catch (error) {
-                console.error("Error fetching popups for manager:", error);
-            }
-        };
-        fetchPopups();
+        const q = query(collection(db, 'popups'), where('isActive', '==', true));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const popupsData = snapshot.docs.map(doc => doc.data() as Popup);
+            setPopups(popupsData);
+        }, (error) => {
+            console.error("Error fetching popups for manager:", error);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     // Load closed popups from session storage on mount

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -18,24 +18,35 @@ export const RecycleBinTab = () => {
     const fetchRecords = async () => {
         setLoading(true);
         try {
-            const q = query(collection(db, 'recycle_bin'), orderBy('deletedAt', 'desc'));
+            const q = query(collection(db, 'recycle_bin'));
             const snap = await getDocs(q);
             
             const tenDaysAgo = new Date();
             tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
             
-            const validRecords: RecycledRecord[] = [];
+            let validRecords: RecycledRecord[] = [];
             const toDelete: string[] = [];
             
             snap.docs.forEach(d => {
                 const data = d.data();
-                const deletedAt = data.deletedAt?.toDate ? data.deletedAt.toDate() : new Date();
+                let deletedAt = new Date();
+                if (data.deletedAt?.toDate) {
+                    deletedAt = data.deletedAt.toDate();
+                } else if (data.deletedAt) {
+                    deletedAt = new Date(data.deletedAt);
+                }
                 
                 if (deletedAt < tenDaysAgo) {
                     toDelete.push(d.id);
                 } else {
                     validRecords.push({ id: d.id, ...data } as RecycledRecord);
                 }
+            });
+            
+            validRecords.sort((a, b) => {
+                const dateA = a.deletedAt?.toDate ? a.deletedAt.toDate() : new Date(a.deletedAt || 0);
+                const dateB = b.deletedAt?.toDate ? b.deletedAt.toDate() : new Date(b.deletedAt || 0);
+                return dateB.getTime() - dateA.getTime();
             });
             
             setRecords(validRecords);
@@ -107,7 +118,11 @@ export const RecycleBinTab = () => {
                                 </div>
                                 {record.deletedAt && (
                                     <div className="text-[11px] text-slate-400 mt-1">
-                                        נמחק בתאריך: {record.deletedAt.toDate ? record.deletedAt.toDate().toLocaleString('he-IL') : 'לא ידוע'}
+                                        נמחק בתאריך: {
+                                            record.deletedAt?.toDate 
+                                                ? record.deletedAt.toDate().toLocaleString('he-IL') 
+                                                : new Date(record.deletedAt).toLocaleString('he-IL')
+                                        }
                                     </div>
                                 )}
                             </div>

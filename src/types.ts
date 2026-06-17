@@ -22,6 +22,9 @@ export interface Popup {
   position: 'center' | 'top' | 'bottom';
   targetPage: string;
   targetUserType: 'all' | 'seeker' | 'employer' | 'guest';
+  popupType?: 'html' | 'image';
+  imageUrl?: string;
+  imageLink?: string;
   htmlContent: string;
   cssContent: string;
   createdAt: number;

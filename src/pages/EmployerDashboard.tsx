@@ -243,10 +243,21 @@ const EmployerDashboard: React.FC = () => {
     }, [user]);
 
     const handleDeleteJob = async (jobId: string) => {
-        if (!window.confirm('האם אתה בטוח שברצונך למחוק משרה זו? שימו לב: פעולה זו תמחק גם את כל המועמדויות המשויכות למשרה.')) return;
+        if (!window.confirm('האם אתה בטוח שברצונך למחוק משרה זו? שימו לב: פעולה זו תעביר גם את כל המועמדויות המשויכות למשרה לסל המחזור.')) return;
         try {
             const appsQuery = query(collection(db, 'applications'), where('jobId', '==', jobId));
             const appsSnap = await getDocs(appsQuery);
+            
+            const relatedData: Array<{collection: string, id: string, data: any}> = [];
+            appsSnap.forEach(appDoc => {
+                relatedData.push({ collection: 'applications', id: appDoc.id, data: appDoc.data() });
+            });
+
+            const jobDoc = await getDoc(doc(db, 'jobs', jobId));
+            if (jobDoc.exists()) {
+                const { moveToRecycleBin } = await import('../lib/recycleBin');
+                await moveToRecycleBin('jobs', jobId, { ...jobDoc.data(), deleteReason: 'נמחק על ידי המשתמש (מעסיק)' }, relatedData, user?.uid || 'employer');
+            }
             
             const batches = [];
             let currentBatch = writeBatch(db);
@@ -270,7 +281,7 @@ const EmployerDashboard: React.FC = () => {
                 await b.commit();
             }
             
-            toast('המשרה והמועמדויות אליה נמחקו בהצלחה', 'success');
+            toast('המשרה והמועמדויות אליה הועברו לסל מחזור', 'success');
         } catch (error) {
             handleFirestoreError(error, OperationType.DELETE, `jobs/${jobId}`);
         }

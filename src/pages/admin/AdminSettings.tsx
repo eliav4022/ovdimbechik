@@ -762,7 +762,16 @@ export const AdminSettings: React.FC = () => {
 
                                     if (opName === 'delete') {
                                         if (docId) {
-                                            try { await deleteDoc(doc(db, 'jobs', docId)); deletedCount++; } catch(e) {}
+                                            try { 
+                                                const { softDelete } = await import('../../lib/adminUtils');
+                                                await softDelete({
+                                                    collectionName: 'jobs',
+                                                    id: docId,
+                                                    deletedBy: user?.uid || 'admin',
+                                                    reason: 'מחיקה המונית דרך יבוא קובץ'
+                                                });
+                                                deletedCount++; 
+                                            } catch(e) {}
                                         }
                                         continue;
                                     }

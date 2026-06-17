@@ -284,7 +284,13 @@ const SeekerDashboard: React.FC = () => {
             }
 
             // 3. Delete user document
-            await deleteDoc(doc(db, 'users', user.uid));
+            const { softDelete } = await import('../lib/adminUtils');
+            await softDelete({
+                collectionName: 'users',
+                id: user.uid,
+                deletedBy: user.uid,
+                reason: 'מחיקת חשבון עצמאית על ידי מחפש עבודה'
+            });
             // 4. Delete auth account
             await deleteUser(auth.currentUser);
             
