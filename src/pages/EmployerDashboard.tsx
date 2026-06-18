@@ -9,6 +9,7 @@ import { Helmet } from 'react-helmet-async';
 import { LoadingSpinner, FullPageLoading } from '../components/ui/Loading';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
+import { getFileUrl } from '../lib/utils';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
@@ -25,6 +26,7 @@ import {
     Copy, 
     Power,
     Eye,
+    RefreshCcw,
     TrendingUp,
     MessageCircle,
     Download,
@@ -565,6 +567,12 @@ const EmployerDashboard: React.FC = () => {
                                                              job.promotionLevel === PromotionLevel.HOT ? 'חמה' : 'דחופה'}
                                                         </Badge>
                                                     )}
+                                                    {job.hasPendingUpdate && (
+                                                        <Badge variant="warning" className="gap-1 animate-in fade-in zoom-in" title="עדכון בהמתנה לאישור הנהלה">
+                                                            <RefreshCcw size={10} />
+                                                            ממתין לעדכון
+                                                        </Badge>
+                                                    )}
                                                     <span className="text-slate-300 text-xs font-bold">{new Date(job.createdAt).toLocaleDateString('he-IL')}</span>
                                                 </div>
                                                 <h3 className="text-2xl font-black text-slate-900 mb-1 group-hover:text-brand-teal transition-colors">{job.title}</h3>
@@ -717,7 +725,7 @@ const EmployerDashboard: React.FC = () => {
                                                             className="flex-1 rounded-xl"
                                                             variant="outline"
                                                             size="sm"
-                                                            onClick={() => window.open(app.cvUrl, '_blank')}
+                                                            onClick={() => window.open(getFileUrl(app.cvUrl), '_blank')}
                                                             leftIcon={<Download size={16} />}
                                                         >
                                                             קורות חיים
@@ -810,7 +818,7 @@ const EmployerDashboard: React.FC = () => {
                                                                 <Button 
                                                                     variant="ghost" 
                                                                     size="icon"
-                                                                    onClick={() => window.open(app.cvUrl, '_blank')}
+                                                                    onClick={() => window.open(getFileUrl(app.cvUrl), '_blank')}
                                                                     className="bg-slate-50 text-slate-400 hover:bg-brand-orange hover:text-white"
                                                                     title="צפה בקורות חיים"
                                                                 >
@@ -1194,7 +1202,7 @@ const EmployerDashboard: React.FC = () => {
                                                 </div>
                                                 {match.seeker.cvUrl && (
                                                     <div className="mt-6 pt-4 border-t border-slate-50">
-                                                        <a href={match.seeker.cvUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-colors">
+                                                        <a href={getFileUrl(match.seeker.cvUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-colors">
                                                             <Download size={16} /> קורות חיים
                                                         </a>
                                                     </div>

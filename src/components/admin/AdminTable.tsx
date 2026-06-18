@@ -38,6 +38,7 @@ interface AdminTableProps<T> {
   onDelete?: (item: T) => void;
   onView?: (item: T) => void;
   onStatusChange?: (item: T, newStatus: string) => void;
+  onApproveUpdate?: (item: T) => void;
   onExport?: () => void;
   onAdd?: () => void;
   searchFields?: (keyof T)[];
@@ -55,6 +56,7 @@ export function AdminTable<T extends { id: string; status?: string }>({
   onDelete,
   onView,
   onStatusChange,
+  onApproveUpdate,
   onExport,
   onAdd,
   searchFields,
@@ -283,6 +285,15 @@ export function AdminTable<T extends { id: string; status?: string }>({
                             </button>
                           </>
                         )}
+                        {(item as any).hasPendingUpdate && onApproveUpdate && (
+                             <button 
+                              onClick={() => onApproveUpdate(item)}
+                              className="w-full text-right px-3 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 rounded-lg flex items-center justify-between"
+                            >
+                              אישור עדכון משרה
+                              <RefreshCcw size={14} />
+                            </button>
+                        )}
                         <button className="w-full text-right px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-lg flex items-center justify-between">
                           לוג שינויים
                           <History size={14} />
@@ -387,6 +398,14 @@ export function AdminTable<T extends { id: string; status?: string }>({
                                   דחייה <XCircle size={14} />
                                 </button>
                               </>
+                            )}
+                            {(item as any).hasPendingUpdate && onApproveUpdate && (
+                               <button 
+                                onClick={() => onApproveUpdate(item)}
+                                className="w-full text-right px-3 py-2.5 text-sm font-bold text-amber-600 hover:bg-amber-50 rounded-lg flex items-center justify-between"
+                              >
+                                אישור עדכון משרה <RefreshCcw size={14} />
+                              </button>
                             )}
                             <button className="w-full text-right px-3 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg flex items-center justify-between">
                               לוג שינויים <History size={14} />

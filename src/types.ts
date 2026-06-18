@@ -169,6 +169,8 @@ export interface BaseJob {
   tags?: string[];
   pendingTags?: string[];
   hasPendingTags?: boolean;
+  hasPendingUpdate?: boolean;
+  pendingUpdate?: any;
   salary?: string;
   requireCV?: boolean;
   directContact?: string;

@@ -315,6 +315,25 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
     }
   };
 
+  const handleApproveUpdate = async (job: Job) => {
+      const j = job as any;
+      if (!j.hasPendingUpdate || !j.pendingUpdate) return;
+      try {
+          // Merge pending update into main document
+          const finalUpdates = {
+              ...j.pendingUpdate,
+              hasPendingUpdate: false,
+              pendingUpdate: null,
+              updatedAt: new Date().toISOString()
+          };
+          await updateDoc(doc(db, 'jobs', j.id), finalUpdates);
+          toast('עדכון המשרה אושר בהצלחה', 'success');
+      } catch (error) {
+          console.error("Error approving update:", error);
+          toast('שגיאה באישור עדכון משרה', 'error');
+      }
+  };
+
   const handleStatusChange = async (job: Job, status: string) => {
       try {
           const updates: any = {
@@ -381,7 +400,14 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
       header: 'משרה וסטטוס',
       render: (j: Job) => (
         <div className="flex flex-col">
-          <span className="font-black text-slate-900 leading-tight">{j.title}</span>
+          <span className="font-black text-slate-900 leading-tight">
+            {j.title}
+            {(j as any).hasPendingUpdate && (
+              <span className="mr-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                ממתין לעדכון ממעסיק
+              </span>
+            )}
+          </span>
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{j.companyName} | {j.location} | {j.type}</span>
         </div>
       )
@@ -500,6 +526,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
         onDelete={handleDelete}
         onView={(j) => navigate('/admin/' + (isCasual ? 'jobs-casual/' : 'jobs/') + (j as any).id)}
         onStatusChange={handleStatusChange}
+        onApproveUpdate={handleApproveUpdate}
         filters={[
           { 
             key: 'status', 

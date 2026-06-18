@@ -12,6 +12,7 @@ import { Application, ApplicationStatus, Job } from '../../types';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { getFileUrl } from '../../lib/utils';
 
 export const AdminApplications: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -311,10 +312,10 @@ export const AdminApplications: React.FC = () => {
             render: (a: any) => (
                 a.cvUrl ? (
                     <div className="flex items-center gap-2">
-                         <a href={a.cvUrl} target="_blank" rel="noreferrer" title="תצוגה מקדימה" className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:text-white transition-colors hover:bg-indigo-600">
+                         <a href={getFileUrl(a.cvUrl)} target="_blank" rel="noreferrer" title="תצוגה מקדימה" className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:text-white transition-colors hover:bg-indigo-600">
                              <Eye size={14} />
                          </a>
-                         <a href={a.cvUrl} download target="_blank" rel="noreferrer" title="הורדה" className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-brand-dark transition-colors hover:bg-slate-100">
+                         <a href={getFileUrl(a.cvUrl)} download target="_blank" rel="noreferrer" title="הורדה" className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-brand-dark transition-colors hover:bg-slate-100">
                             <Download size={14} />
                          </a>
                     </div>

@@ -11,6 +11,7 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../lib/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { getFileUrl } from '../../lib/utils';
 
 interface SiteFile {
   id: string;
@@ -132,7 +133,7 @@ export const AdminFiles: React.FC = () => {
             const fileBytes = new Uint8Array(await selectedFile.arrayBuffer());
             
             await uploadBytes(storageRef, fileBytes, { contentType: selectedFile.type });
-            const url = await getDownloadURL(storageRef);
+            const url = window.location.origin + '/file/' + storageRef.fullPath;
 
             await addDoc(collection(db, 'files'), {
                 name: finalName,
@@ -192,15 +193,16 @@ export const AdminFiles: React.FC = () => {
             key: 'preview',
             header: 'תצוגה',
             render: (file: SiteFile) => {
+                const cleanUrl = getFileUrl(file.url);
                 if (file.type.startsWith('image/')) {
                     return (
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity">
-                            <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                        <a href={cleanUrl} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity">
+                            <img src={cleanUrl} alt={file.name} className="w-full h-full object-cover" />
                         </a>
                     );
                 }
                 return (
-                    <a href={file.url} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity">
+                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity">
                         <File size={24} />
                     </a>
                 );
@@ -210,12 +212,15 @@ export const AdminFiles: React.FC = () => {
             key: 'name',
             header: 'שם קובץ',
             sortable: true,
-            render: (file: SiteFile) => (
+            render: (file: SiteFile) => {
+                const cleanUrl = getFileUrl(file.url);
+                return (
                 <div className="flex flex-col">
-                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</a>
+                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</a>
                     <span className="text-xs text-slate-500">{formatBytes(file.size)}</span>
                 </div>
-            )
+                );
+            }
         },
         {
             key: 'type',
@@ -248,23 +253,26 @@ export const AdminFiles: React.FC = () => {
         {
             key: 'link',
             header: 'קישור',
-            render: (file: SiteFile) => (
+            render: (file: SiteFile) => {
+                const cleanUrl = getFileUrl(file.url);
+                return (
                 <div className="flex gap-2">
                     <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={() => {
-                            navigator.clipboard.writeText(file.url);
+                            navigator.clipboard.writeText(cleanUrl);
                             toast('הקישור הועתק ללוח', 'success');
                         }}
                     >
                         <Copy size={16} /> העתק קישור
                     </Button>
-                    <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg">
                        <Link size={16} />
                     </a>
                 </div>
-            )
+                );
+            }
         }
     ];
 

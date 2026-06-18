@@ -10,6 +10,7 @@ import { Helmet } from 'react-helmet-async';
 import { LoadingSpinner, FullPageLoading } from '../components/ui/Loading';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
+import { getFileUrl } from '../lib/utils';
 import { Job, Application, ApplicationStatus, User, UserRole, JobStatus } from '../types';
 import { isJobActive } from '../lib/jobUtils';
 import { JobCard } from '../components/JobCard';
@@ -444,7 +445,7 @@ const SeekerDashboard: React.FC = () => {
             const fileBytes = new Uint8Array(await file.arrayBuffer());
             await uploadBytes(cvRef, fileBytes, { contentType });
             
-            const cvUrl = await getDownloadURL(cvRef);
+            const cvUrl = window.location.origin + '/file/' + cvRef.fullPath;
             await setDoc(doc(db, 'users', user.uid), { cvUrl }, { merge: true });
             toast('קורות החיים הועלו בהצלחה!', 'success');
         } catch (error: any) {
@@ -850,7 +851,7 @@ const SeekerDashboard: React.FC = () => {
                                                 </h3>
                                                 {user?.cvUrl && (
                                                     <a 
-                                                        href={user.cvUrl} 
+                                                        href={getFileUrl(user.cvUrl)} 
                                                         target="_blank" 
                                                         rel="noreferrer"
                                                         className="bg-brand-teal/10 text-brand-teal px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 hover:bg-brand-teal/20 transition-all"

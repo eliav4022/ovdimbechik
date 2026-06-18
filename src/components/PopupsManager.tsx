@@ -157,18 +157,28 @@ export const PopupsManager: React.FC = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-2"
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6"
                     >
                         <motion.div
                             initial={{ scale: 0.9, y: 20 }}
                             animate={{ scale: 1, y: 0 }}
                             exit={{ scale: 0.9, y: 20 }}
-                            className="relative max-w-full max-h-[100vh] overflow-y-auto"
+                            className="relative max-w-full max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl"
                             style={{ backgroundColor: 'transparent', scrollbarWidth: 'none', msOverflowStyle: 'none' }} // Let the user's popup HTML determine background
                         >
                             <style>{`
                                 .hide-scrollbar::-webkit-scrollbar {
                                     display: none;
+                                }
+                                @media (max-width: 640px) {
+                                    .popup-content-wrapper * {
+                                        max-width: 100% !important;
+                                        box-sizing: border-box !important;
+                                    }
+                                    .popup-content-wrapper img,
+                                    .popup-content-wrapper video {
+                                        height: auto !important;
+                                    }
                                 }
                             `}</style>
                             <button 
@@ -178,7 +188,7 @@ export const PopupsManager: React.FC = () => {
                                 <X size={20} />
                             </button>
                             {popup.cssContent && <style dangerouslySetInnerHTML={{ __html: popup.cssContent }} />}
-                            <div className="hide-scrollbar" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
+                            <div className="hide-scrollbar popup-content-wrapper" dangerouslySetInnerHTML={{ __html: popup.htmlContent || '' }} />
                         </motion.div>
                     </motion.div>
                 ))}

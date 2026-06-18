@@ -282,7 +282,7 @@ const JobDetails: React.FC = () => {
           const fileBytes = new Uint8Array(await cvFile.arrayBuffer());
           await uploadBytes(cvRef, fileBytes, { contentType });
           
-          finalCvUrl = await getDownloadURL(cvRef);
+          finalCvUrl = window.location.origin + '/file/' + cvRef.fullPath;
       }
 
       const appRef = doc(collection(db, 'applications'));

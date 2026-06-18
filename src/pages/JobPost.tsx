@@ -202,26 +202,39 @@ const JobPost: React.FC = () => {
         const approvedTags = isAdmin ? allTags : allTags.filter(isTagApproved);
         const unapprovedTags = isAdmin ? [] : allTags.filter((t: string) => !isTagApproved(t));
 
-        await updateDoc(doc(db, 'jobs', id), {
-          ...editableFields,
-           tags: approvedTags,
-           pendingTags: unapprovedTags,
-           hasPendingTags: unapprovedTags.length > 0,
-          updatedAt: now,
-        });
+        if (isAdmin) {
+            await updateDoc(doc(db, 'jobs', id), {
+                ...editableFields,
+                tags: approvedTags,
+                pendingTags: unapprovedTags,
+                hasPendingTags: unapprovedTags.length > 0,
+                updatedAt: now,
+                hasPendingUpdate: false,
+                pendingUpdate: null
+            });
 
-        if (isAdmin && approvedTags.length > 0) {
-            try {
-                const newGlobalTags = approvedTags.filter((t: string) => !isTagApproved(t));
-                if (newGlobalTags.length > 0) {
-                    const tagUpdates: any = { jobTags: arrayUnion(...newGlobalTags) };
-                    if (formData.category) tagUpdates[`tagsByCategory.${formData.category}`] = arrayUnion(...newGlobalTags);
-                    await setDoc(doc(db, 'settings', 'tags'), tagUpdates, { merge: true });
+            if (approvedTags.length > 0) {
+                try {
+                    const newGlobalTags = approvedTags.filter((t: string) => !isTagApproved(t));
+                    if (newGlobalTags.length > 0) {
+                        const tagUpdates: any = { jobTags: arrayUnion(...newGlobalTags) };
+                        if (formData.category) tagUpdates[`tagsByCategory.${formData.category}`] = arrayUnion(...newGlobalTags);
+                        await setDoc(doc(db, 'settings', 'tags'), tagUpdates, { merge: true });
+                    }
+                } catch(e) { console.error("Failed to update global tags", e); }
+            }
+            toast('המשרה עודכנה בהצלחה!', 'success');
+        } else {
+            await updateDoc(doc(db, 'jobs', id), {
+                hasPendingUpdate: true,
+                pendingUpdate: {
+                    ...editableFields,
+                    tags: allTags,
+                    updatedAt: now,
                 }
-            } catch(e) { console.error("Failed to update global tags", e); }
+            });
+            toast('השינויים נשמרו ונשלחו לאישור מנהל (בינתיים המשרה מוצגת כרגיל)', 'success');
         }
-
-        toast('המשרה עודכנה בהצלחה!', 'success');
       } else {
         const newJobRef = doc(collection(db, 'jobs'));
         const txRef = doc(collection(db, 'credit_transactions'));
@@ -501,7 +514,7 @@ const JobPost: React.FC = () => {
                                         const storageRef = ref(storage, `cvs/${user?.uid}/joblogo_${Date.now()}.${fileExt}`);
                                         const fileBytes = new Uint8Array(await file.arrayBuffer());
                                         await uploadBytes(storageRef, fileBytes, { contentType: file.type });
-                                        const url = await getDownloadURL(storageRef);
+                                        const url = window.location.origin + '/file/' + storageRef.fullPath;
                                         
                                         // Save to files collection
                                         const formattedDate = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');

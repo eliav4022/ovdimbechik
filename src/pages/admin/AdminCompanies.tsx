@@ -362,7 +362,7 @@ export const AdminCompanies: React.FC = () => {
                                             const storageRef = ref(storage, `cvs/admin_${Date.now()}.${fileExt}`);
                                             const fileBytes = new Uint8Array(await file.arrayBuffer());
                                             await uploadBytes(storageRef, fileBytes, { contentType: file.type });
-                                            const url = await getDownloadURL(storageRef);
+                                            const url = window.location.origin + '/file/' + storageRef.fullPath;
                                             
                                             // Save to files collection
                                             const compName = companyToEdit.name || 'חברה_ללא_שם';

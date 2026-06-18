@@ -26,7 +26,7 @@ const AuthAction = () => {
           setVerifying(false);
         })
         .catch((err) => {
-          setError('הקישור לאיפוס סיסמה פג תוקף הסיסמה אינה תקינה. אנא בקש קישור חדש.');
+          setError('הקישור לאיפוס סיסמה פג תוקף או שאינו תקין. אנא בקש קישור חדש.');
           setVerifying(false);
         });
     } else {
