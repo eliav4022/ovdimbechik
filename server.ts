@@ -36,6 +36,33 @@ async function startServer() {
   
   app.use("/api/", limiter);
 
+  // Serve files directly from Firebase Storage without tokens
+  app.get("/file/*", async (req, res) => {
+    try {
+        const filePath = req.params[0];
+        if (!filePath) return res.status(400).send("Bad request");
+        
+        const storageBucket = "gen-lang-client-0751853101.firebasestorage.app";
+        const encodedPath = encodeURIComponent(decodeURIComponent(filePath));
+        const targetUrl = `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodedPath}?alt=media`;
+        
+        const response = await fetch(targetUrl);
+        if (!response.ok) {
+            return res.status(response.status).send(`Failed to fetch file: ${response.statusText}`);
+        }
+        
+        const contentType = response.headers.get("content-type") || "application/octet-stream";
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Cache-Control", "public, max-age=31536000"); 
+        
+        const arrayBuffer = await response.arrayBuffer();
+        res.send(Buffer.from(arrayBuffer));
+    } catch (e: any) {
+        console.error("Express proxy error:", e);
+        res.status(500).send("Internal Server Error");
+    }
+  });
+
   app.get("/api/health", (req, res) => {
     const envKeys = Object.keys(process.env);
     const keyLikeVars = envKeys.filter(k => k.includes("API") || k.includes("KEY") || k.includes("GEMINI"));

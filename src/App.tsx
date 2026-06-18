@@ -18,7 +18,6 @@ const Login = React.lazy(() => import('./pages/Login'));
 const Register = React.lazy(() => import('./pages/Register'));
 const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword'));
 const AuthAction = React.lazy(() => import('./pages/AuthAction'));
-const FileView = React.lazy(() => import('./pages/FileView'));
 const JobDetails = React.lazy(() => import('./pages/JobDetails'));
 const SeekerDashboard = React.lazy(() => import('./pages/SeekerDashboard'));
 const EmployerDashboard = React.lazy(() => import('./pages/EmployerDashboard'));
@@ -112,7 +111,6 @@ const AppContent = () => {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/auth/action" element={<AuthAction />} />
-              <Route path="/file/*" element={<FileView />} />
               <Route path="/job/:id" element={<JobDetails />} />
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
