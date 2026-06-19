@@ -33,6 +33,90 @@ const Register: React.FC = () => {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+  useEffect(() => {
+    let active = true;
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && active) {
+          setLoading(true);
+          const user = result.user;
+          const userRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
+
+          const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
+          const savedRole = (sessionStorage.getItem('google_auth_role') as UserRole) || role;
+          
+          sessionStorage.removeItem('google_auth_redirect');
+          sessionStorage.removeItem('google_auth_role');
+
+          if (!userDoc.exists()) {
+            const isSelfAdmin = user.email === 'eliav4022@gmail.com';
+            const newUser: User = {
+              id: user.uid,
+              uid: user.uid,
+              email: user.email!,
+              fullName: user.displayName || '',
+              displayName: user.displayName || '',
+              role: isSelfAdmin ? UserRole.ADMIN : savedRole,
+              status: 'Active',
+              permissions: isSelfAdmin ? ['ALL'] : [],
+              createdAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            };
+
+            await setDoc(userRef, newUser);
+            trackEvent({ type: 'register' as any, metadata: { role: savedRole, method: 'google-redirect' } });
+
+            if (savedRole === UserRole.SEEKER) {
+              await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
+                userId: user.uid,
+                bio: '',
+                cvUrl: '',
+                skills: [],
+                savedJobIds: [],
+              });
+            } else if (savedRole === UserRole.EMPLOYER) {
+              await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
+                userId: user.uid,
+                position: '',
+                companyId: null,
+                isPrimaryContact: true,
+              });
+            }
+          } else {
+            await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
+            trackEvent({ type: 'login' as any, metadata: { method: 'google-redirect', isNewUser: false } });
+          }
+
+          if (savedRedirect === '/') {
+            const finalRole = userDoc.exists() ? userDoc.data().role : savedRole;
+            if (finalRole === UserRole.SEEKER) navigate('/seeker/dashboard');
+            else if (finalRole === UserRole.EMPLOYER) navigate('/employer/dashboard');
+            else if (finalRole === UserRole.ADMIN || finalRole === UserRole.SUPER_ADMIN) navigate('/admin');
+            else navigate('/');
+          } else {
+            navigate(savedRedirect);
+          }
+        }
+      } catch (err: any) {
+        console.error('Google Redirect result error:', err);
+        if (active) {
+          setError(`שגיאה בהרשמה דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    checkRedirectResult();
+    return () => {
+      active = false;
+    };
+  }, [navigate, redirectPath, role]);
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -109,64 +193,80 @@ const Register: React.FC = () => {
     setLoading(true);
     setError('');
     const provider = new GoogleAuthProvider();
-    try {
-      const { user } = await signInWithPopup(auth, provider);
-      
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
+    
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      try {
+        sessionStorage.setItem('google_auth_redirect', redirectPath);
+        sessionStorage.setItem('google_auth_role', role);
+        await signInWithRedirect(auth, provider);
+      } catch (err: any) {
+        console.error('Google redirect sign-in error:', err);
+        setError(`שגיאה בהפעלת התחברות גוגל: ${err.message}`);
+        setLoading(false);
+      }
+    } else {
+      try {
+        const { user } = await signInWithPopup(auth, provider);
+        
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
 
-      if (!userDoc.exists()) {
-        const isSelfAdmin = user.email === 'eliav4022@gmail.com';
-        const newUser: User = {
-          id: user.uid,
-          uid: user.uid,
-          email: user.email!,
-          fullName: user.displayName || '',
-          displayName: user.displayName || '',
-          role: isSelfAdmin ? UserRole.ADMIN : role,
-          status: 'Active',
-          permissions: isSelfAdmin ? ['ALL'] : [],
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-        };
+        if (!userDoc.exists()) {
+          const isSelfAdmin = user.email === 'eliav4022@gmail.com';
+          const newUser: User = {
+            id: user.uid,
+            uid: user.uid,
+            email: user.email!,
+            fullName: user.displayName || '',
+            displayName: user.displayName || '',
+            role: isSelfAdmin ? UserRole.ADMIN : role,
+            status: 'Active',
+            permissions: isSelfAdmin ? ['ALL'] : [],
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+          };
 
-        await setDoc(userRef, newUser);
-        trackEvent({ type: 'register' as any, metadata: { role, method: 'google' } });
+          await setDoc(userRef, newUser);
+          trackEvent({ type: 'register' as any, metadata: { role, method: 'google' } });
 
-        if (role === UserRole.SEEKER) {
-          await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
-            userId: user.uid,
-            bio: '',
-            cvUrl: '',
-            skills: [],
-            savedJobIds: [],
-          });
-        } else if (role === UserRole.EMPLOYER) {
-          await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
-            userId: user.uid,
-            position: '',
-            companyId: null,
-            isPrimaryContact: true,
-          });
+          if (role === UserRole.SEEKER) {
+            await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
+              userId: user.uid,
+              bio: '',
+              cvUrl: '',
+              skills: [],
+              savedJobIds: [],
+            });
+          } else if (role === UserRole.EMPLOYER) {
+            await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
+              userId: user.uid,
+              position: '',
+              companyId: null,
+              isPrimaryContact: true,
+            });
+          }
         }
-      }
 
-      if (redirectPath === '/') {
-        if (role === UserRole.SEEKER) navigate('/seeker/dashboard');
-        else if (role === UserRole.EMPLOYER) navigate('/employer/dashboard');
-        else navigate('/');
-      } else {
-        navigate(redirectPath);
+        if (redirectPath === '/') {
+          const finalRole = userDoc.exists() ? userDoc.data().role : role;
+          if (finalRole === UserRole.SEEKER) navigate('/seeker/dashboard');
+          else if (finalRole === UserRole.EMPLOYER) navigate('/employer/dashboard');
+          else navigate('/');
+        } else {
+          navigate(redirectPath);
+        }
+      } catch (err: any) {
+        console.error('Google sign-in error:', err.code, err.message, err);
+        if (err.code === 'auth/popup-closed-by-user') {
+          setError('חלון ההתחברות נסגר לפני סיום ההרשמה. נסה שוב.');
+        } else {
+          setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
+        }
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      console.error('Google sign-in error:', err.code, err.message, err);
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('חלון ההתחברות נסגר לפני סיום ההרשמה. נסה שוב.');
-      } else {
-        setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
-      }
-    } finally {
-      setLoading(false);
     }
   };
 
