@@ -18,6 +18,14 @@ import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 
+let registerRedirectPromise: Promise<any> | null = null;
+const getRegisterRedirectResult = () => {
+  if (!registerRedirectPromise) {
+    registerRedirectPromise = getRedirectResult(auth);
+  }
+  return registerRedirectPromise;
+};
+
 const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,7 +45,7 @@ const Register: React.FC = () => {
     let active = true;
     const checkRedirectResult = async () => {
       try {
-        const result = await getRedirectResult(auth);
+        const result = await getRegisterRedirectResult();
         if (result && active) {
           setLoading(true);
           const user = result.user;

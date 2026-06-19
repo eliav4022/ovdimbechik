@@ -10,6 +10,14 @@ import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 
+let loginRedirectPromise: Promise<any> | null = null;
+const getLoginRedirectResult = () => {
+  if (!loginRedirectPromise) {
+    loginRedirectPromise = getRedirectResult(auth);
+  }
+  return loginRedirectPromise;
+};
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +32,7 @@ const Login: React.FC = () => {
     let active = true;
     const checkRedirectResult = async () => {
       try {
-        const result = await getRedirectResult(auth);
+        const result = await getLoginRedirectResult();
         if (result && active) {
           setLoading(true);
           const user = result.user;
