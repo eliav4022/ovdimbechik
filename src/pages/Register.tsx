@@ -202,7 +202,8 @@ const Register: React.FC = () => {
     setError('');
     const provider = new GoogleAuthProvider();
     
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
+    const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad/.test(navigator.userAgent);
+    const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
     const isIframe = window.self !== window.top;
     
     if (isMobile && !isIframe) {
