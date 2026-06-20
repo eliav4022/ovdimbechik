@@ -148,8 +148,9 @@ const Login: React.FC = () => {
     const provider = new GoogleAuthProvider();
     
     const isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
+    const isIframe = window.self !== window.top;
     
-    if (isMobile) {
+    if (isMobile && !isIframe) {
       try {
         sessionStorage.setItem('google_auth_redirect', redirectPath);
         await signInWithRedirect(auth, provider);
@@ -207,6 +208,8 @@ const Login: React.FC = () => {
         console.error('Google sign-in error:', err.code, err.message, err);
         if (err.code === 'auth/popup-closed-by-user') {
           setError('חלון ההתחברות נסגר לפני סיום תהליך ההתחברות. נסה שוב.');
+        } else if (err.code === 'auth/popup-blocked') {
+          setError('חלון ההתחברות נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת הגדרות הדפדפן לקבלת חווית חיבור תקינה, או לחץ על סמל פתיחת האפליקציה בכרטיסייה חדשה.');
         } else {
           setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
         }
