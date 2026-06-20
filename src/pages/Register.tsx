@@ -4,7 +4,6 @@ import {
   createUserWithEmailAndPassword, 
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
   GoogleAuthProvider,
   updateProfile
 } from 'firebase/auth';
@@ -13,18 +12,11 @@ import { updateDoc } from 'firebase/firestore';
 import { trackEvent } from '../lib/analytics';
 import { auth, db } from '../lib/firebase';
 import { UserRole, User } from '../types';
-import { Briefcase, User as UserIcon, Mail, Lock, Chrome, Rocket, ArrowRight, Bot } from 'lucide-react';
+import { Briefcase, User as UserIcon, Mail, Lock, Chrome, Rocket, ArrowRight, Bot, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
-
-let registerRedirectPromise: Promise<any> | null = null;
-const getRegisterRedirectResult = () => {
-  if (!registerRedirectPromise) {
-    registerRedirectPromise = getRedirectResult(auth);
-  }
-  return registerRedirectPromise;
-};
+import { useAuth } from '../lib/AuthContext';
 
 const Register: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -39,91 +31,29 @@ const Register: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const redirectPath = searchParams.get('redirect') || '/';
 
+  const { user: authUser, loading: authLoading } = useAuth();
+
+  const isIframe = window.self !== window.top;
+  const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad|iPhone|iPod/.test(navigator.userAgent);
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   useEffect(() => {
-    let active = true;
-    const checkRedirectResult = async () => {
-      try {
-        const result = await getRegisterRedirectResult();
-        if (result && active) {
-          setLoading(true);
-          const user = result.user;
-          const userRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userRef);
-
-          const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
-          const savedRole = (sessionStorage.getItem('google_auth_role') as UserRole) || role;
-          
-          sessionStorage.removeItem('google_auth_redirect');
-          sessionStorage.removeItem('google_auth_role');
-
-          if (!userDoc.exists()) {
-            const isSelfAdmin = user.email === 'eliav4022@gmail.com';
-            const newUser: User = {
-              id: user.uid,
-              uid: user.uid,
-              email: user.email!,
-              fullName: user.displayName || '',
-              displayName: user.displayName || '',
-              role: isSelfAdmin ? UserRole.ADMIN : savedRole,
-              status: 'Active',
-              permissions: isSelfAdmin ? ['ALL'] : [],
-              createdAt: new Date().toISOString(),
-              lastLogin: new Date().toISOString(),
-            };
-
-            await setDoc(userRef, newUser);
-            trackEvent({ type: 'register' as any, metadata: { role: savedRole, method: 'google-redirect' } });
-
-            if (savedRole === UserRole.SEEKER) {
-              await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
-                userId: user.uid,
-                bio: '',
-                cvUrl: '',
-                skills: [],
-                savedJobIds: [],
-              });
-            } else if (savedRole === UserRole.EMPLOYER) {
-              await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
-                userId: user.uid,
-                position: '',
-                companyId: null,
-                isPrimaryContact: true,
-              });
-            }
-          } else {
-            await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
-            trackEvent({ type: 'login' as any, metadata: { method: 'google-redirect', isNewUser: false } });
-          }
-
-          if (savedRedirect === '/') {
-            const finalRole = userDoc.exists() ? userDoc.data().role : savedRole;
-            if (finalRole === UserRole.SEEKER) navigate('/seeker/dashboard');
-            else if (finalRole === UserRole.EMPLOYER) navigate('/employer/dashboard');
-            else if (finalRole === UserRole.ADMIN || finalRole === UserRole.SUPER_ADMIN) navigate('/admin');
-            else navigate('/');
-          } else {
-            navigate(savedRedirect);
-          }
-        }
-      } catch (err: any) {
-        console.error('Google Redirect result error:', err);
-        if (active) {
-          setError(`שגיאה בהרשמה דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+    if (!authLoading && authUser && !loading) {
+      const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
+      sessionStorage.removeItem('google_auth_redirect');
+      
+      const userRole = authUser.role;
+      if (savedRedirect === '/') {
+        if (userRole === UserRole.SEEKER) navigate('/seeker/dashboard');
+        else if (userRole === UserRole.EMPLOYER) navigate('/employer/dashboard');
+        else if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN) navigate('/admin');
+        else navigate('/');
+      } else {
+        navigate(savedRedirect);
       }
-    };
-
-    checkRedirectResult();
-    return () => {
-      active = false;
-    };
-  }, [navigate, redirectPath, role]);
+    }
+  }, [authUser, authLoading, loading, navigate, redirectPath]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,6 +235,23 @@ const Register: React.FC = () => {
             <h2 className="text-3xl font-black text-slate-900 mb-2">ברוכים הבאים 🌈</h2>
             <p className="text-slate-500 font-bold">הצטרפו לאלפי מחפשי עבודה ומעסיקים</p>
           </div>
+
+          {isIframe && isIPad && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-6 p-4 bg-amber-50 text-amber-800 text-sm rounded-2xl border border-amber-100 font-bold text-right flex flex-col gap-2"
+            >
+              <div className="flex items-center gap-2 text-amber-900 font-black">
+                <AlertCircle size={18} className="shrink-0" />
+                <span>שים לב (משתמשי iOS/iPad/Safari בתצוגה מקדימה)</span>
+              </div>
+              <p className="text-xs text-slate-600 font-semibold leading-relaxed">
+                בגלל הגדרות אבטחה של אפל בדפדפן (חסימת עוגיות צד שלישי ב-Iframe), הרשמת גוגל עשויה שלא להסתנכרן בחלון המוקטן.
+                לחץ על כפתור המרובע עם החץ <span className="underline">("פתח בכרטיסייה חדשה")</span> בקצה הימני העליון כדי להירשם בצורה חלקה ומהירה!
+              </p>
+            </motion.div>
+          )}
 
           {error && (
             <motion.div 
