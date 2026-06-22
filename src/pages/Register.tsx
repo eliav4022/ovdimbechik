@@ -131,91 +131,81 @@ const Register: React.FC = () => {
   const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
 
   const handleGoogleLogin = async () => {
-    if (isIframe && isMobile) {
-      window.open(window.location.href, '_blank');
-      return;
+    if (isIframe) {
+      if (isMobile) {
+        window.open(window.location.href, '_blank');
+        return;
+      }
+      console.warn("Using popup in an iframe. Ensure Popups are allowed.");
     }
 
     setLoading(true);
     setError('');
     const provider = new GoogleAuthProvider();
     
-    if (false) {
-      try {
-        sessionStorage.setItem('google_auth_redirect', redirectPath);
-        sessionStorage.setItem('google_auth_role', role);
-        await signInWithRedirect(auth, provider);
-      } catch (err: any) {
-        console.error('Google redirect sign-in error:', err);
-        setError(`שגיאה בהפעלת התחברות גוגל: ${err.message}`);
-        setLoading(false);
+    try {
+      const { user } = await signInWithPopup(auth, provider);
+      
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        const isSelfAdmin = user.email === 'eliav4022@gmail.com';
+        const newUser: User = {
+          id: user.uid,
+          uid: user.uid,
+          email: user.email!,
+          fullName: user.displayName || '',
+          displayName: user.displayName || '',
+          role: isSelfAdmin ? UserRole.ADMIN : role,
+          status: 'Active',
+          permissions: isSelfAdmin ? ['ALL'] : [],
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+        };
+
+        await setDoc(userRef, newUser);
+        trackEvent({ type: 'register' as any, metadata: { role, method: 'google' } });
+
+        if (role === UserRole.SEEKER) {
+          await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
+            userId: user.uid,
+            bio: '',
+            cvUrl: '',
+            skills: [],
+            savedJobIds: [],
+          });
+        } else if (role === UserRole.EMPLOYER) {
+          await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
+            userId: user.uid,
+            position: '',
+            companyId: null,
+            isPrimaryContact: true,
+          });
+        }
+      } else {
+        await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
+        trackEvent({ type: 'login' as any, metadata: { method: 'google', isNewUser: false } });
       }
-    } else {
-      try {
-        const { user } = await signInWithPopup(auth, provider);
-        
-        const userRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userRef);
 
-        if (!userDoc.exists()) {
-          const isSelfAdmin = user.email === 'eliav4022@gmail.com';
-          const newUser: User = {
-            id: user.uid,
-            uid: user.uid,
-            email: user.email!,
-            fullName: user.displayName || '',
-            displayName: user.displayName || '',
-            role: isSelfAdmin ? UserRole.ADMIN : role,
-            status: 'Active',
-            permissions: isSelfAdmin ? ['ALL'] : [],
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString(),
-          };
-
-          await setDoc(userRef, newUser);
-          trackEvent({ type: 'register' as any, metadata: { role, method: 'google' } });
-
-          if (role === UserRole.SEEKER) {
-            await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
-              userId: user.uid,
-              bio: '',
-              cvUrl: '',
-              skills: [],
-              savedJobIds: [],
-            });
-          } else if (role === UserRole.EMPLOYER) {
-            await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
-              userId: user.uid,
-              position: '',
-              companyId: null,
-              isPrimaryContact: true,
-            });
-          }
-        } else {
-          await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
-          trackEvent({ type: 'login' as any, metadata: { method: 'google', isNewUser: false } });
-        }
-
-        if (redirectPath === '/') {
-          const finalRole = userDoc.exists() ? userDoc.data().role : role;
-          if (finalRole === UserRole.SEEKER) navigate('/seeker/dashboard');
-          else if (finalRole === UserRole.EMPLOYER) navigate('/employer/dashboard');
-          else navigate('/');
-        } else {
-          navigate(redirectPath);
-        }
-      } catch (err: any) {
-        console.error('Google sign-in error:', err.code, err.message, err);
-        if (err.code === 'auth/popup-closed-by-user') {
-          setError('חלון ההתחברות נסגר לפני סיום ההרשמה. נסה שוב.');
-        } else if (err.code === 'auth/popup-blocked') {
-          setError('חלון ההרשמה נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת הגדרות הדפדפן לקבלת חווית חיבור תקינה, או לחץ על סמל פתיחת האפליקציה בכרטיסייה חדשה.');
-        } else {
-          setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
-        }
-      } finally {
-        setLoading(false);
+      if (redirectPath === '/') {
+        const finalRole = userDoc.exists() ? userDoc.data().role : role;
+        if (finalRole === UserRole.SEEKER) navigate('/seeker/dashboard');
+        else if (finalRole === UserRole.EMPLOYER) navigate('/employer/dashboard');
+        else navigate('/');
+      } else {
+        navigate(redirectPath);
       }
+    } catch (err: any) {
+      console.error('Google sign-in error:', err.code, err.message, err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('חלון ההתחברות נסגר לפני סיום ההרשמה. נסה שוב.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('חלון ההרשמה נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת בסרגל הכתובת.');
+      } else {
+        setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
+      }
+      setLoading(false);
     }
   };
 
@@ -242,23 +232,6 @@ const Register: React.FC = () => {
             <h2 className="text-3xl font-black text-slate-900 mb-2">ברוכים הבאים 🌈</h2>
             <p className="text-slate-500 font-bold">הצטרפו לאלפי מחפשי עבודה ומעסיקים</p>
           </div>
-
-          {isIframe && isMobile && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mb-6 p-4 bg-amber-50 text-amber-800 text-sm rounded-2xl border border-amber-100 font-bold text-right flex flex-col gap-2"
-            >
-              <div className="flex items-center gap-2 text-amber-900 font-black">
-                <AlertCircle size={18} className="shrink-0" />
-                <span>שים לב (משתמשי תצוגה מקדימה בנייד)</span>
-              </div>
-              <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                בגלל הגדרות אבטחה של דפדפנים במובייל (חסימת חלונות קופצים ב-Iframe), חיבור גוגל עלול שלא לעבוד.
-                תהליך ההתחברות יפתח אוטומטית כרטיסייה חדשה וחלקה!
-              </p>
-            </motion.div>
-          )}
 
           {error && (
             <motion.div 

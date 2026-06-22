@@ -89,9 +89,12 @@ const Login: React.FC = () => {
   const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
 
   const handleGoogleLogin = async () => {
-    if (isIframe && isMobile) {
-      window.open(window.location.href, '_blank');
-      return;
+    if (isIframe) {
+      if (isMobile) {
+        window.open(window.location.href, '_blank');
+        return;
+      }
+      console.warn("Using popup in an iframe. Ensure Popups are allowed.");
     }
 
     setLoading(true);
@@ -123,7 +126,7 @@ const Login: React.FC = () => {
           await setDoc(userRef, newUser);
           trackEvent({ type: 'register' as any, metadata: { role: UserRole.ADMIN, method: 'google' } });
         } else {
-          // If no existing account in database, we must alert the user and sign out.
+          // If no existing account in database, alert user and sign out
           await auth.signOut();
           setError('שגיאה: לא נמצא חשבון קיים במערכת המשויך לכתובת אימייל זו. אנא עברו לעמוד ההרשמה כדי ליצור חשבון חדש.');
           setLoading(false);
@@ -134,17 +137,19 @@ const Login: React.FC = () => {
         trackEvent({ type: 'login' as any, metadata: { method: 'google', isNewUser: false } });
       }
       
-      // Let the useEffect hook redirect the authenticated user
+      const finalRole = userDoc.exists() ? userDoc.data().role : UserRole.ADMIN;
+      const targetPath = redirectPath === '/' ? (finalRole === UserRole.SEEKER ? '/seeker/dashboard' : (finalRole === UserRole.EMPLOYER ? '/employer/dashboard' : '/admin')) : redirectPath;
+      
+      navigate(targetPath);
     } catch (err: any) {
       console.error('Google sign-in error:', err.code, err.message, err);
       if (err.code === 'auth/popup-closed-by-user') {
         setError('חלון ההתחברות נסגר לפני סיום תהליך ההתחברות. נסה שוב.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('חלון ההתחברות נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת הגדרות הדפדפן לקבלת חווית חיבור תקינה, או לחץ על סמל פתיחת האפליקציה בכרטיסייה חדשה.');
+        setError('חלון ההתחברות נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) בסרגל הכתובת להתחברות זריזה.');
       } else {
-        setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
+        setError(`שגיאה בהפעלת התחברות גוגל: ${err.message}`);
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -172,23 +177,6 @@ const Login: React.FC = () => {
             <h2 className="text-3xl font-black text-slate-900 mb-2">ברוכים השבים 👋</h2>
             <p className="text-slate-500 font-bold">התחברו כדי למצוא את המשרה הבאה בצ'יק</p>
           </div>
-
-          {isIframe && isMobile && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mb-6 p-4 bg-amber-50 text-amber-800 text-sm rounded-2xl border border-amber-100 font-bold text-right flex flex-col gap-2"
-            >
-              <div className="flex items-center gap-2 text-amber-900 font-black">
-                <AlertCircle size={18} className="shrink-0" />
-                <span>שים לב (משתמשי תצוגה מקדימה בנייד)</span>
-              </div>
-              <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                בגלל הגדרות אבטחה של דפדפנים במובייל (חסימת חלונות קופצים ב-Iframe), חיבור גוגל עלול שלא לעבוד.
-                תהליך ההתחברות יפתח אוטומטית כרטיסייה חדשה וחלקה!
-              </p>
-            </motion.div>
-          )}
 
           {error && (
             <motion.div 

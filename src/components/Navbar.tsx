@@ -104,18 +104,17 @@ export const Navbar: React.FC = () => {
         <div className="flex justify-between items-center h-full">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2 group">
-                {logoUrl ? (
-                    <img src={logoUrl} alt="עובדים בצ'יק" className="h-12 w-auto object-contain" />
-                ) : (
-                    <div className="flex flex-col text-right">
-                        <span className="text-2xl font-black tracking-tighter">
-                            <span className="text-slate-900">עובדים</span>
-                            <span className="text-primary">בצ'יק</span>
-                            <CheckIcon />
-                        </span>
-                        <span className="text-[10px] font-black text-highlight -mt-1 uppercase tracking-wider">הפורטל המוביל למציאת עבודה</span>
-                    </div>
-                )}
+                <div className="flex flex-col text-right">
+                    {logoUrl ? (
+                        <img src={logoUrl} alt="עובדים בצ'יק" className="h-12 w-auto object-contain" />
+                    ) : (
+                        <img src="/logo.png" alt="עובדים בצ'יק" className="h-12 w-auto object-contain" onError={(e) => {
+                            // אקסטרה עזרה למקרה שאין עדיין קובץ logo.png, נציג טקסט
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML = `<span class="text-2xl font-black tracking-tighter"><span class="text-slate-900">עובדים</span><span class="text-primary">בצ'יק</span></span>`;
+                        }} />
+                    )}
+                </div>
             </Link>
 
             {/* Desktop Nav */}
