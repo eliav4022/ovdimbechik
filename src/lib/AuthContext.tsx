@@ -67,6 +67,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let unsubUser: (() => void) | null = null;
 
+    // Handle Redirect Result for Google Auth
+    getRedirectResult(auth).then(async (credential) => {
+      if (credential?.user) {
+        const { user } = credential;
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+
+        if (!userDoc.exists()) {
+          const roleFromStorage = sessionStorage.getItem('google_auth_role') as UserRole;
+          const intentFromStorage = sessionStorage.getItem('google_auth_intent');
+          const isSelfAdmin = user.email?.toLowerCase() === 'eliav4022@gmail.com';
+          
+          if (intentFromStorage === 'login' && !isSelfAdmin) {
+            await auth.signOut();
+            alert('לא קיימת במערכת כתובת המייל זו. אנא היכנס לעמוד ההרשמה.');
+            sessionStorage.removeItem('google_auth_intent');
+            return;
+          }
+
+          const role = roleFromStorage || UserRole.SEEKER;
+          
+          const newUser: User = {
+            id: user.uid,
+            uid: user.uid,
+            email: user.email || '',
+            fullName: user.displayName || '',
+            displayName: user.displayName || '',
+            role: isSelfAdmin ? UserRole.ADMIN : role,
+            status: 'Active',
+            permissions: isSelfAdmin ? ['ALL'] : [],
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+          };
+
+          if (role === UserRole.EMPLOYER) {
+            newUser.companyName = '';
+          }
+
+          await setDoc(userRef, newUser);
+          
+          if (role === UserRole.SEEKER) {
+            await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
+              userId: user.uid,
+              bio: '',
+              cvUrl: '',
+              skills: [],
+              savedJobIds: [],
+            });
+          } else if (role === UserRole.EMPLOYER) {
+            await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
+              userId: user.uid,
+              position: '',
+              companyId: null,
+              isPrimaryContact: true,
+            });
+          }
+
+          sessionStorage.removeItem('google_auth_role');
+        } else {
+           await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
+        }
+      }
+    }).catch(console.error);
+
     const unsubscribe = onAuthStateChanged(auth, async (fUser) => {
       setFirebaseUser(fUser);
       setInitialized(true);

@@ -89,14 +89,6 @@ const Login: React.FC = () => {
   const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
 
   const handleGoogleLogin = async () => {
-    if (isIframe) {
-      if (isMobile) {
-        window.open(window.location.href, '_blank');
-        return;
-      }
-      console.warn("Using popup in an iframe. Ensure Popups are allowed.");
-    }
-
     setLoading(true);
     setError('');
     const provider = new GoogleAuthProvider();
