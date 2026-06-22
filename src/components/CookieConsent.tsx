@@ -65,94 +65,95 @@ export const CookieConsent: React.FC = () => {
     return (
         <AnimatePresence>
             {isVisible && (
-                <motion.div
-                    initial={{ y: 100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 100, opacity: 0 }}
-                    className="fixed bottom-6 left-6 right-6 lg:left-12 lg:right-auto lg:max-w-md z-[10005] bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100 overflow-hidden"
-                    dir="rtl"
-                >
-                    <div className="p-8">
-                        {!showSettings ? (
-                            <div className="text-right">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-12 h-12 bg-highlight/10 text-primary-dark rounded-xl flex items-center justify-center">
-                                        <Cookie size={28} />
+                <div className="fixed inset-0 z-[10005] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" dir="rtl">
+                    <motion.div
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        className="w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden"
+                    >
+                        <div className="p-8">
+                            {!showSettings ? (
+                                <div className="text-right">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="w-12 h-12 bg-highlight/10 text-primary-dark rounded-xl flex items-center justify-center">
+                                            <Cookie size={28} />
+                                        </div>
+                                        <h3 className="text-xl font-black text-text-main">{settings?.title || 'העוגיות שלנו 🍪'}</h3>
                                     </div>
-                                    <h3 className="text-xl font-black text-text-main">{settings?.title || 'העוגיות שלנו 🍪'}</h3>
+                                    <p className="text-text-muted font-bold text-sm leading-relaxed mb-8">
+                                        {settings?.message || 'אנחנו משתמשים בעוגיות כדי לשפר את חווית הגלישה שלך, להציג משרות רלוונטיות ולנתח את השימוש באתר שלנו. האם תרצה לאשר את כל העוגיות?'}
+                                    </p>
+                                    <div className="flex flex-col gap-3">
+                                        <button 
+                                            onClick={handleAcceptAll}
+                                            className="w-full bg-primary text-white py-4 rounded-xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-primary/20"
+                                        >
+                                            אישור כל העוגיות
+                                        </button>
+                                        <div className="flex gap-3">
+                                            <button 
+                                                onClick={handleAcceptNecessary}
+                                                className="flex-1 bg-bg-light text-text-muted py-4 rounded-xl font-black text-sm hover:bg-slate-200 transition-all"
+                                            >
+                                                הכרחיות בלבד
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowSettings(true)}
+                                                className="flex-1 border-2 border-slate-100 text-text-main py-4 rounded-xl font-black text-sm hover:border-primary/20 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Settings size={18} /> הגדרות
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="mt-6 text-[10px] text-text-muted/60 font-medium">
+                                        בלחיצה על "אישור", אתה מסכים ל<Link to="/privacy" className="underline">מדיניות הפרטיות</Link> שלנו.
+                                    </p>
                                 </div>
-                                <p className="text-text-muted font-bold text-sm leading-relaxed mb-8">
-                                    {settings?.message || 'אנחנו משתמשים בעוגיות כדי לשפר את חווית הגלישה שלך, להציג משרות רלוונטיות ולנתח את השימוש באתר שלנו. האם תרצה לאשר את כל העוגיות?'}
-                                </p>
-                                <div className="flex flex-col gap-3">
+                            ) : (
+                                <div className="text-right">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div className="flex items-center gap-3">
+                                            <ShieldCheck className="text-primary" size={24} />
+                                            <h3 className="text-xl font-black text-text-main">ניהול פרטיות</h3>
+                                        </div>
+                                        <button onClick={() => setShowSettings(false)} className="text-text-muted hover:text-text-main">
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-6 mb-10">
+                                        <PreferenceToggle 
+                                            label="עוגיות נחוצות" 
+                                            desc="הכרחיות לפעילות התקינה של האתר (אבטחה, התחברות)." 
+                                            checked={true} 
+                                            disabled={true} 
+                                        />
+                                        <PreferenceToggle 
+                                            label="ניתוח נתונים" 
+                                            desc={settings?.analyticsDesc || "עוזר לנו להבין איך משתמשים באתר ולשפר ביצועים."}
+                                            checked={preferences.analytics} 
+                                            onChange={(v) => setPreferences(p => ({ ...p, analytics: v }))}
+                                        />
+                                        <PreferenceToggle 
+                                            label="שיווק והתאמה" 
+                                            desc={settings?.marketingDesc || "מאפשר לנו להציג לך משרות ומודעות שבאמת רלוונטיות עבורך."}
+                                            checked={preferences.marketing} 
+                                            onChange={(v) => setPreferences(p => ({ ...p, marketing: v }))}
+                                        />
+                                    </div>
+
                                     <button 
-                                        onClick={handleAcceptAll}
-                                        className="w-full bg-primary text-white py-4 rounded-xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-primary/20"
+                                        onClick={handleSavePreferences}
+                                        className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-sm hover:bg-slate-800 transition-all shadow-xl"
                                     >
-                                        אישור כל העוגיות
-                                    </button>
-                                    <div className="flex gap-3">
-                                        <button 
-                                            onClick={handleAcceptNecessary}
-                                            className="flex-1 bg-bg-light text-text-muted py-4 rounded-xl font-black text-sm hover:bg-slate-200 transition-all"
-                                        >
-                                            הכרחיות בלבד
-                                        </button>
-                                        <button 
-                                            onClick={() => setShowSettings(true)}
-                                            className="flex-1 border-2 border-slate-100 text-text-main py-4 rounded-xl font-black text-sm hover:border-primary/20 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <Settings size={18} /> הגדרות
-                                        </button>
-                                    </div>
-                                </div>
-                                <p className="mt-6 text-[10px] text-text-muted/60 font-medium">
-                                    בלחיצה על "אישור", אתה מסכים ל<Link to="/privacy" className="underline">מדיניות הפרטיות</Link> שלנו.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="text-right">
-                                <div className="flex items-center justify-between mb-8">
-                                    <div className="flex items-center gap-3">
-                                        <ShieldCheck className="text-primary" size={24} />
-                                        <h3 className="text-xl font-black text-text-main">ניהול פרטיות</h3>
-                                    </div>
-                                    <button onClick={() => setShowSettings(false)} className="text-text-muted hover:text-text-main">
-                                        <X size={20} />
+                                        שמור העדפות
                                     </button>
                                 </div>
-
-                                <div className="space-y-6 mb-10">
-                                    <PreferenceToggle 
-                                        label="עוגיות נחוצות" 
-                                        desc="הכרחיות לפעילות התקינה של האתר (אבטחה, התחברות)." 
-                                        checked={true} 
-                                        disabled={true} 
-                                    />
-                                    <PreferenceToggle 
-                                        label="ניתוח נתונים" 
-                                        desc={settings?.analyticsDesc || "עוזר לנו להבין איך משתמשים באתר ולשפר ביצועים."}
-                                        checked={preferences.analytics} 
-                                        onChange={(v) => setPreferences(p => ({ ...p, analytics: v }))}
-                                    />
-                                    <PreferenceToggle 
-                                        label="שיווק והתאמה" 
-                                        desc={settings?.marketingDesc || "מאפשר לנו להציג לך משרות ומודעות שבאמת רלוונטיות עבורך."}
-                                        checked={preferences.marketing} 
-                                        onChange={(v) => setPreferences(p => ({ ...p, marketing: v }))}
-                                    />
-                                </div>
-
-                                <button 
-                                    onClick={handleSavePreferences}
-                                    className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-sm hover:bg-slate-800 transition-all shadow-xl"
-                                >
-                                    שמור העדפות
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </motion.div>
+                            )}
+                        </div>
+                    </motion.div>
+                </div>
             )}
         </AnimatePresence>
     );

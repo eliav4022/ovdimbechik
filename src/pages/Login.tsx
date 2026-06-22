@@ -27,7 +27,8 @@ const Login: React.FC = () => {
   const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   useEffect(() => {
-    if (!authLoading && authUser && !loading) {
+    // If the user object exists from AuthContext, they are already authenticated.
+    if (!authLoading && authUser) {
       const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
       sessionStorage.removeItem('google_auth_redirect');
       
@@ -41,7 +42,7 @@ const Login: React.FC = () => {
         navigate(savedRedirect);
       }
     }
-  }, [authUser, authLoading, loading, navigate, redirectPath]);
+  }, [authUser, authLoading, navigate, redirectPath]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,81 +86,66 @@ const Login: React.FC = () => {
     }
   };
 
+  const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
+
   const handleGoogleLogin = async () => {
+    if (isIframe && isMobile) {
+      window.open(window.location.href, '_blank');
+      return;
+    }
+
     setLoading(true);
     setError('');
     const provider = new GoogleAuthProvider();
     
-    const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad/.test(navigator.userAgent);
-    const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
-    const isIframe = window.self !== window.top;
-    
-    if (isMobile && !isIframe) {
-      try {
-        sessionStorage.setItem('google_auth_redirect', redirectPath);
-        await signInWithRedirect(auth, provider);
-      } catch (err: any) {
-        console.error('Google redirect sign-in error:', err);
-        setError(`שגיאה בהפעלת התחברות גוגל: ${err.message}`);
-        setLoading(false);
-      }
-    } else {
-      try {
-        const { user } = await signInWithPopup(auth, provider);
+    try {
+      const { user } = await signInWithPopup(auth, provider);
 
-        const userRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userRef);
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
 
-        if (!userDoc.exists()) {
-          const isSelfAdmin = user.email === 'eliav4022@gmail.com';
+      if (!userDoc.exists()) {
+        const isSelfAdmin = user.email?.toLowerCase() === 'eliav4022@gmail.com';
+        if (isSelfAdmin) {
           const newUser: User = {
             id: user.uid,
             uid: user.uid,
             email: user.email!,
             fullName: user.displayName || '',
             displayName: user.displayName || '',
-            role: isSelfAdmin ? UserRole.ADMIN : UserRole.SEEKER,
+            role: UserRole.ADMIN,
             status: 'Active',
-            permissions: isSelfAdmin ? ['ALL'] : [],
+            permissions: ['ALL'],
             createdAt: new Date().toISOString(),
             lastLogin: new Date().toISOString(),
           };
 
           await setDoc(userRef, newUser);
-
-          await setDoc(doc(db, `users/${user.uid}/profiles/seeker`), {
-            userId: user.uid,
-            bio: '',
-            cvUrl: '',
-            skills: [],
-            savedJobIds: [],
-          });
+          trackEvent({ type: 'register' as any, metadata: { role: UserRole.ADMIN, method: 'google' } });
         } else {
-          await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
-          trackEvent({ type: 'login' as any, metadata: { method: 'google', isNewUser: false } });
+          // If no existing account in database, we must alert the user and sign out.
+          await auth.signOut();
+          setError('שגיאה: לא נמצא חשבון קיים במערכת המשויך לכתובת אימייל זו. אנא עברו לעמוד ההרשמה כדי ליצור חשבון חדש.');
+          setLoading(false);
+          return;
         }
-        
-        if (redirectPath === '/') {
-          const role = userDoc.exists() ? userDoc.data().role : UserRole.SEEKER;
-          if (role === UserRole.SEEKER) navigate('/seeker/dashboard');
-          else if (role === UserRole.EMPLOYER) navigate('/employer/dashboard');
-          else if (role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN) navigate('/admin');
-          else navigate('/');
-        } else {
-          navigate(redirectPath);
-        }
-      } catch (err: any) {
-        console.error('Google sign-in error:', err.code, err.message, err);
-        if (err.code === 'auth/popup-closed-by-user') {
-          setError('חלון ההתחברות נסגר לפני סיום תהליך ההתחברות. נסה שוב.');
-        } else if (err.code === 'auth/popup-blocked') {
-          setError('חלון ההתחברות נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת הגדרות הדפדפן לקבלת חווית חיבור תקינה, או לחץ על סמל פתיחת האפליקציה בכרטיסייה חדשה.');
-        } else {
-          setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
-        }
-      } finally {
-        setLoading(false);
+      } else {
+        await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
+        trackEvent({ type: 'login' as any, metadata: { method: 'google', isNewUser: false } });
       }
+      
+      // Let the useEffect hook redirect the authenticated user
+    } catch (err: any) {
+      console.error('Google sign-in error:', err.code, err.message, err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('חלון ההתחברות נסגר לפני סיום תהליך ההתחברות. נסה שוב.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('חלון ההתחברות נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת הגדרות הדפדפן לקבלת חווית חיבור תקינה, או לחץ על סמל פתיחת האפליקציה בכרטיסייה חדשה.');
+      } else {
+        setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -187,7 +173,7 @@ const Login: React.FC = () => {
             <p className="text-slate-500 font-bold">התחברו כדי למצוא את המשרה הבאה בצ'יק</p>
           </div>
 
-          {isIframe && isIPad && (
+          {isIframe && isMobile && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -195,11 +181,11 @@ const Login: React.FC = () => {
             >
               <div className="flex items-center gap-2 text-amber-900 font-black">
                 <AlertCircle size={18} className="shrink-0" />
-                <span>שים לב (משתמשי iOS/iPad/Safari בתצוגה מקדימה)</span>
+                <span>שים לב (משתמשי תצוגה מקדימה בנייד)</span>
               </div>
               <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                בגלל הגדרות אבטחה של אפל בדפדפן (חסימת עוגיות צד שלישי ב-Iframe), חיבור גוגל עשוי שלא להסתנכרן בחלון המוקטן.
-                לחץ על כפתור המרובע עם החץ <span className="underline">("פתח בכרטיסייה חדשה")</span> בקצה הימני העליון כדי להתחבר בצורה חלקה ומהירה!
+                בגלל הגדרות אבטחה של דפדפנים במובייל (חסימת חלונות קופצים ב-Iframe), חיבור גוגל עלול שלא לעבוד.
+                תהליך ההתחברות יפתח אוטומטית כרטיסייה חדשה וחלקה!
               </p>
             </motion.div>
           )}

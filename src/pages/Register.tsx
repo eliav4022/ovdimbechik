@@ -39,7 +39,8 @@ const Register: React.FC = () => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   useEffect(() => {
-    if (!authLoading && authUser && !loading) {
+    // If the user object exists from AuthContext, they are already authenticated.
+    if (!authLoading && authUser) {
       const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
       sessionStorage.removeItem('google_auth_redirect');
       
@@ -53,7 +54,7 @@ const Register: React.FC = () => {
         navigate(savedRedirect);
       }
     }
-  }, [authUser, authLoading, loading, navigate, redirectPath]);
+  }, [authUser, authLoading, navigate, redirectPath]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,16 +128,19 @@ const Register: React.FC = () => {
     }
   };
 
+  const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
+
   const handleGoogleLogin = async () => {
+    if (isIframe && isMobile) {
+      window.open(window.location.href, '_blank');
+      return;
+    }
+
     setLoading(true);
     setError('');
     const provider = new GoogleAuthProvider();
     
-    const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad/.test(navigator.userAgent);
-    const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
-    const isIframe = window.self !== window.top;
-    
-    if (isMobile && !isIframe) {
+    if (false) {
       try {
         sessionStorage.setItem('google_auth_redirect', redirectPath);
         sessionStorage.setItem('google_auth_role', role);
@@ -187,6 +191,9 @@ const Register: React.FC = () => {
               isPrimaryContact: true,
             });
           }
+        } else {
+          await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
+          trackEvent({ type: 'login' as any, metadata: { method: 'google', isNewUser: false } });
         }
 
         if (redirectPath === '/') {
@@ -236,7 +243,7 @@ const Register: React.FC = () => {
             <p className="text-slate-500 font-bold">הצטרפו לאלפי מחפשי עבודה ומעסיקים</p>
           </div>
 
-          {isIframe && isIPad && (
+          {isIframe && isMobile && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -244,11 +251,11 @@ const Register: React.FC = () => {
             >
               <div className="flex items-center gap-2 text-amber-900 font-black">
                 <AlertCircle size={18} className="shrink-0" />
-                <span>שים לב (משתמשי iOS/iPad/Safari בתצוגה מקדימה)</span>
+                <span>שים לב (משתמשי תצוגה מקדימה בנייד)</span>
               </div>
               <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                בגלל הגדרות אבטחה של אפל בדפדפן (חסימת עוגיות צד שלישי ב-Iframe), הרשמת גוגל עשויה שלא להסתנכרן בחלון המוקטן.
-                לחץ על כפתור המרובע עם החץ <span className="underline">("פתח בכרטיסייה חדשה")</span> בקצה הימני העליון כדי להירשם בצורה חלקה ומהירה!
+                בגלל הגדרות אבטחה של דפדפנים במובייל (חסימת חלונות קופצים ב-Iframe), חיבור גוגל עלול שלא לעבוד.
+                תהליך ההתחברות יפתח אוטומטית כרטיסייה חדשה וחלקה!
               </p>
             </motion.div>
           )}

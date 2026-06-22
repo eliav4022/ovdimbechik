@@ -66,62 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let unsubUser: (() => void) | null = null;
-    let isMounted = true;
-
-    const handleRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result && isMounted) {
-          const fUser = result.user;
-          const userRef = doc(db, 'users', fUser.uid);
-          const userSnap = await getDoc(userRef);
-          
-          if (!userSnap.exists()) {
-            const savedRole = (sessionStorage.getItem('google_auth_role') as UserRole) || UserRole.SEEKER;
-            sessionStorage.removeItem('google_auth_role');
-            
-            const isSelfAdmin = fUser.email?.toLowerCase() === 'eliav4022@gmail.com';
-            const newUser: User = {
-              id: fUser.uid,
-              uid: fUser.uid,
-              email: fUser.email!,
-              fullName: fUser.displayName || '',
-              displayName: fUser.displayName || '',
-              role: isSelfAdmin ? UserRole.ADMIN : savedRole,
-              status: 'Active',
-              permissions: isSelfAdmin ? ['ALL'] : [],
-              createdAt: new Date().toISOString(),
-              lastLogin: new Date().toISOString(),
-            };
-            
-            await setDoc(userRef, newUser);
-            
-            if (savedRole === UserRole.SEEKER) {
-              await setDoc(doc(db, `users/${fUser.uid}/profiles/seeker`), {
-                userId: fUser.uid,
-                bio: '',
-                cvUrl: '',
-                skills: [],
-                savedJobIds: [],
-              });
-            } else if (savedRole === UserRole.EMPLOYER) {
-              await setDoc(doc(db, `users/${fUser.uid}/profiles/employer`), {
-                userId: fUser.uid,
-                position: '',
-                companyId: null,
-                isPrimaryContact: true,
-              });
-            }
-          } else {
-            await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
-          }
-        }
-      } catch (err) {
-        console.error("AuthContext - error completing google redirect:", err);
-      }
-    };
-
-    handleRedirectResult();
 
     const unsubscribe = onAuthStateChanged(auth, async (fUser) => {
       setFirebaseUser(fUser);
@@ -152,24 +96,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
              setDoc(userRef, { role: UserRole.ADMIN }, { merge: true }).catch(console.error);
           }
         } else {
-          // Document does not exist yet. It might be in the middle of being created by Register/Login.
-          // We provide a fallback user object so the UI considers them logged in.
-          const emailName = fUser.email ? fUser.email.split('@')[0] : 'משתמש';
-          
-          const fallbackUser: User = {
-            id: fUser.uid,
-            uid: fUser.uid,
-            email: fUser.email || '',
-            fullName: fUser.displayName || emailName,
-            displayName: fUser.displayName || emailName,
-            role: fUser.email?.toLowerCase() === 'eliav4022@gmail.com' ? UserRole.ADMIN : UserRole.SEEKER, // Default fallback
-            status: 'Active',
-            permissions: [],
-            createdAt: new Date().toISOString(),
-          };
-          setUser(fallbackUser);
+          // Document does not exist in Firestore. The user is either logging in with a new Google account
+          // (which should be blocked or handled by Register.tsx) or has no collection mapping.
+          setUser(null);
           setLoading(false);
-          // Removed auto-heal setDoc here to prevent race conditions with Register.tsx/Login.tsx
         }
       }, (error) => {
         // Only log, do not throw. Sometimes new auth sign ups don't have docs yet.
@@ -180,7 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
-      isMounted = false;
       if (unsubUser) unsubUser();
       unsubscribe();
     };
