@@ -24,7 +24,11 @@ service cloud.firestore {
       return isSignedIn() && (
         (request.auth.token.get('email', '') == 'eliav4022@gmail.com') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN', 'SUPPORT_AGENT', 'CONTENT_MANAGER', 'FINANCE_MANAGER'])
+         (
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN', 'SUPPORT_AGENT', 'CONTENT_MANAGER', 'FINANCE_MANAGER'] ||
+           ('_custom_' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []))
+         )
+        )
       );
     }
     

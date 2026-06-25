@@ -27,7 +27,13 @@ export const AdminLayout: React.FC = () => {
     );
   }
 
-  if (!user || !ALLOWED_ADMIN_ROLES.includes(user.role as UserRole)) {
+  // A user is allowed if they have an admin role OR if they have explicitly granted permissions
+  const hasBasicAdminRole = user ? ALLOWED_ADMIN_ROLES.includes(user.role as UserRole) : false;
+  const isCustomMode = user ? (Array.isArray(user.permissions) && user.permissions.length > 0) : false;
+  const hasAnyCustomPermission = user && isCustomMode ? user.permissions!.some(p => (typeof p === 'string' && p.includes('.view')) || (adminNavItems || []).some(item => item.id === p)) : false;
+  const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
+
+  if (!user || !shouldShowAdmin) {
     return <Navigate to="/" replace />;
   }
 
@@ -36,21 +42,15 @@ export const AdminLayout: React.FC = () => {
   let hasAccess = true; // Default to true for nested routes like /admin/users/:id
   
   // Find the exact base route match from the nav items to see if it's restricted
-  const mainNavItem = adminNavItems.find(item => path === item.href || (item.href !== '/admin' && path.startsWith(item.href)));
+  const mainNavItem = [...(adminNavItems || [])].sort((a,b) => b.href.length - a.href.length).find(item => 
+      path === item.href || (item.href !== '/admin' && path.startsWith(item.href + '/'))
+  );
   
   if (mainNavItem) {
-      // If we found the corresponding nav item, verify access using the same logic as the sidebar.
-      const isAllowedByRole = mainNavItem.roles.includes(user.role as UserRole);
-      
-      if (user.permissions && user.permissions.length > 0) {
-          hasAccess = user.permissions.includes(mainNavItem.id);
+      if (isCustomMode) {
+          hasAccess = user.permissions!.includes(mainNavItem.id) || user.permissions!.includes(`${mainNavItem.id}.view`);
       } else {
-          hasAccess = isAllowedByRole;
-      }
-      
-      // Super admin fail-safe if permissions are empty
-      if (user.role === UserRole.SUPER_ADMIN && (!user.permissions || user.permissions.length === 0)) {
-          hasAccess = true;
+          hasAccess = user.role === UserRole.SUPER_ADMIN || mainNavItem.roles.includes(user.role as UserRole);
       }
   }
 

@@ -15,7 +15,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
-import { adminNavItems } from '../../components/admin/AdminSidebar';
+import { UserPermissionsEditor } from '../../components/admin/UserPermissionsEditor';
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -322,54 +322,22 @@ export const AdminUsers: React.FC = () => {
   };
 
   const togglePermission = (permId: string, currentPerms: string[], role: string, isEdit: boolean) => {
-      let updatedPerms = [...currentPerms];
-      if (updatedPerms.includes(permId)) {
-          updatedPerms = updatedPerms.filter(p => p !== permId);
-      } else {
-          updatedPerms.push(permId);
-      }
-      
-      if (isEdit && userToEdit) {
-          setUserToEdit({ ...userToEdit, permissions: updatedPerms });
-      } else {
-          setNewUser({ ...newUser, permissions: updatedPerms });
-      }
+      // kept for other usages if any
   };
 
   const renderPermissionsSelector = (currentRole: string, permissions: string[], isEdit: boolean) => {
-      // Allow overriding permissions for any role (Salesforce style)
       return (
-          <div className="bg-slate-50 p-4 border rounded-xl mt-4 space-y-3">
-              <h4 className="font-bold flex items-center gap-2 text-slate-800"><Lock size={16} /> שליטת הרשאות מתקדמת</h4>
-              <p className="text-xs text-slate-500 font-medium">סמן את המסכים אליהם יוכל המשמש לגשת בממשק הניהול. במידה ואף מסך לא מסומן, המערכת תשתמש בהרשאות ברירת המחדל של התפקיד שלו.</p>
-              <div className="grid grid-cols-2 gap-3 mt-3 max-h-[250px] overflow-y-auto pr-2">
-                  {adminNavItems.map(item => {
-                      const isAllowedByRole = item.roles.includes(currentRole as UserRole);
-
-                      return (
-                          <label key={item.id} className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-500 transition-colors">
-                              <input 
-                                  type="checkbox" 
-                                  className="accent-indigo-600 w-4 h-4"
-                                  checked={permissions.includes(item.id) || (permissions.length === 0 && isAllowedByRole) } 
-                                  onChange={(e) => {
-                                      // If array is currently empty, initialize it with defaults first, then toggle
-                                      let permsToToggle = [...permissions];
-                                      if (permsToToggle.length === 0) {
-                                          permsToToggle = adminNavItems.filter(p => p.roles.includes(currentRole as UserRole)).map(p => p.id);
-                                      }
-                                      togglePermission(item.id, permsToToggle, currentRole, isEdit);
-                                  }}
-                              />
-                               <span className="text-sm font-bold text-slate-700 flex items-center gap-1">
-                                  <item.icon size={14} className="text-slate-400" />
-                                  {item.label}
-                               </span>
-                          </label>
-                      );
-                  })}
-              </div>
-          </div>
+          <UserPermissionsEditor 
+              currentRole={currentRole as UserRole} 
+              permissions={permissions} 
+              onChange={(perms) => {
+                  if (isEdit && userToEdit) {
+                      setUserToEdit({ ...userToEdit, permissions: perms });
+                  } else {
+                      setNewUser({ ...newUser, permissions: perms });
+                  }
+              }} 
+          />
       );
   };
 

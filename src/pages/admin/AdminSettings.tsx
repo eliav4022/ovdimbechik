@@ -13,6 +13,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import Papa from 'papaparse';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { RecycleBinTab } from '../../components/admin/RecycleBinTab';
+import { AdminObjectManager } from '../../components/admin/AdminObjectManager';
 
 
 interface SystemSettings {
@@ -705,6 +706,7 @@ export const AdminSettings: React.FC = () => {
         { id: 'integrations', label: 'אינטגרציות', icon: <Webhook size={18} /> },
         { id: 'ai', label: 'עוזר חכם (AI)', icon: <Bot size={18} /> },
         { id: 'data', label: 'ניהול דאטה ואחסון', icon: <Database size={18} /> },
+        { id: 'objects', label: 'ניהול אובייקטים', icon: <LayoutTemplate size={18} /> },
         { id: 'recycle', label: 'סל מחזור', icon: <Trash2 size={18} /> },
     ];
 
@@ -1995,6 +1997,12 @@ export const AdminSettings: React.FC = () => {
                                     </div>
                                 </div>
                             </Card>
+                        </div>
+                    )}
+
+                    {activeTab === 'objects' && (
+                        <div className="space-y-6 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
+                            <AdminObjectManager />
                         </div>
                     )}
 

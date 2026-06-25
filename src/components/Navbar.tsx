@@ -131,12 +131,21 @@ export const Navbar: React.FC = () => {
                   {item.label}
                 </Link>
               ))}
-              {!loading && user?.role === UserRole.ADMIN && (
-                <Link to="/admin" className="flex items-center gap-1 text-sm font-black text-purple-600 hover:text-purple-700 transition-all">
-                  <Shield size={16} />
-                  ניהול
-                </Link>
-              )}
+              {(() => {
+                const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.length > 0;
+                const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p !== '_custom_');
+                const hasBasicAdminRole = user?.role && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPPORT_AGENT, UserRole.CONTENT_MANAGER, UserRole.FINANCE_MANAGER].includes(user.role as UserRole);
+                const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
+                if (!loading && user && shouldShowAdmin) {
+                  return (
+                    <Link to="/admin" className="flex items-center gap-1 text-sm font-black text-purple-600 hover:text-purple-700 transition-all">
+                      <Shield size={16} />
+                      ניהול
+                    </Link>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
 
@@ -307,6 +316,27 @@ export const Navbar: React.FC = () => {
                 ))}
 
                 <div className="pt-4 border-t border-bg-light mt-4 space-y-3">
+                    {(() => {
+                      const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.length > 0;
+                      const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p !== '_custom_');
+                      const hasBasicAdminRole = user?.role && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPPORT_AGENT, UserRole.CONTENT_MANAGER, UserRole.FINANCE_MANAGER].includes(user.role as UserRole);
+                      const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
+                      
+                      if (!loading && user && shouldShowAdmin) {
+                        return (
+                          <Link
+                              to="/admin"
+                              onClick={() => setIsOpen(false)}
+                              className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-purple-50 text-purple-700 font-black hover:bg-purple-100 transition-all border border-purple-100"
+                          >
+                              <Shield size={22} className="text-purple-600" />
+                              <span>ניהול מערכת</span>
+                          </Link>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
                     <Link
                         to="/contact"
                         onClick={() => setIsOpen(false)}

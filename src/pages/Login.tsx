@@ -23,7 +23,6 @@ const Login: React.FC = () => {
 
   const { user: authUser, loading: authLoading } = useAuth();
 
-  const isIframe = window.self !== window.top;
   const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   useEffect(() => {

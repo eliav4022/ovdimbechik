@@ -13,7 +13,7 @@ import { he } from 'date-fns/locale';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { adminNavItems } from '../../components/admin/AdminSidebar';
+import { UserPermissionsEditor } from '../../components/admin/UserPermissionsEditor';
 import { useAuth } from '../../lib/AuthContext';
 
 export const AdminUserDetail: React.FC = () => {
@@ -459,44 +459,11 @@ export const AdminUserDetail: React.FC = () => {
                         </p>
                     </div>
 
-                    {/* Allow overriding permissions for any role (Salesforce style) */}
-                    <div className="bg-slate-50 p-4 border rounded-xl mt-4 space-y-3">
-                        <h4 className="font-bold flex items-center gap-2 text-slate-800"><Lock size={16} /> שליטת הרשאות מתקדמת</h4>
-                        <p className="text-xs text-slate-500 font-medium">סמן את המסכים אליהם יוכל המשמש לגשת בממשק הניהול. במידה ואף מסך לא מסומן, המערכת תשתמש בהרשאות ברירת המחדל של התפקיד שלו.</p>
-                        <div className="grid grid-cols-2 gap-3 mt-3 max-h-[250px] overflow-y-auto pr-2">
-                            {adminNavItems.map(item => {
-                                const isAllowedByRole = item.roles.includes(editData.role as UserRole);
-
-                                return (
-                                    <label key={item.id} className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-500 transition-colors">
-                                        <input 
-                                            type="checkbox" 
-                                            className="accent-indigo-600 w-4 h-4"
-                                            checked={editData.permissions.includes(item.id) || (editData.permissions.length === 0 && isAllowedByRole)}
-                                            onChange={() => {
-                                                let permsToToggle = [...editData.permissions];
-                                                // Initialize permissions list based on defaults if they haven't explicitly set any yet
-                                                if (permsToToggle.length === 0) {
-                                                    permsToToggle = adminNavItems.filter(p => p.roles.includes(editData.role as UserRole)).map(p => p.id);
-                                                }
-                                                
-                                                if (permsToToggle.includes(item.id)) {
-                                                    permsToToggle = permsToToggle.filter(p => p !== item.id);
-                                                } else {
-                                                    permsToToggle.push(item.id);
-                                                }
-                                                setEditData({ ...editData, permissions: permsToToggle });
-                                            }}
-                                        />
-                                        <span className="text-sm font-bold text-slate-700 flex items-center gap-1">
-                                            <item.icon size={14} className="text-slate-400" />
-                                            {item.label}
-                                        </span>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    <UserPermissionsEditor 
+                        currentRole={editData.role as UserRole} 
+                        permissions={editData.permissions} 
+                        onChange={(perms) => setEditData({ ...editData, permissions: perms })} 
+                    />
 
                     <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
                         <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>ביטול</Button>
