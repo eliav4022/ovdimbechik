@@ -42,7 +42,7 @@ export const UserPermissionsEditor: React.FC<UserPermissionsEditorProps> = ({ cu
                         </tr>
                     </thead>
                     <tbody>
-                        {(adminNavItems || []).map(item => {
+                        {[...adminNavItems || [], { id: 'settings.objects', label: 'ניהול אובייקטים ושדות', icon: Lock, roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] }].map((item: any) => {
                             const isCustomMode = Array.isArray(permissions) && permissions.length > 0;
                             
                             // A helper to get the effective set of permissions to display in the UI checkboxes
@@ -50,7 +50,7 @@ export const UserPermissionsEditor: React.FC<UserPermissionsEditorProps> = ({ cu
                                 if (isCustomMode) return permissions;
                                 // Simulating defaults
                                 const defaults: string[] = [];
-                                (adminNavItems || []).forEach(p => {
+                                [...adminNavItems || [], { id: 'settings.objects', roles: [UserRole.SUPER_ADMIN] }].forEach((p: any) => {
                                      if (currentRole === UserRole.SUPER_ADMIN || p.roles.includes(currentRole)) {
                                          defaults.push(`${p.id}.view`, `${p.id}.create`, `${p.id}.edit`, `${p.id}.delete`);
                                      }

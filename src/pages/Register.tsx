@@ -188,9 +188,12 @@ const Register: React.FC = () => {
         navigate(redirectPath);
       }
     } catch (err: any) {
-      console.error('Google sign-in error:', err.code, err.message, err);
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('חלון ההתחברות נסגר לפני סיום ההרשמה. נסה שוב.');
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        console.error('Google sign-in error:', err.code, err.message, err);
+      }
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setLoading(false);
+        return;
       } else if (err.code === 'auth/popup-blocked') {
         setError('חלון ההרשמה נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) תחת בסרגל הכתובת.');
       } else {

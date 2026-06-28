@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
-import { Search, Database, Columns, LayoutGrid, Info, Tag, ArrowLeft } from 'lucide-react';
-import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
-import { Badge } from '../../components/ui/Badge';
+import React, { useState, useEffect } from 'react';
+import { Search, Database, Columns, LayoutGrid, Info, Tag, ArrowLeft, Plus, Edit2, Trash2, Save, Loader2 } from 'lucide-react';
+import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
+import { Badge } from '../ui/Badge';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useToast } from '../../context/ToastContext';
+import { Modal } from '../ui/Modal';
 
 interface FieldDef {
   name: string;
@@ -22,7 +26,7 @@ interface ObjectDef {
   fields: FieldDef[];
 }
 
-const SCHEMA: ObjectDef[] = [
+const DEFAULT_SCHEMA: ObjectDef[] = [
   {
     name: 'User',
     label: 'משתמש',
@@ -35,18 +39,37 @@ const SCHEMA: ObjectDef[] = [
       { name: 'email', label: 'Email', type: 'String', required: true },
       { name: 'fullName', label: 'Full Name', type: 'String', required: true },
       { name: 'displayName', label: 'Display Name', type: 'String' },
-      { name: 'role', label: 'Role', type: 'Picklist (UserRole)', required: true, description: 'תפקיד המשתמש: ADMIN, EMPLOYER, SEEKER, וכו׳' },
+      { name: 'role', label: 'Role', type: 'Picklist (UserRole)', required: true },
       { name: 'status', label: 'Status', type: 'Picklist (UserStatus)', required: true },
       { name: 'permissions', label: 'Permissions', type: 'Array<String>', required: true },
       { name: 'companyId', label: 'Company ID', type: 'Lookup (Company)', isLookup: true },
+      { name: 'companyName', label: 'Company Name', type: 'String' },
+      { name: 'isCompanyAdmin', label: 'Is Company Admin', type: 'Boolean' },
+      { name: 'canViewRelevantSeekers', label: 'Can View Relevant Seekers', type: 'Boolean' },
+      { name: 'companyDescription', label: 'Company Description', type: 'String' },
       { name: 'assignedAdminId', label: 'Assigned Admin', type: 'Lookup (User)', isLookup: true },
       { name: 'credits', label: 'Credits', type: 'Number' },
       { name: 'createdAt', label: 'Created Date', type: 'DateTime', required: true },
       { name: 'phone', label: 'Phone Number', type: 'String' },
       { name: 'bio', label: 'Biography', type: 'String' },
       { name: 'photoURL', label: 'Profile Photo URL', type: 'String' },
-      { name: 'cvUrl', label: 'CV/Resume URL', type: 'String', description: 'For job seekers' },
+      { name: 'cvUrl', label: 'CV/Resume URL', type: 'String' },
       { name: 'savedJobs', label: 'Saved Jobs', type: 'Array<String>' },
+      { name: 'preferredLocation', label: 'Preferred Location', type: 'String' },
+      { name: 'preferredJobType', label: 'Preferred Job Type', type: 'String' },
+      { name: 'availability', label: 'Availability', type: 'String' },
+      { name: 'lastLogin', label: 'Last Login', type: 'DateTime' },
+      { name: 'jobSeekingStatus', label: 'Job Seeking Status', type: 'Picklist' },
+      { name: 'preferredLocations', label: 'Preferred Locations', type: 'Array<String>' },
+      { name: 'preferredDistance', label: 'Preferred Distance', type: 'Number' },
+      { name: 'remoteOnly', label: 'Remote Only', type: 'Boolean' },
+      { name: 'jobScope', label: 'Job Scope', type: 'Array<String>' },
+      { name: 'isVerified', label: 'Is Verified', type: 'Boolean' },
+      { name: 'deletedAt', label: 'Deleted At', type: 'DateTime' },
+      { name: 'deletedBy', label: 'Deleted By', type: 'String' },
+      { name: 'restoredAt', label: 'Restored At', type: 'DateTime' },
+      { name: 'restoredBy', label: 'Restored By', type: 'String' },
+      { name: 'deleteReason', label: 'Delete Reason', type: 'String' },
     ]
   },
   {
@@ -58,20 +81,41 @@ const SCHEMA: ObjectDef[] = [
     fields: [
       { name: 'id', label: 'Job ID', type: 'String', required: true },
       { name: 'employerId', label: 'Employer / Owner', type: 'Lookup (User)', isLookup: true, required: true },
+      { name: 'employerName', label: 'Employer Name', type: 'String' },
       { name: 'companyId', label: 'Company', type: 'Lookup (Company)', isLookup: true },
+      { name: 'companyName', label: 'Company Name', type: 'String' },
+      { name: 'companyDescription', label: 'Company Description', type: 'String' },
+      { name: 'companyLogo', label: 'Company Logo', type: 'String' },
       { name: 'title', label: 'Job Title', type: 'String', required: true },
       { name: 'description', label: 'Description', type: 'String', required: true },
-      { name: 'type', label: 'Job Type', type: 'Picklist (JobType)', required: true, description: 'Full-time, Part-time, Contract, וכו׳' },
-      { name: 'status', label: 'Status', type: 'Picklist (JobStatus)', required: true, description: 'Active, Draft, Pending, Paused' },
+      { name: 'type', label: 'Job Type', type: 'Picklist (JobType)', required: true },
+      { name: 'workMode', label: 'Work Mode', type: 'Picklist (WorkMode)' },
+      { name: 'experienceLevel', label: 'Experience Level', type: 'Picklist (ExperienceLevel)' },
+      { name: 'status', label: 'Status', type: 'Picklist (JobStatus)', required: true },
       { name: 'location', label: 'Location', type: 'String', required: true },
       { name: 'salary', label: 'Salary Range', type: 'String' },
       { name: 'views', label: 'View Count', type: 'Number' },
       { name: 'applicationsCount', label: 'Applications Count', type: 'Number' },
-      { name: 'isCasual', label: 'Is Casual Job (מזדמנת)', type: 'Boolean' },
+      { name: 'isCasual', label: 'Is Casual Job', type: 'Boolean' },
       { name: 'isImmediate', label: 'Immediate Start', type: 'Boolean' },
+      { name: 'isUrgent', label: 'Is Urgent', type: 'Boolean' },
+      { name: 'isRecommended', label: 'Is Recommended', type: 'Boolean' },
+      { name: 'isVerified', label: 'Is Verified', type: 'Boolean' },
+      { name: 'promotionLevel', label: 'Promotion Level', type: 'Picklist (PromotionLevel)' },
+      { name: 'requireCV', label: 'Require CV', type: 'Boolean' },
+      { name: 'directContact', label: 'Direct Contact Link', type: 'String' },
+      { name: 'scheduledPublishDate', label: 'Scheduled Publish Date', type: 'DateTime' },
+      { name: 'scheduledRemovalDate', label: 'Scheduled Removal Date', type: 'DateTime' },
+      { name: 'scheduledPublishAt', label: 'Scheduled Publish At', type: 'DateTime' },
+      { name: 'scheduledArchiveAt', label: 'Scheduled Archive At', type: 'DateTime' },
       { name: 'category', label: 'Category', type: 'String' },
       { name: 'createdAt', label: 'Created Date', type: 'DateTime', required: true },
       { name: 'updatedAt', label: 'Last Update', type: 'DateTime' },
+      { name: 'deletedAt', label: 'Deleted At', type: 'DateTime' },
+      { name: 'deletedBy', label: 'Deleted By', type: 'String' },
+      { name: 'restoredAt', label: 'Restored At', type: 'DateTime' },
+      { name: 'restoredBy', label: 'Restored By', type: 'String' },
+      { name: 'deleteReason', label: 'Delete Reason', type: 'String' },
     ]
   },
   {
@@ -84,14 +128,21 @@ const SCHEMA: ObjectDef[] = [
       { name: 'id', label: 'Application ID', type: 'String', required: true },
       { name: 'jobId', label: 'Job', type: 'Lookup (Job)', isLookup: true, required: true },
       { name: 'seekerId', label: 'Seeker', type: 'Lookup (User)', isLookup: true, required: true },
-      { name: 'employerId', label: 'Employer', type: 'Lookup (User)', isLookup: true },
+      { name: 'employerId', label: 'Employer (Deprecated)', type: 'Lookup (User)', isLookup: true },
+      { name: 'ownerId', label: 'Owner', type: 'Lookup (User)', isLookup: true },
       { name: 'applicantName', label: 'Applicant Name', type: 'String', required: true },
       { name: 'applicantEmail', label: 'Applicant Email', type: 'String', required: true },
       { name: 'applicantPhone', label: 'Applicant Phone', type: 'String', required: true },
       { name: 'resumeUrl', label: 'CV/Resume URL', type: 'String' },
+      { name: 'cvUrl', label: 'CV/Resume URL (Deprecated)', type: 'String' },
       { name: 'coverLetter', label: 'Cover Letter text', type: 'String' },
-      { name: 'status', label: 'Status', type: 'Picklist (ApplicationStatus)', required: true, description: 'New, Reviewing, Interview, Hired, Rejected' },
+      { name: 'status', label: 'Status', type: 'Picklist (ApplicationStatus)', required: true },
       { name: 'createdAt', label: 'Created Date', type: 'DateTime', required: true },
+      { name: 'deletedAt', label: 'Deleted At', type: 'DateTime' },
+      { name: 'deletedBy', label: 'Deleted By', type: 'String' },
+      { name: 'restoredAt', label: 'Restored At', type: 'DateTime' },
+      { name: 'restoredBy', label: 'Restored By', type: 'String' },
+      { name: 'deleteReason', label: 'Delete Reason', type: 'String' },
     ]
   },
   {
@@ -111,6 +162,7 @@ const SCHEMA: ObjectDef[] = [
       { name: 'description', label: 'Company Description', type: 'String' },
       { name: 'credits', label: 'Company Credits', type: 'Number' },
       { name: 'createdAt', label: 'Created Date', type: 'DateTime' },
+      { name: 'deletedAt', label: 'Deleted Date', type: 'DateTime' },
     ]
   },
   {
@@ -146,8 +198,12 @@ const SCHEMA: ObjectDef[] = [
       { name: 'targetPage', label: 'Target Page URL/Path', type: 'String', required: true },
       { name: 'targetUserType', label: 'Target User Role', type: 'Picklist (all, seeker, employer, guest)', required: true },
       { name: 'htmlContent', label: 'HTML Body', type: 'String' },
+      { name: 'cssContent', label: 'CSS Content', type: 'String' },
       { name: 'imageUrl', label: 'Image URL', type: 'String' },
+      { name: 'imageLink', label: 'Image Link', type: 'String' },
+      { name: 'popupType', label: 'Popup Type', type: 'String' },
       { name: 'createdAt', label: 'Created Date', type: 'DateTime', required: true },
+      { name: 'updatedAt', label: 'Updated Date', type: 'DateTime' },
     ]
   },
   {
@@ -199,14 +255,106 @@ const SCHEMA: ObjectDef[] = [
 
 export const AdminObjectManager: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [schema, setSchema] = useState<ObjectDef[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    
     const [selectedObject, setSelectedObject] = useState<ObjectDef | null>(null);
     const [activeTab, setActiveTab] = useState<'details'|'fields'>('fields');
+    
+    const [editingField, setEditingField] = useState<{ field: FieldDef, index: number, isNew: boolean } | null>(null);
+    
+    const { toast } = useToast();
 
-    const filteredObjects = SCHEMA.filter(obj => 
+    useEffect(() => {
+        const loadSchema = async () => {
+            try {
+                const schemaDoc = await getDoc(doc(db, 'settings', 'schema'));
+                if (schemaDoc.exists()) {
+                    setSchema(schemaDoc.data().objects || DEFAULT_SCHEMA);
+                } else {
+                    setSchema(DEFAULT_SCHEMA);
+                    // auto save default if not exists
+                    await setDoc(doc(db, 'settings', 'schema'), { objects: DEFAULT_SCHEMA }, { merge: true });
+                }
+            } catch (err) {
+                console.error("Error loading schema:", err);
+                setSchema(DEFAULT_SCHEMA);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadSchema();
+    }, []);
+
+    const handleSaveSchema = async (newSchema: ObjectDef[]) => {
+        setSaving(true);
+        try {
+            await setDoc(doc(db, 'settings', 'schema'), { objects: newSchema }, { merge: true });
+            setSchema(newSchema);
+            if (selectedObject) {
+                const updatedObj = newSchema.find(o => o.apiName === selectedObject.apiName);
+                setSelectedObject(updatedObj || null);
+            }
+            toast('הסכמה נשמרה בהצלחה', 'success');
+        } catch (error) {
+            console.error("Error saving schema:", error);
+            toast('שגיאה בשמירת הסכמה', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveField = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedObject || !editingField) return;
+        
+        const objIndex = schema.findIndex(o => o.apiName === selectedObject.apiName);
+        if (objIndex === -1) return;
+
+        const newSchema = [...schema];
+        const newObj = { ...newSchema[objIndex] };
+        const newFields = [...newObj.fields];
+
+        if (editingField.isNew) {
+            newFields.push(editingField.field);
+        } else {
+            newFields[editingField.index] = editingField.field;
+        }
+
+        newObj.fields = newFields;
+        newSchema[objIndex] = newObj;
+        
+        handleSaveSchema(newSchema);
+        setEditingField(null);
+    };
+
+    const handleDeleteField = (index: number) => {
+        if (!selectedObject) return;
+        if (!window.confirm("האם אתה בטוח שברצונך למחוק שדה זה מהסכמה?")) return;
+
+        const objIndex = schema.findIndex(o => o.apiName === selectedObject.apiName);
+        if (objIndex === -1) return;
+
+        const newSchema = [...schema];
+        const newObj = { ...newSchema[objIndex] };
+        const newFields = newObj.fields.filter((_, i) => i !== index);
+
+        newObj.fields = newFields;
+        newSchema[objIndex] = newObj;
+        
+        handleSaveSchema(newSchema);
+    };
+
+    const filteredObjects = schema.filter(obj => 
         obj.label.includes(searchTerm) || 
         obj.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         obj.apiName.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    if (loading) {
+        return <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin text-indigo-600" size={32} /></div>;
+    }
 
     if (selectedObject) {
         return (
@@ -248,7 +396,7 @@ export const AdminObjectManager: React.FC = () => {
                         </nav>
                     </div>
 
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         {activeTab === 'details' && (
                             <Card className="p-6">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">פרטי אובייקט (Object Details)</h3>
@@ -279,25 +427,33 @@ export const AdminObjectManager: React.FC = () => {
 
                         {activeTab === 'fields' && (
                             <Card className="p-0 overflow-hidden">
-                                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-4 justify-between items-center">
                                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                                         <Columns size={18} className="text-indigo-500" />
                                         שדות ({selectedObject.fields.length})
                                     </h3>
+                                    <button 
+                                        onClick={() => setEditingField({ field: { name: '', label: '', type: 'String' }, index: -1, isNew: true })}
+                                        className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors"
+                                    >
+                                        <Plus size={16} />
+                                        שדה חדש
+                                    </button>
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse" dir="ltr">
+                                <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-left border-collapse min-w-[700px]" dir="ltr">
                                         <thead>
                                             <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                                                <th className="py-3 px-4 font-semibold w-[25%]">Field Label</th>
+                                                <th className="py-3 px-4 font-semibold w-[20%]">Field Label</th>
                                                 <th className="py-3 px-4 font-semibold w-[20%]">Field Name (API)</th>
-                                                <th className="py-3 px-4 font-semibold w-[25%]">Data Type</th>
+                                                <th className="py-3 px-4 font-semibold w-[20%]">Data Type</th>
                                                 <th className="py-3 px-4 font-semibold w-[30%]">Description / Rules</th>
+                                                <th className="py-3 px-4 font-semibold w-[10%] text-center">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {selectedObject.fields.map(field => (
-                                                <tr key={field.name} className="hover:bg-slate-50/80 transition-colors">
+                                            {selectedObject.fields.map((field, idx) => (
+                                                <tr key={field.name} className="hover:bg-slate-50/80 transition-colors group">
                                                     <td className="py-3 px-4 text-slate-800 font-medium text-sm">
                                                         {field.label}
                                                     </td>
@@ -317,9 +473,27 @@ export const AdminObjectManager: React.FC = () => {
                                                             {field.required && (
                                                                 <Badge variant="brand" className="text-[10px] px-1.5 py-0 h-4">Required</Badge>
                                                             )}
-                                                            <span className="text-slate-500 truncate max-w-[200px]" title={field.description} dir="rtl">
+                                                            <span className="text-slate-500 truncate max-w-[180px] sm:max-w-[250px]" title={field.description} dir="rtl">
                                                                 {field.description || '-'}
                                                             </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={() => setEditingField({ field: {...field}, index: idx, isNew: false })}
+                                                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                                title="Edit Field"
+                                                            >
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleDeleteField(idx)}
+                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete Field"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -331,6 +505,94 @@ export const AdminObjectManager: React.FC = () => {
                         )}
                     </div>
                 </div>
+                
+                {/* Field Edit Modal */}
+                {editingField && (
+                    <Modal
+                        isOpen={!!editingField}
+                        onClose={() => setEditingField(null)}
+                        title={editingField.isNew ? "הוסף שדה חדש" : "ערוך שדה"}
+                    >
+                        <form onSubmit={handleSaveField} className="space-y-4 pt-4" dir="rtl">
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Field Label (תווית בעברית/אנגלית)</label>
+                                <Input 
+                                    required 
+                                    value={editingField.field.label} 
+                                    onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, label: e.target.value } })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Field Name (API Name ב-DB)</label>
+                                <Input 
+                                    required 
+                                    dir="ltr"
+                                    disabled={!editingField.isNew}
+                                    value={editingField.field.name} 
+                                    onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, name: e.target.value } })}
+                                    className={!editingField.isNew ? "bg-slate-100" : ""}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Data Type</label>
+                                <select 
+                                    required
+                                    className="w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition-all px-4 py-3 text-sm h-12"
+                                    value={editingField.field.type}
+                                    onChange={(e) => {
+                                        const t = e.target.value;
+                                        const isLookup = t.startsWith('Lookup');
+                                        setEditingField({ ...editingField, field: { ...editingField.field, type: t, isLookup } });
+                                    }}
+                                >
+                                    <option value="String">String (Text)</option>
+                                    <option value="Number">Number</option>
+                                    <option value="Boolean">Boolean (True/False)</option>
+                                    <option value="DateTime">DateTime / Timestamp</option>
+                                    <option value="Array<String>">Array (List of Strings)</option>
+                                    <option value="Picklist">Picklist (Dropdown)</option>
+                                    <option value="Lookup (User)">Lookup (User)</option>
+                                    <option value="Lookup (Company)">Lookup (Company)</option>
+                                    <option value="Lookup (Job)">Lookup (Job)</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Description (תיאור / חוקים)</label>
+                                <Input 
+                                    value={editingField.field.description || ''} 
+                                    onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, description: e.target.value } })}
+                                />
+                            </div>
+                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer pt-2">
+                                <input 
+                                    type="checkbox" 
+                                    checked={!!editingField.field.required}
+                                    onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, required: e.target.checked } })}
+                                    className="accent-indigo-600 w-4 h-4"
+                                />
+                                שדה חובה (Required)
+                            </label>
+
+                            <div className="flex gap-3 justify-end pt-6 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingField(null)}
+                                    className="px-6 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                >
+                                    ביטול
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                >
+                                    {saving && <Loader2 size={16} className="animate-spin" />}
+                                    {editingField.isNew ? 'הוסף שדה' : 'שמור שינויים'}
+                                </button>
+                            </div>
+                        </form>
+                    </Modal>
+                )}
             </div>
         );
     }
@@ -343,7 +605,7 @@ export const AdminObjectManager: React.FC = () => {
                         <LayoutGrid className="text-indigo-600" />
                         Object Manager (ניהול אובייקטים)
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">צפה בניהול המודלים, טבלאות הנתונים (Collections) והשדות במערכת.</p>
+                    <p className="text-slate-500 text-sm mt-1">צפה ונהל את המודלים, טבלאות הנתונים והשדות במערכת.</p>
                 </div>
             </div>
 
@@ -359,13 +621,13 @@ export const AdminObjectManager: React.FC = () => {
                 </div>
             </Card>
 
-            <div className="overflow-hidden bg-white rounded-xl border border-slate-200 shadow-sm">
-                <table className="w-full text-right border-collapse">
+            <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm w-full">
+                <table className="w-full text-right border-collapse min-w-[500px]">
                     <thead>
                         <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                            <th className="py-3 px-4 font-semibold text-right">Label (תווית)</th>
-                            <th className="py-3 px-4 font-semibold text-right" dir="ltr">API Name</th>
-                            <th className="py-3 px-4 font-semibold text-right">תיאור</th>
+                            <th className="py-3 px-4 font-semibold text-right w-[30%]">Label (תווית)</th>
+                            <th className="py-3 px-4 font-semibold text-right w-[20%]" dir="ltr">API Name</th>
+                            <th className="py-3 px-4 font-semibold text-right w-[50%]">תיאור</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -389,7 +651,7 @@ export const AdminObjectManager: React.FC = () => {
                                 <td className="py-4 px-4 text-right" dir="ltr">
                                     <code className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-sm">{obj.apiName}</code>
                                 </td>
-                                <td className="py-4 px-4 text-right text-sm text-slate-600 max-w-md truncate" title={obj.description}>
+                                <td className="py-4 px-4 text-right text-sm text-slate-600 truncate max-w-[200px] sm:max-w-md" title={obj.description}>
                                     {obj.description}
                                 </td>
                             </tr>

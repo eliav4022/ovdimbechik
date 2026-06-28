@@ -697,6 +697,8 @@ export const AdminSettings: React.FC = () => {
         return <div className="flex justify-center items-center h-64"><div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" /></div>;
     }
 
+    const hasObjectsPermission = user?.role === UserRole.SUPER_ADMIN || (Array.isArray(user?.permissions) && user.permissions.includes('settings.objects'));
+
     const tabs = [
         { id: 'general', label: 'כללי ומיתוג', icon: <Globe size={18} /> },
         { id: 'access', label: 'גישה והרשמה', icon: <Shield size={18} /> },
@@ -706,7 +708,7 @@ export const AdminSettings: React.FC = () => {
         { id: 'integrations', label: 'אינטגרציות', icon: <Webhook size={18} /> },
         { id: 'ai', label: 'עוזר חכם (AI)', icon: <Bot size={18} /> },
         { id: 'data', label: 'ניהול דאטה ואחסון', icon: <Database size={18} /> },
-        { id: 'objects', label: 'ניהול אובייקטים', icon: <LayoutTemplate size={18} /> },
+        ...(hasObjectsPermission ? [{ id: 'objects', label: 'ניהול אובייקטים', icon: <LayoutTemplate size={18} /> }] : []),
         { id: 'recycle', label: 'סל מחזור', icon: <Trash2 size={18} /> },
     ];
 

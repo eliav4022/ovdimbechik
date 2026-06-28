@@ -133,9 +133,13 @@ const Login: React.FC = () => {
       
       navigate(targetPath);
     } catch (err: any) {
-      console.error('Google sign-in error:', err.code, err.message, err);
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('חלון ההתחברות נסגר לפני סיום תהליך ההתחברות. נסה שוב.');
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        console.error('Google sign-in error:', err.code, err.message, err);
+      }
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        // Do not set error state for simply closing the popup, just reset loading
+        setLoading(false);
+        return;
       } else if (err.code === 'auth/popup-blocked') {
         setError('חלון ההתחברות נחסם על ידי הדפדפן. אנא אפשר חלונות קופצים (Popups) בסרגל הכתובת להתחברות זריזה.');
       } else {

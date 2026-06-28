@@ -199,8 +199,12 @@ const SeekerDashboard: React.FC = () => {
             setLinkedProviders(auth.currentUser.providerData.map(p => p.providerId));
             toast('חשבון גוגל קושר בהצלחה', 'success');
         } catch (error: any) {
-            console.error('Error linking with Google:', error);
-            if (error.code === 'auth/credential-already-in-use') {
+            if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+                console.error('Error linking with Google:', error);
+            }
+            if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+                return;
+            } else if (error.code === 'auth/credential-already-in-use') {
                 toast('חשבון גוגל זה כבר משויך למשתמש אחר', 'error');
             } else {
                 toast('אירעה שגיאה בקישור החשבון', 'error');
@@ -298,7 +302,13 @@ const SeekerDashboard: React.FC = () => {
             toast('החשבון נמחק בהצלחה', 'success');
             navigate('/');
         } catch (error: any) {
-            console.error('Error deleting account:', error);
+            if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+                console.error('Error deleting account:', error);
+            }
+            if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+                setIsDeleting(false);
+                return;
+            }
             if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                 toast('הסיסמה שגויה', 'error');
             } else if (error.code === 'auth/requires-recent-login') {
