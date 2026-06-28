@@ -80,8 +80,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = false, onCl
 
     // If the user has specific explicit permissions configured, use them.
     if (isCustomMode) {
+      if (user.permissions!.includes('ALL')) return true;
       // Must have the permission ID (legacy) or the specific explicit .view permission 
-      return user.permissions!.includes(item.id) || user.permissions!.includes(`${item.id}.view`);
+      return user.permissions!.includes(item.id) || 
+             user.permissions!.includes(`${item.id}.view`) || 
+             user.permissions!.some(p => p.startsWith(`${item.id}.`));
     }
     
     // Default to role-based access for backwards compatibility and easy defaults

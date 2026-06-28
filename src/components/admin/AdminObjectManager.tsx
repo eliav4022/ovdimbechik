@@ -263,6 +263,7 @@ export const AdminObjectManager: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'details'|'fields'>('fields');
     
     const [editingField, setEditingField] = useState<{ field: FieldDef, index: number, isNew: boolean } | null>(null);
+    const [editingObject, setEditingObject] = useState<{ obj: ObjectDef, index: number, isNew: boolean } | null>(null);
     
     const { toast } = useToast();
 
@@ -346,6 +347,34 @@ export const AdminObjectManager: React.FC = () => {
         handleSaveSchema(newSchema);
     };
 
+    const handleSaveObject = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingObject) return;
+        
+        const newSchema = [...schema];
+        if (editingObject.isNew) {
+            if (newSchema.some(o => o.apiName === editingObject.obj.apiName)) {
+                toast('שגיאה: אובייקט עם API Name זה כבר קיים', 'error');
+                return;
+            }
+            newSchema.push(editingObject.obj);
+        } else {
+            newSchema[editingObject.index] = editingObject.obj;
+        }
+        
+        handleSaveSchema(newSchema);
+        setEditingObject(null);
+    };
+
+    const handleDeleteObject = (index: number) => {
+        if (!window.confirm("האם אתה בטוח שברצונך למחוק אובייקט זה מניהול האובייקטים? (פעולה זו לא תמחק את הנתונים עצמם מה-DB)")) return;
+        const newSchema = schema.filter((_, i) => i !== index);
+        handleSaveSchema(newSchema);
+        if (selectedObject && schema[index].apiName === selectedObject.apiName) {
+            setSelectedObject(null);
+        }
+    };
+
     const filteredObjects = schema.filter(obj => 
         obj.label.includes(searchTerm) || 
         obj.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -376,57 +405,34 @@ export const AdminObjectManager: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-6">
-                    <div className="w-full lg:w-64 shrink-0">
-                        <nav className="flex flex-row lg:flex-col gap-2">
-                            <button
-                                onClick={() => setActiveTab('details')}
-                                className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all text-right
-                                    ${activeTab === 'details' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                <Info size={18} /> פרטים
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('fields')}
-                                className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all text-right
-                                    ${activeTab === 'fields' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                <Columns size={18} /> שדות וקשרים 
-                            </button>
-                        </nav>
-                    </div>
+                <div className="flex flex-col gap-6">
+                    <Card className="p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-6">פרטי אובייקט (Object Details)</h3>
+                        <div className="space-y-4 max-w-2xl">
+                            <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
+                                <div className="text-slate-500 font-medium">Label (תווית)</div>
+                                <div className="col-span-2 text-slate-800 font-medium">{selectedObject.label}</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
+                                <div className="text-slate-500 font-medium">Plural Label</div>
+                                <div className="col-span-2 text-slate-800 font-medium">{selectedObject.pluralLabel}</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
+                                <div className="text-slate-500 font-medium">Object Name</div>
+                                <div className="col-span-2 text-slate-800 font-medium">{selectedObject.name}</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
+                                <div className="text-slate-500 font-medium">API Name (DB Collection)</div>
+                                <div className="col-span-2 text-indigo-600 font-mono text-sm">{selectedObject.apiName}</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="text-slate-500 font-medium">תיאור (Description)</div>
+                                <div className="col-span-2 text-slate-700 leading-relaxed">{selectedObject.description}</div>
+                            </div>
+                        </div>
+                    </Card>
 
-                    <div className="flex-1 min-w-0">
-                        {activeTab === 'details' && (
-                            <Card className="p-6">
-                                <h3 className="text-lg font-bold text-slate-800 mb-6">פרטי אובייקט (Object Details)</h3>
-                                <div className="space-y-4 max-w-2xl">
-                                    <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
-                                        <div className="text-slate-500 font-medium">Label (תווית)</div>
-                                        <div className="col-span-2 text-slate-800 font-medium">{selectedObject.label}</div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
-                                        <div className="text-slate-500 font-medium">Plural Label</div>
-                                        <div className="col-span-2 text-slate-800 font-medium">{selectedObject.pluralLabel}</div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
-                                        <div className="text-slate-500 font-medium">Object Name</div>
-                                        <div className="col-span-2 text-slate-800 font-medium">{selectedObject.name}</div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
-                                        <div className="text-slate-500 font-medium">API Name (DB Collection)</div>
-                                        <div className="col-span-2 text-indigo-600 font-mono text-sm">{selectedObject.apiName}</div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="text-slate-500 font-medium">תיאור (Description)</div>
-                                        <div className="col-span-2 text-slate-700 leading-relaxed">{selectedObject.description}</div>
-                                    </div>
-                                </div>
-                            </Card>
-                        )}
-
-                        {activeTab === 'fields' && (
-                            <Card className="p-0 overflow-hidden">
+                    <Card className="p-0 overflow-hidden">
                                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-4 justify-between items-center">
                                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                                         <Columns size={18} className="text-indigo-500" />
@@ -441,13 +447,13 @@ export const AdminObjectManager: React.FC = () => {
                                     </button>
                                 </div>
                                 <div className="overflow-x-auto w-full">
-                                    <table className="w-full text-left border-collapse min-w-[700px]" dir="ltr">
+                                    <table className="w-full text-right border-collapse min-w-[700px]">
                                         <thead>
                                             <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                                                <th className="py-3 px-4 font-semibold w-[20%]">Field Label</th>
-                                                <th className="py-3 px-4 font-semibold w-[20%]">Field Name (API)</th>
-                                                <th className="py-3 px-4 font-semibold w-[20%]">Data Type</th>
-                                                <th className="py-3 px-4 font-semibold w-[30%]">Description / Rules</th>
+                                                <th className="py-3 px-4 font-semibold w-[20%]">תווית השדה (Label)</th>
+                                                <th className="py-3 px-4 font-semibold w-[20%]" dir="ltr">Field Name (API)</th>
+                                                <th className="py-3 px-4 font-semibold w-[20%]" dir="ltr">Data Type</th>
+                                                <th className="py-3 px-4 font-semibold w-[30%]">תיאור וכללים</th>
                                                 <th className="py-3 px-4 font-semibold w-[10%] text-center">Actions</th>
                                             </tr>
                                         </thead>
@@ -457,23 +463,23 @@ export const AdminObjectManager: React.FC = () => {
                                                     <td className="py-3 px-4 text-slate-800 font-medium text-sm">
                                                         {field.label}
                                                     </td>
-                                                    <td className="py-3 px-4">
+                                                    <td className="py-3 px-4" dir="ltr">
                                                         <code className="text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-xs select-all">
                                                             {field.name}
                                                         </code>
                                                     </td>
-                                                    <td className="py-3 px-4">
-                                                        <span className="flex items-center gap-1.5 text-slate-600 text-sm">
-                                                            {field.isLookup && <Tag size={14} className="text-amber-500" />}
+                                                    <td className="py-3 px-4" dir="ltr">
+                                                        <span className="flex items-center gap-1.5 text-slate-600 text-sm justify-end">
                                                             {field.type}
+                                                            {field.isLookup && <Tag size={14} className="text-amber-500" />}
                                                         </span>
                                                     </td>
                                                     <td className="py-3 px-4 text-sm">
                                                         <div className="flex flex-col gap-1 items-start">
                                                             {field.required && (
-                                                                <Badge variant="brand" className="text-[10px] px-1.5 py-0 h-4">Required</Badge>
+                                                                <Badge variant="brand" className="text-[10px] px-1.5 py-0 h-4 bg-red-50 text-red-600 border-red-100">חובה</Badge>
                                                             )}
-                                                            <span className="text-slate-500 truncate max-w-[180px] sm:max-w-[250px]" title={field.description} dir="rtl">
+                                                            <span className="text-slate-500 truncate max-w-[180px] sm:max-w-[250px]" title={field.description}>
                                                                 {field.description || '-'}
                                                             </span>
                                                         </div>
@@ -502,8 +508,6 @@ export const AdminObjectManager: React.FC = () => {
                                     </table>
                                 </div>
                             </Card>
-                        )}
-                    </div>
                 </div>
                 
                 {/* Field Edit Modal */}
@@ -607,6 +611,13 @@ export const AdminObjectManager: React.FC = () => {
                     </h2>
                     <p className="text-slate-500 text-sm mt-1">צפה ונהל את המודלים, טבלאות הנתונים והשדות במערכת.</p>
                 </div>
+                <button 
+                    onClick={() => setEditingObject({ obj: { name: '', label: '', pluralLabel: '', apiName: '', description: '', fields: [] }, index: -1, isNew: true })}
+                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                    <Plus size={18} />
+                    הוסף אובייקט חדש
+                </button>
             </div>
 
             <Card className="p-4 flex gap-4 bg-slate-50 border-slate-200">
@@ -622,22 +633,22 @@ export const AdminObjectManager: React.FC = () => {
             </Card>
 
             <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm w-full">
-                <table className="w-full text-right border-collapse min-w-[500px]">
+                <table className="w-full text-right border-collapse min-w-[600px]">
                     <thead>
                         <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                            <th className="py-3 px-4 font-semibold text-right w-[30%]">Label (תווית)</th>
+                            <th className="py-3 px-4 font-semibold text-right w-[25%]">Label (תווית)</th>
                             <th className="py-3 px-4 font-semibold text-right w-[20%]" dir="ltr">API Name</th>
-                            <th className="py-3 px-4 font-semibold text-right w-[50%]">תיאור</th>
+                            <th className="py-3 px-4 font-semibold text-right w-[45%]">תיאור</th>
+                            <th className="py-3 px-4 font-semibold text-center w-[10%]">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filteredObjects.map(obj => (
+                        {filteredObjects.map((obj, idx) => (
                             <tr 
                                 key={obj.apiName} 
-                                onClick={() => setSelectedObject(obj)}
-                                className="hover:bg-indigo-50/50 transition-colors cursor-pointer group"
+                                className="hover:bg-indigo-50/50 transition-colors group"
                             >
-                                <td className="py-4 px-4 text-right">
+                                <td className="py-4 px-4 text-right cursor-pointer" onClick={() => setSelectedObject(obj)}>
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
                                             <Database size={16} />
@@ -648,11 +659,29 @@ export const AdminObjectManager: React.FC = () => {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="py-4 px-4 text-right" dir="ltr">
+                                <td className="py-4 px-4 text-right cursor-pointer" dir="ltr" onClick={() => setSelectedObject(obj)}>
                                     <code className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-sm">{obj.apiName}</code>
                                 </td>
-                                <td className="py-4 px-4 text-right text-sm text-slate-600 truncate max-w-[200px] sm:max-w-md" title={obj.description}>
+                                <td className="py-4 px-4 text-right text-sm text-slate-600 truncate max-w-[200px] sm:max-w-md cursor-pointer" title={obj.description} onClick={() => setSelectedObject(obj)}>
                                     {obj.description}
+                                </td>
+                                <td className="py-4 px-4 text-center">
+                                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setEditingObject({ obj: {...obj}, index: schema.findIndex(o => o.apiName === obj.apiName), isNew: false }) }}
+                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                            title="Edit Object"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteObject(schema.findIndex(o => o.apiName === obj.apiName)) }}
+                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Delete Object"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -664,6 +693,85 @@ export const AdminObjectManager: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Object Edit Modal */}
+            {editingObject && (
+                <Modal
+                    isOpen={!!editingObject}
+                    onClose={() => setEditingObject(null)}
+                    title={editingObject.isNew ? "הוסף אובייקט חדש" : "ערוך אובייקט"}
+                >
+                    <form onSubmit={handleSaveObject} className="space-y-4 pt-4" dir="rtl">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Object Name (אנגלית, יחיד)</label>
+                            <Input 
+                                required 
+                                dir="ltr"
+                                value={editingObject.obj.name} 
+                                onChange={(e) => setEditingObject({ ...editingObject, obj: { ...editingObject.obj, name: e.target.value } })}
+                                placeholder="e.g. User"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Label (תווית יחיד)</label>
+                                <Input 
+                                    required 
+                                    value={editingObject.obj.label} 
+                                    onChange={(e) => setEditingObject({ ...editingObject, obj: { ...editingObject.obj, label: e.target.value } })}
+                                    placeholder="e.g. משתמש"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Plural Label (תווית רבים)</label>
+                                <Input 
+                                    required 
+                                    value={editingObject.obj.pluralLabel} 
+                                    onChange={(e) => setEditingObject({ ...editingObject, obj: { ...editingObject.obj, pluralLabel: e.target.value } })}
+                                    placeholder="e.g. משתמשים"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">API Name (DB Collection)</label>
+                            <Input 
+                                required 
+                                dir="ltr"
+                                disabled={!editingObject.isNew}
+                                value={editingObject.obj.apiName} 
+                                onChange={(e) => setEditingObject({ ...editingObject, obj: { ...editingObject.obj, apiName: e.target.value } })}
+                                placeholder="e.g. users"
+                                className={!editingObject.isNew ? "bg-slate-100" : ""}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Description (תיאור)</label>
+                            <Input 
+                                value={editingObject.obj.description || ''} 
+                                onChange={(e) => setEditingObject({ ...editingObject, obj: { ...editingObject.obj, description: e.target.value } })}
+                            />
+                        </div>
+
+                        <div className="flex gap-3 justify-end pt-6 border-t border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setEditingObject(null)}
+                                className="px-6 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                ביטול
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                className="px-6 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                            >
+                                {saving && <Loader2 size={16} className="animate-spin" />}
+                                {editingObject.isNew ? 'הוסף אובייקט' : 'שמור שינויים'}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
         </div>
     );
 };

@@ -697,7 +697,7 @@ export const AdminSettings: React.FC = () => {
         return <div className="flex justify-center items-center h-64"><div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" /></div>;
     }
 
-    const hasObjectsPermission = user?.role === UserRole.SUPER_ADMIN || (Array.isArray(user?.permissions) && user.permissions.includes('settings.objects'));
+    const hasObjectsPermission = user?.role === UserRole.SUPER_ADMIN || (Array.isArray(user?.permissions) && (user.permissions.includes('ALL') || user.permissions.some(p => typeof p === 'string' && p.startsWith('settings.objects'))));
 
     const tabs = [
         { id: 'general', label: 'כללי ומיתוג', icon: <Globe size={18} /> },
