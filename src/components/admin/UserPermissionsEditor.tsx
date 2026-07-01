@@ -34,9 +34,9 @@ export const UserPermissionsEditor: React.FC<UserPermissionsEditorProps> = ({ cu
             <div className="overflow-y-auto p-4">
                 <table className="w-full text-sm text-right border-collapse">
                     <thead>
-                        <tr className="bg-slate-100 font-bold border-b text-slate-600">
-                            <th className="p-2 whitespace-nowrap rounded-r-lg">מסך / תפריט</th>
-                            <th className="p-2 text-center whitespace-nowrap rounded-l-lg w-24">גישה</th>
+                        <tr className="bg-slate-100 font-bold border-b text-slate-600 text-sm">
+                            <th className="p-3 whitespace-nowrap rounded-r-lg text-right">מסך / תפריט</th>
+                            <th className="p-3 text-center whitespace-nowrap rounded-l-lg w-24">גישה</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -83,21 +83,25 @@ export const UserPermissionsEditor: React.FC<UserPermissionsEditorProps> = ({ cu
                             const Icon = item.icon;
                             return (
                                 <tr key={item.id} className="border-b last:border-0 border-slate-100 hover:bg-white transition-colors">
-                                    <td className="p-3 font-medium text-slate-700 flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                                            <Icon size={16} />
+                                    <td className="p-3 font-medium text-slate-700">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                                <Icon size={16} />
+                                            </div>
+                                            {item.label}
                                         </div>
-                                        {item.label}
                                     </td>
                                     <td className="p-3 text-center align-middle">
-                                        <label className="relative inline-flex items-center cursor-pointer m-auto">
+                                        <label className="flex items-center justify-center cursor-pointer w-full h-full">
+                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${hasAccess ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                                {hasAccess && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                            </div>
                                             <input 
                                                 type="checkbox" 
-                                                className="sr-only peer"
+                                                className="hidden"
                                                 checked={hasAccess}
                                                 onChange={(e) => toggleAccess(e.target.checked)}
                                             />
-                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                         </label>
                                     </td>
                                 </tr>

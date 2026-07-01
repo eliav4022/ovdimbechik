@@ -7,6 +7,7 @@ import {
   Accessibility, User, LogIn, ChevronLeft, LayoutDashboard
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { usePages } from '../context/PagesContext';
 import { auth as firebaseAuth } from '../lib/firebase';
 import { UserRole } from '../types';
 import { cn } from '../lib/utils';
@@ -14,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export const Navbar: React.FC = () => {
   const { user, loading } = useAuth();
+  const { pages, loading: pagesLoading } = usePages();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -58,16 +60,29 @@ export const Navbar: React.FC = () => {
     { icon: Facebook, href: "https://www.facebook.com/groups/1312682680131451/", color: "text-blue-600", label: "Facebook" }
   ];
 
-  const menuItems = [
-    { label: 'דף הבית', path: '/', icon: Home },
-    { label: 'לוח דרושים', path: '/jobs', icon: Briefcase },
-    { label: 'עבודות מזדמנות 🍕', path: '/jobs?tab=casual', icon: Briefcase },
-    { label: 'דרושים בוואטסאפ', path: '/whatsapp-jobs', icon: MessageCircle },
-    { label: 'פורטל קורסים', path: '/courses', icon: BookOpen },
-    { label: 'מידע בצ\'יק', path: '/info', icon: Info },
-    { label: 'הכנה לעבודה', path: '/preparation', icon: FileText },
-    { label: 'שיווק לעסקים', path: '/marketing', icon: BarChart },
+  const baseMenuItems = [
+    { id: 'home', label: 'דף הבית', path: '/', icon: Home },
+    { id: 'jobs', label: 'לוח דרושים', path: '/jobs', icon: Briefcase },
+    { id: 'casual', label: 'עבודות מזדמנות 🍕', path: '/jobs?tab=casual', icon: Briefcase },
+    { id: 'whatsapp', label: 'דרושים בוואטסאפ', path: '/whatsapp-jobs', icon: MessageCircle },
+    { id: 'courses', label: 'פורטל קורסים', path: '/courses', icon: BookOpen },
+    { id: 'employers', label: 'גיוס עובדים', path: '/employers-landing', icon: UserPlus },
+    { id: 'info', label: 'מידע בצ\'יק', path: '/info', icon: Info },
+    { id: 'preparation', label: 'הכנה לעבודה', path: '/preparation', icon: FileText },
+    { id: 'marketing', label: 'שיווק לעסקים', path: '/marketing', icon: BarChart },
   ];
+
+  const menuItems = pages
+      .filter(p => p.showInMenu)
+      .map(p => {
+          const base = baseMenuItems.find(b => b.id === p.id) || baseMenuItems.find(b => b.path === p.path);
+          return {
+              id: p.id,
+              label: p.name,
+              path: p.path,
+              icon: base ? base.icon : FileText
+          };
+      });
 
   const getDashboardLink = () => {
       if (!user) return '/login';
@@ -118,13 +133,13 @@ export const Navbar: React.FC = () => {
             </Link>
 
             {/* Desktop Nav */}
-            <div className="hidden lg:flex lg:items-center lg:gap-8">
-              {menuItems.slice(0, 4).map((item) => (
+            <div className="hidden 2xl:flex 2xl:items-center 2xl:gap-6">
+              {menuItems.map((item) => (
                 <Link 
                   key={item.label} 
                   to={item.path} 
                   className={cn(
-                    "text-sm font-black transition-all",
+                    "text-sm font-black transition-all whitespace-nowrap",
                     item.label.includes('מזדמנות') ? "bg-purple-100 text-purple-700 px-4 py-2 rounded-xl shadow-sm hover:bg-purple-200" : "text-text-muted hover:text-primary"
                   )}
                 >
@@ -202,7 +217,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={() => setIsOpen(true)}
               aria-label="פתח תפריט"
-              className="lg:hidden p-3 text-text-main hover:bg-bg-light rounded-2xl transition-all"
+              className="2xl:hidden p-3 text-text-main hover:bg-bg-light rounded-2xl transition-all"
             >
               <Menu size={28} />
             </button>
@@ -347,7 +362,7 @@ export const Navbar: React.FC = () => {
                     </Link>
 
                     <Link
-                        to="/register"
+                        to="/employers-landing"
                         onClick={() => setIsOpen(false)}
                         className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10"
                     >

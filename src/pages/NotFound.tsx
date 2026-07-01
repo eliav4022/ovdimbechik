@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Search, Home, ArrowRight, Ghost } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
+// Force Vite cache invalidation
 const NotFound: React.FC = () => {
     return (
         <div className="min-h-[80vh] flex items-center justify-center bg-slate-50 px-4 py-20" dir="rtl">

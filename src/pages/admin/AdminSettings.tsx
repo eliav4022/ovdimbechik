@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { Save, Settings, Shield, CreditCard, RotateCcw, Bell, Lock, Globe, Share2, Briefcase, Webhook, LayoutTemplate, Bot, Activity, Database, Trash2, Download, Upload } from 'lucide-react';
+import { Save, Settings, Shield, CreditCard, RotateCcw, Bell, Lock, Globe, Share2, Briefcase, Webhook, LayoutTemplate, Bot, Activity, Database, Trash2, Download, Upload, FileText } from 'lucide-react';
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -14,7 +14,7 @@ import Papa from 'papaparse';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { RecycleBinTab } from '../../components/admin/RecycleBinTab';
 import { AdminObjectManager } from '../../components/admin/AdminObjectManager';
-
+import { AdminPagesManager } from '../../components/admin/AdminPagesManager';
 
 interface SystemSettings {
     contactEmail: string;
@@ -701,6 +701,7 @@ export const AdminSettings: React.FC = () => {
 
     const tabs = [
         { id: 'general', label: 'כללי ומיתוג', icon: <Globe size={18} /> },
+        { id: 'pages', label: 'ניהול עמודים', icon: <FileText size={18} /> },
         { id: 'access', label: 'גישה והרשמה', icon: <Shield size={18} /> },
         { id: 'jobs', label: 'עבודות לטווח ארוך', icon: <Briefcase size={18} /> },
         { id: 'jobs-casual', label: 'עבודות מזדמנות', icon: <Briefcase size={18} /> },
@@ -1217,6 +1218,10 @@ export const AdminSettings: React.FC = () => {
                                 </div>
                             </Card>
                         </div>
+                    )}
+
+                    {activeTab === 'pages' && (
+                        <AdminPagesManager />
                     )}
 
                     {/* 2. Access & Registration */}

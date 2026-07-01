@@ -24,12 +24,14 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ theme = 'light' }) => {
         'terms': 'תנאי שימוש',
         'privacy': 'מדיניות פרטיות',
         'security': 'אבטחת מידע',
-        'admin': 'ניהול'
+        'admin': 'ניהול',
+        'employers-landing': 'גיוס עובדים',
+        'whatsapp-jobs': 'דרושים בוואטסאפ'
     };
 
     return (
         <nav className="max-w-7xl mx-auto px-4 py-4" dir="rtl">
-            <ol className={`flex items-center gap-2 text-xs font-black ${theme === 'dark' ? 'text-white/60' : 'text-slate-400'}`}>
+            <ol className={`flex items-center justify-center gap-2 text-xs font-black ${theme === 'dark' ? 'text-white/60' : 'text-slate-400'}`}>
                 <li>
                     <Link to="/" className={`flex items-center gap-1 transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-brand-teal'}`}>
                         <Home size={14} />

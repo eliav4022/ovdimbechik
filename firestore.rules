@@ -163,6 +163,10 @@ service cloud.firestore {
     match /recycle_bin/{binId} {
       allow read, write: if isAdmin();
     }
+    match /pages/{pageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /popups/{popupId} {
       allow read: if true;
       allow write: if isAdmin();

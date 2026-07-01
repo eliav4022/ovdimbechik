@@ -30,6 +30,8 @@ const Terms = React.lazy(() => import('./pages/Legal').then(m => ({ default: m.T
 const Privacy = React.lazy(() => import('./pages/Legal').then(m => ({ default: m.Privacy })));
 const Security = React.lazy(() => import('./pages/Legal').then(m => ({ default: m.Security })));
 const AccessibilityStatement = React.lazy(() => import('./pages/AccessibilityStatement').then(m => ({ default: m.AccessibilityStatement })));
+const EmployerLanding = React.lazy(() => import('./pages/EmployerLanding').then(m => ({ default: m.EmployerLanding })));
+const WhatsappJobs = React.lazy(() => import('./pages/WhatsappJobs').then(m => ({ default: m.WhatsappJobs })));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 
 // Admin Pages
@@ -58,6 +60,7 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Breadcrumbs from './components/Breadcrumbs';
+import { PagesProvider } from './context/PagesContext';
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
@@ -120,6 +123,9 @@ const AppContent = () => {
               <Route path="/security" element={<Security />} />
               <Route path="/accessibility" element={<AccessibilityStatement />} />
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="/employers-landing" element={<EmployerLanding />} />
+              <Route path="/whatsapp-jobs" element={<WhatsappJobs />} />
+              <Route path="/whatsapp" element={<Navigate to="/whatsapp-jobs" replace />} />
               
               {/* Seeker Routes */}
               <Route path="/seeker" element={<Navigate to="/seeker/dashboard" replace />} />
@@ -188,9 +194,11 @@ export default function App() {
     <HelmetProvider>
       <ToastProvider>
         <AuthProvider>
-          <Router>
-            <AppContent />
-          </Router>
+          <PagesProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </PagesProvider>
         </AuthProvider>
       </ToastProvider>
     </HelmetProvider>
