@@ -24,13 +24,16 @@ const DEFAULT_PAGES: PageConfig[] = [
     { id: 'whatsapp', name: 'דרושים בוואטסאפ', path: '/whatsapp-jobs', enabled: true, showInMenu: true },
     { id: 'courses', name: 'פורטל קורסים', path: '/courses', enabled: true, showInMenu: true },
     { id: 'employers', name: 'גיוס עובדים', path: '/employers-landing', enabled: true, showInMenu: true },
-    { id: 'info', name: 'מידע בצ\'יק', path: '/info', enabled: true, showInMenu: true },
+    { id: 'info', name: 'מידע בצ\'יק', path: '/quick-info', enabled: true, showInMenu: true },
     { id: 'preparation', name: 'הכנה לעבודה', path: '/preparation', enabled: true, showInMenu: true },
     { id: 'marketing', name: 'שיווק לעסקים', path: '/marketing', enabled: true, showInMenu: true },
 ];
 
 export const PagesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [pages, setPages] = useState<PageConfig[]>(DEFAULT_PAGES);
+    const [pages, setPages] = useState<PageConfig[]>(() => {
+        const cached = localStorage.getItem('pages_config');
+        return cached ? JSON.parse(cached) : DEFAULT_PAGES;
+    });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -42,8 +45,10 @@ export const PagesProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     return found ? { ...defaultPage, ...found, path: defaultPage.path } : defaultPage;
                 });
                 setPages(merged);
+                localStorage.setItem('pages_config', JSON.stringify(merged));
             } else {
                 setPages(DEFAULT_PAGES);
+                localStorage.setItem('pages_config', JSON.stringify(DEFAULT_PAGES));
             }
             setLoading(false);
         }, (err) => {

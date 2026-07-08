@@ -67,13 +67,13 @@ export const Navbar: React.FC = () => {
     { id: 'whatsapp', label: 'דרושים בוואטסאפ', path: '/whatsapp-jobs', icon: MessageCircle },
     { id: 'courses', label: 'פורטל קורסים', path: '/courses', icon: BookOpen },
     { id: 'employers', label: 'גיוס עובדים', path: '/employers-landing', icon: UserPlus },
-    { id: 'info', label: 'מידע בצ\'יק', path: '/info', icon: Info },
+    { id: 'info', label: 'מידע בצ\'יק', path: '/quick-info', icon: Info },
     { id: 'preparation', label: 'הכנה לעבודה', path: '/preparation', icon: FileText },
     { id: 'marketing', label: 'שיווק לעסקים', path: '/marketing', icon: BarChart },
   ];
 
   const menuItems = pages
-      .filter(p => p.showInMenu)
+      .filter(p => p.enabled && p.showInMenu)
       .map(p => {
           const base = baseMenuItems.find(b => b.id === p.id) || baseMenuItems.find(b => b.path === p.path);
           return {

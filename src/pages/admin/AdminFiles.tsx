@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import { AdminTable } from '../../components/admin/AdminTable';
@@ -27,6 +27,9 @@ export const AdminFiles: React.FC = () => {
     const [files, setFiles] = useState<SiteFile[]>([]);
     const [loading, setLoading] = useState(true);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [fileToEdit, setFileToEdit] = useState<SiteFile | null>(null);
+    const [editFileName, setEditFileName] = useState('');
     const [uploading, setUploading] = useState(false);
     const [uploadPassword, setUploadPassword] = useState('');
     const [systemPassword, setSystemPassword] = useState('');
@@ -72,9 +75,12 @@ export const AdminFiles: React.FC = () => {
     }, [toast]);
 
     const validateAndSetFile = (file: File) => {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-        if (!allowedTypes.includes(file.type)) {
-            toast('סוג קובץ אינו נתמך (רק תמונות או PDF)', 'error');
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (!allowedTypes.includes(file.type) && !file.name.endsWith('.doc') && !file.name.endsWith('.docx')) {
+            toast('סוג קובץ אינו נתמך (רק תמונות, מסמכי PDF ו-Word)', 'error');
             return;
         }
 
@@ -179,6 +185,29 @@ export const AdminFiles: React.FC = () => {
         }
     };
 
+    const handleEdit = (file: SiteFile) => {
+        setFileToEdit(file);
+        setEditFileName(file.name);
+        setIsEditModalOpen(true);
+    };
+
+    const saveEdit = async () => {
+        if (!fileToEdit || !editFileName.trim()) return;
+        
+        try {
+            await updateDoc(doc(db, 'files', fileToEdit.id), {
+                name: editFileName.trim()
+            });
+            toast('שם הקובץ עודכן בהצלחה', 'success');
+            setIsEditModalOpen(false);
+            setFileToEdit(null);
+            setEditFileName('');
+        } catch (error) {
+            console.error("Error updating file name:", error);
+            toast('שגיאה בעדכון שם הקובץ', 'error');
+        }
+    };
+
     const formatBytes = (bytes: number, decimals = 2) => {
         if (!+bytes) return '0 Bytes';
         const k = 1024;
@@ -228,6 +257,7 @@ export const AdminFiles: React.FC = () => {
             render: (file: SiteFile) => {
                 let displayType = 'תמונה';
                 if (file.type.includes('pdf')) displayType = 'PDF';
+                else if (file.type.includes('word') || file.type.includes('document')) displayType = 'Word';
                 else if (file.type.includes('png')) displayType = 'PNG';
                 else if (file.type.includes('jpeg') || file.type.includes('jpg')) displayType = 'JPG';
                 else if (file.type.includes('webp')) displayType = 'WEBP';
@@ -282,11 +312,12 @@ export const AdminFiles: React.FC = () => {
         <div className="space-y-6">
             <AdminTable
                 title="ניהול ושיתוף קבצים"
-                description="העלאה וניהול של תמונות ומסמכי PDF לשימוש כללי באתר (באנרים לחברות, מסמכים נלווים, וכד')"
+                description="העלאה וניהול של תמונות ומסמכי PDF ו-Word לשימוש כללי באתר (באנרים לחברות, מסמכים נלווים, וכד')"
                 data={files}
                 columns={columns}
                 onAdd={() => setIsUploadModalOpen(true)}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
                 searchFields={['name']}
             />
 
@@ -322,12 +353,12 @@ export const AdminFiles: React.FC = () => {
                                 <UploadCloud size={40} />
                             </div>
                             <h3 className="text-lg font-black text-slate-900 mb-2 pointer-events-none">לחץ לבחירת קובץ או גרור לכאן</h3>
-                            <p className="text-slate-500 font-medium pointer-events-none">קבצי תמונה (JPG, PNG, WEBP) ו-PDF נתמכים. עד {maxFileSizeMB}MB.</p>
+                            <p className="text-slate-500 font-medium pointer-events-none">קבצי תמונה, PDF ו-Word נתמכים. עד {maxFileSizeMB}MB.</p>
                             <input 
                                 type="file" 
                                 ref={fileInputRef}
                                 className="hidden" 
-                                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                                 onChange={handleFileChange}
                                 disabled={uploading}
                             />
@@ -374,6 +405,42 @@ export const AdminFiles: React.FC = () => {
                             </button>
                         </div>
                     )}
+                </div>
+            </Modal>
+            <Modal 
+                isOpen={isEditModalOpen} 
+                onClose={() => setIsEditModalOpen(false)}
+                title="עריכת שם קובץ"
+            >
+                <div className="space-y-6 text-right" dir="rtl">
+                    <div className="mb-6">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">שם קובץ חדש</label>
+                        <input 
+                            type="text" 
+                            value={editFileName}
+                            onChange={(e) => setEditFileName(e.target.value)}
+                            placeholder="הזן שם לקובץ..."
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700"
+                        />
+                    </div>
+
+                    <div className="flex gap-4">
+                        <button
+                            onClick={saveEdit}
+                            disabled={!editFileName.trim() || editFileName === fileToEdit?.name}
+                            className={`flex-1 py-3 rounded-xl font-bold transition-all ${
+                                !editFileName.trim() || editFileName === fileToEdit?.name ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg hover:shadow-xl'
+                            }`}
+                        >
+                            שמור שינויים
+                        </button>
+                        <button
+                            onClick={() => setIsEditModalOpen(false)}
+                            className="px-6 py-3 rounded-xl font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                        >
+                            ביטול
+                        </button>
+                    </div>
                 </div>
             </Modal>
         </div>

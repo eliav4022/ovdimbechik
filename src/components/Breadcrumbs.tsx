@@ -26,7 +26,17 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ theme = 'light' }) => {
         'security': 'אבטחת מידע',
         'admin': 'ניהול',
         'employers-landing': 'גיוס עובדים',
-        'whatsapp-jobs': 'דרושים בוואטסאפ'
+        'whatsapp-jobs': 'דרושים בוואטסאפ',
+        'quick-info': 'מידע בצ\'יק',
+        'guides': 'מדריכים',
+        'cv-writing': 'כתיבת קורות חיים',
+        'salary-ranges': 'טווחי שכר נפוצים',
+        'interview-prep': 'הכנה לראיון',
+        'employee-rights': 'זכויות עובדים',
+        'remote-work': 'עבודה מרחוק',
+        'job-post-tips': 'כתיבת מודעת דרושים',
+        'whatsapp-firing': 'פיטורים בוואטסאפ',
+        'cv-mistakes': 'טעויות בקורות חיים'
     };
 
     return (

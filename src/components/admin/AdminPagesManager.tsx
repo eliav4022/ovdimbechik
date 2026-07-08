@@ -48,13 +48,26 @@ export const AdminPagesManager: React.FC = () => {
         loadPages();
     }, []);
 
-    const handleToggleShow = (id: string) => {
-        setPages(pages.map(p => {
+    const handleToggleShow = async (id: string) => {
+        const updatedPages = pages.map(p => {
             if (p.id === id) {
                 return { ...p, showInMenu: !p.showInMenu };
             }
             return p;
-        }));
+        });
+        setPages(updatedPages);
+        
+        // Auto-save the specific page to Firestore
+        const pageToSave = updatedPages.find(p => p.id === id);
+        if (pageToSave) {
+            try {
+                await setDoc(doc(db, 'pages', id), pageToSave);
+                toast.success('הגדרות עמוד עודכנו בהצלחה');
+            } catch (error) {
+                console.error('Error saving page:', error);
+                toast.error('שגיאה בשמירת הגדרות עמוד');
+            }
+        }
     };
 
     const handleSave = async () => {

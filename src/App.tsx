@@ -32,6 +32,15 @@ const Security = React.lazy(() => import('./pages/Legal').then(m => ({ default: 
 const AccessibilityStatement = React.lazy(() => import('./pages/AccessibilityStatement').then(m => ({ default: m.AccessibilityStatement })));
 const EmployerLanding = React.lazy(() => import('./pages/EmployerLanding').then(m => ({ default: m.EmployerLanding })));
 const WhatsappJobs = React.lazy(() => import('./pages/WhatsappJobs').then(m => ({ default: m.WhatsappJobs })));
+const QuickInfo = React.lazy(() => import('./pages/QuickInfo').then(m => ({ default: m.QuickInfo })));
+const CvGuide = React.lazy(() => import('./pages/guides/CvGuide').then(m => ({ default: m.CvGuide })));
+const SalaryGuide = React.lazy(() => import('./pages/guides/SalaryGuide').then(m => ({ default: m.SalaryGuide })));
+const InterviewGuide = React.lazy(() => import('./pages/guides/InterviewGuide').then(m => ({ default: m.InterviewGuide })));
+const RightsGuide = React.lazy(() => import('./pages/guides/RightsGuide').then(m => ({ default: m.RightsGuide })));
+const RemoteWorkGuide = React.lazy(() => import('./pages/guides/RemoteWorkGuide').then(m => ({ default: m.RemoteWorkGuide })));
+const JobPostGuide = React.lazy(() => import('./pages/guides/JobPostGuide').then(m => ({ default: m.JobPostGuide })));
+const WhatsappFiringGuide = React.lazy(() => import('./pages/guides/WhatsappFiringGuide').then(m => ({ default: m.WhatsappFiringGuide })));
+const CvMistakesGuide = React.lazy(() => import('./pages/guides/CvMistakesGuide').then(m => ({ default: m.CvMistakesGuide })));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 
 // Admin Pages
@@ -125,6 +134,15 @@ const AppContent = () => {
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/employers-landing" element={<EmployerLanding />} />
               <Route path="/whatsapp-jobs" element={<WhatsappJobs />} />
+              <Route path="/quick-info" element={<QuickInfo />} />
+              <Route path="/guides/cv-writing" element={<CvGuide />} />
+              <Route path="/guides/salary-ranges" element={<SalaryGuide />} />
+              <Route path="/guides/interview-prep" element={<InterviewGuide />} />
+              <Route path="/guides/employee-rights" element={<RightsGuide />} />
+              <Route path="/guides/remote-work" element={<RemoteWorkGuide />} />
+              <Route path="/guides/job-post-tips" element={<JobPostGuide />} />
+              <Route path="/guides/whatsapp-firing" element={<WhatsappFiringGuide />} />
+              <Route path="/guides/cv-mistakes" element={<CvMistakesGuide />} />
               <Route path="/whatsapp" element={<Navigate to="/whatsapp-jobs" replace />} />
               
               {/* Seeker Routes */}

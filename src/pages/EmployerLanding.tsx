@@ -168,27 +168,30 @@ export const EmployerLanding: React.FC = () => {
 
             {/* Testimonials (Chat Style) */}
             <section className="py-20 bg-gradient-to-br from-indigo-50 to-primary/5 overflow-hidden">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="text-center mb-16">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+                    <div className="text-center">
                         <h2 className="text-3xl font-bold text-slate-900 mb-4">מה מעסיקים אומרים עלינו?</h2>
                         <div className="w-20 h-1 bg-primary mx-auto rounded-full"></div>
                     </div>
-                    
-                    {/* Chat Bubble Carousel */}
-                    <div className="flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory hide-scrollbar relative max-w-4xl mx-auto px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-                        {feedbacks.map((fb, idx) => (
-                            <div key={idx} className="shrink-0 w-80 sm:w-96 snap-center bg-white border border-slate-100 shadow-sm p-6 rounded-3xl rounded-tr-sm flex flex-col justify-between hover:shadow-md transition-all">
-                                <p className="text-lg text-slate-800 font-medium mb-4 leading-relaxed">{fb.text}</p>
-                                <div className="flex items-center justify-between text-slate-500 text-sm">
-                                    <div className="flex items-center gap-1.5">
-                                        <CheckCircle2 size={16} className="text-primary" />
-                                        <span>נצפה</span>
-                                    </div>
-                                    <span>{fb.time}</span>
+                </div>
+                
+                {/* Chat Bubble Carousel */}
+                <div className="flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory hide-scrollbar relative w-full px-4 sm:px-6 lg:px-8" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    {/* Empty spacer to align first item with the max-w-7xl container on large screens if needed, but px-4 sm:px-6 lg:px-8 is enough */}
+                    <div className="w-4 sm:w-0 shrink-0"></div>
+                    {feedbacks.map((fb, idx) => (
+                        <div key={idx} className="shrink-0 w-[85vw] max-w-[320px] sm:w-96 snap-center bg-white border border-slate-100 shadow-sm p-6 rounded-3xl rounded-tr-sm flex flex-col justify-between hover:shadow-md transition-all">
+                            <p className="text-lg text-slate-800 font-medium mb-4 leading-relaxed">{fb.text}</p>
+                            <div className="flex items-center justify-between text-slate-500 text-sm">
+                                <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 size={16} className="text-primary" />
+                                    <span>נצפה</span>
                                 </div>
+                                <span>{fb.time}</span>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
+                    <div className="w-4 sm:w-0 shrink-0"></div>
                 </div>
             </section>
 
