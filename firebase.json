@@ -1,5 +1,17 @@
 {
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "dist",
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "YOUR_CLOUD_RUN_SERVICE_NAME",
+          "region": "us-central1"
+        }
+      }
+    ]
   }
 }
