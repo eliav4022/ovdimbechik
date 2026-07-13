@@ -55,11 +55,34 @@ async function startServer() {
         res.setHeader("Content-Type", contentType);
         res.setHeader("Cache-Control", "public, max-age=31536000"); 
         
+        const downloadName = req.query.downloadName as string;
+        if (downloadName) {
+            res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`);
+        } else {
+            // Extract a clean file name from the path as fallback
+            const parts = filePath.split('/');
+            let cleanName = parts[parts.length - 1] || 'download';
+            // Optionally remove timestamp prefixes like 161234567890_
+            cleanName = cleanName.replace(/^\d+(_|-)/, '').replace(/^admin_\d+(_|-)/, '');
+            res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(cleanName)}`);
+        }
+        
         const arrayBuffer = await response.arrayBuffer();
         res.send(Buffer.from(arrayBuffer));
     } catch (e: any) {
         console.error("Express proxy error:", e);
         res.status(500).send("Internal Server Error");
+    }
+  });
+
+  app.get("/api/audit-logs-test", async (req, res) => {
+    try {
+      if (!admin.apps.length) return res.status(500).json({ error: "No admin app" });
+      const db = admin.firestore();
+      const snap = await db.collection("audit_logs").get();
+      res.json({ count: snap.size, docs: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
     }
   });
 

@@ -56,19 +56,38 @@ const FAQ_EMPLOYERS = [
   { q: 'האם אפשר להקפיא או להסתיר משרה?', a: 'אם הפונקציונליות קיימת, ניתן להיכנס למשרה ולבחור באפשרות "השהה מודעה" או "הסתר".' }
 ];
 
-const FREE_TOOLS = [
-  { icon: FileText, title: 'תבנית קורות חיים – PDF', description: 'תבנית מוכנה להדפסה', type: 'PDF' },
-  { icon: FileType, title: 'תבנית קורות חיים – Word', description: 'תבנית ניתנת לעריכה', type: 'Word' },
-  { icon: Briefcase, title: 'חוזה עבודה בסיסי', description: 'דוגמה לחוזה התקשרות', type: 'PDF' },
-  { icon: CheckSquare, title: 'צ\'קליסט לפני ראיון עבודה', description: 'כל מה שצריך להכין', type: 'PDF' },
+const DEFAULT_FREE_TOOLS = [
+  { id: 'cv_pdf', icon: FileText, title: 'תבנית קורות חיים – PDF', description: 'תבנית מוכנה להדפסה', type: 'PDF' },
+  { id: 'cv_word', icon: FileType, title: 'תבנית קורות חיים – Word', description: 'תבנית ניתנת לעריכה', type: 'Word' },
+  { id: 'contract', icon: Briefcase, title: 'חוזה עבודה בסיסי', description: 'דוגמה לחוזה התקשרות', type: 'Word' },
+  { id: 'checklist', icon: CheckSquare, title: 'צ\'קליסט לפני ראיון עבודה', description: 'כל מה שצריך להכין', type: 'PDF' },
 ];
 
 export const QuickInfo: React.FC = () => {
     const [visibleUpdates, setVisibleUpdates] = useState(4);
     const [activeFaqTab, setActiveFaqTab] = useState<'employees'|'employers'>('employees');
     const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+    const [freeToolsLinks, setFreeToolsLinks] = useState<Record<string, string>>({
+      cv_pdf: "https://ais-dev-4uf74slrq3fucfg5czsffd-15204860087.europe-west2.run.app/file/cvs/OBFARCBEZLZNdvPpGVBgrKx6Dqq1/admin_1783927694523_%D7%A7%D7%95%D7%A8%D7%95%D7%AA_%D7%97%D7%99%D7%99%D7%9D.pdf",
+      cv_word: "/file/cvs/OBFARCBEZLZNdvPpGVBgrKx6Dqq1/admin_1783926905535_%D7%AA%D7%91%D7%A0%D7%99%D7%AA%20%D7%A7%D7%95%D7%A8%D7%95%D7%AA%20%D7%97%D7%99%D7%99%D7%9D%20Word",
+      contract: "/file/cvs/OBFARCBEZLZNdvPpGVBgrKx6Dqq1/admin_1783926878023_%D7%9E%D7%A1%D7%9E%D7%9A-5.docx",
+      checklist: "/file/cvs/OBFARCBEZLZNdvPpGVBgrKx6Dqq1/admin_1783926857191_%D7%A6'%D7%A7%20%D7%9C%D7%99%D7%A1%D7%98%20%D7%94%D7%9B%D7%A0%D7%94%20%D7%9C%D7%A8%D7%90%D7%99%D7%95%D7%9F%20%D7%A2%D7%91%D7%95%D7%93%D7%94"
+    });
+
+    React.useEffect(() => {
+        import('firebase/firestore').then(({ doc, getDoc }) => {
+            import('../lib/firebase').then(({ db }) => {
+                getDoc(doc(db, 'settings', 'quickInfo')).then(snap => {
+                    if (snap.exists() && snap.data().links) {
+                        setFreeToolsLinks(prev => ({ ...prev, ...snap.data().links }));
+                    }
+                }).catch(console.error);
+            });
+        });
+    }, []);
 
     const faqs = activeFaqTab === 'employees' ? FAQ_EMPLOYEES : FAQ_EMPLOYERS;
+    const toolsToRender = DEFAULT_FREE_TOOLS.map(t => ({ ...t, link: freeToolsLinks[t.id] }));
 
     return (
         <div className="min-h-screen bg-slate-50 pt-24 pb-20 text-right" dir="rtl">
@@ -259,17 +278,26 @@ export const QuickInfo: React.FC = () => {
                         <h2 className="text-3xl font-black text-slate-900">🟡 כלים חינמיים בצ'יק</h2>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {FREE_TOOLS.map((tool, idx) => (
+                        {toolsToRender.map((tool, idx) => (
                             <Card key={idx} className="p-6 text-center hover:shadow-xl transition-all border border-slate-100 flex flex-col items-center">
                                 <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 mb-5">
                                     <tool.icon size={28} />
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-900 mb-2">{tool.title}</h3>
                                 <p className="text-sm text-slate-500 mb-6 h-10">{tool.description}</p>
-                                <Button variant="outline" className="w-full mt-auto cursor-not-allowed opacity-50" disabled>
-                                    <Download size={16} className="ml-2" />
-                                    בקרוב
-                                </Button>
+                                {tool.link ? (
+                                    <a href={tool.link} target="_blank" rel="noopener noreferrer" className="w-full mt-auto">
+                                        <Button variant="primary" className="w-full">
+                                            <Download size={16} className="ml-2" />
+                                            הורד עכשיו
+                                        </Button>
+                                    </a>
+                                ) : (
+                                    <Button variant="outline" className="w-full mt-auto cursor-not-allowed opacity-50" disabled>
+                                        <Download size={16} className="ml-2" />
+                                        בקרוב
+                                    </Button>
+                                )}
                             </Card>
                         ))}
                     </div>

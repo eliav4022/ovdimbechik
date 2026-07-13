@@ -9,6 +9,7 @@ import { Helmet } from 'react-helmet-async';
 import { LoadingSpinner, FullPageLoading } from '../components/ui/Loading';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
+import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { getFileUrl } from '../lib/utils';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -59,6 +60,8 @@ const EmployerDashboard: React.FC = () => {
     const [jobSubTab, setJobSubTab] = useState<'long-term' | 'casual'>('long-term');
     const [searchQuery, setSearchQuery] = useState('');
     const [company, setCompany] = useState<any | null>(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [jobToDelete, setJobToDelete] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchCompany = async () => {
@@ -244,8 +247,15 @@ const EmployerDashboard: React.FC = () => {
         };
     }, [user]);
 
-    const handleDeleteJob = async (jobId: string) => {
-        if (!window.confirm('האם אתה בטוח שברצונך למחוק משרה זו? שימו לב: פעולה זו תעביר גם את כל המועמדויות המשויכות למשרה לסל המחזור.')) return;
+    const promptDeleteJob = (jobId: string) => {
+        setJobToDelete(jobId);
+        setIsDeleteModalOpen(true);
+    };
+
+    const executeDeleteJob = async () => {
+        if (!jobToDelete) return;
+        setIsDeleteModalOpen(false);
+        const jobId = jobToDelete;
         try {
             const appsQuery = query(collection(db, 'applications'), where('jobId', '==', jobId));
             const appsSnap = await getDocs(appsQuery);
@@ -286,6 +296,8 @@ const EmployerDashboard: React.FC = () => {
             toast('המשרה והמועמדויות אליה הועברו לסל מחזור', 'success');
         } catch (error) {
             handleFirestoreError(error, OperationType.DELETE, `jobs/${jobId}`);
+        } finally {
+            setJobToDelete(null);
         }
     };
 
@@ -644,7 +656,7 @@ const EmployerDashboard: React.FC = () => {
                                                     variant="ghost" 
                                                     size="icon"
                                                     className="text-slate-300 hover:text-red-500"
-                                                    onClick={() => handleDeleteJob(job.id)}
+                                                    onClick={() => promptDeleteJob(job.id)}
                                                 >
                                                     <Trash2 size={20} />
                                                 </Button>
@@ -1216,6 +1228,15 @@ const EmployerDashboard: React.FC = () => {
                     )}
                 </AnimatePresence>
             </div>
+            
+            <ConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={executeDeleteJob}
+                title="מחיקת משרה"
+                message="האם אתה בטוח שברצונך למחוק משרה זו? שימו לב: פעולה זו תעביר גם את כל המועמדויות המשויכות למשרה לסל המחזור."
+                variant="danger"
+            />
         </div>
     );
 };

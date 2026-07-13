@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Select from 'react-select';
+import { logAuditAction } from '../../lib/audit';
 
 export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }) => {
   const { user: currentUser } = useAuth();
@@ -195,6 +196,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               } catch(e) { console.error("Failed to update global tags", e); }
           }
           
+          await logAuditAction('עריכת רשומה', 'משרות', 'updated', 'המשרה עודכנה בהצלחה');
           toast('המשרה עודכנה בהצלחה', 'success');
           setIsEditModalOpen(false);
           setJobToEdit(null);
@@ -255,6 +257,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               } catch(e) { console.error("Failed to update global tags", e); }
           }
           
+          await logAuditAction('יצירת רשומה', 'משרות', 'updated', 'משרה חדשה התווספה בהצלחה');
           toast('משרה חדשה התווספה בהצלחה', 'success');
           setIsAddModalOpen(false);
           setNewJob({ title: '', description: '', employerId: '', companyName: '', companyDescription: '', location: '', type: JobType.FULL_TIME, workMode: WorkMode.HYBRID, experienceLevel: ExperienceLevel.MIDDLE, category: '', tags: '', salary: '', status: JobStatus.ACTIVE, scheduledPublishDate: '', scheduledRemovalDate: '', isImmediate: false, isUrgent: false, requireCV: true, isCasual: isCasual, promotionLevel: PromotionLevel.REGULAR });
@@ -280,6 +283,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               createdAt: new Date().toISOString(),
               permissions: []
           });
+          await logAuditAction('עריכת רשומה', 'משרות', 'updated', 'מעסיק/חברה הוקמו בהצלחה');
           toast('מעסיק/חברה הוקמו בהצלחה', 'success');
           setIsAddEmployerModalOpen(false);
           setNewJob(prev => ({ ...prev, employerId: empId, companyName: newEmployer.companyName }));
@@ -305,7 +309,8 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
         deletedBy: currentUser.uid,
         reason
       });
-      toast('המשרה הועברה לארכיון בהצלחה', 'success');
+      await logAuditAction('עריכת רשומה', 'משרות', 'updated', 'המשרה הועברה לארכיון בהצלחה');
+          toast('המשרה הועברה לארכיון בהצלחה', 'success');
     } catch (error) {
       console.error("Soft delete failed:", error);
       toast('שגיאה במחיקת המשרה', 'error');
@@ -327,6 +332,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               updatedAt: new Date().toISOString()
           };
           await updateDoc(doc(db, 'jobs', j.id), finalUpdates);
+          await logAuditAction('עריכת רשומה', 'משרות', 'updated', 'עדכון המשרה אושר בהצלחה');
           toast('עדכון המשרה אושר בהצלחה', 'success');
       } catch (error) {
           console.error("Error approving update:", error);

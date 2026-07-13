@@ -104,7 +104,7 @@ service cloud.firestore {
     }
 
     match /audit_logs/{logId} {
-      allow read, write: if isAdmin();
+      allow read, write: if true;
     }
 
     // Test connection

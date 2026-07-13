@@ -13,6 +13,7 @@ import { TwoStepConfirmModal } from '../../components/ui/TwoStepConfirmModal';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { logAuditAction } from '../../lib/audit';
 
 export const AdminSeekers: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -105,7 +106,8 @@ export const AdminSeekers: React.FC = () => {
                 }
             });
             
-            toast('מחפש עבודה התווסף בהצלחה', 'success');
+            await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'מחפש עבודה התווסף בהצלחה');
+          toast('מחפש עבודה התווסף בהצלחה', 'success');
             setIsAddModalOpen(false);
             setNewSeeker({ displayName: '', email: '', jobTitle: '', phone: '', location: '', password: '' });
         } catch (error: any) {
@@ -128,7 +130,8 @@ export const AdminSeekers: React.FC = () => {
                 deletedBy: currentUser.uid,
                 reason
             });
-            toast('מחפש העבודה הועבר לארכיון', 'success');
+            await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'מחפש העבודה הועבר לארכיון');
+          toast('מחפש העבודה הועבר לארכיון', 'success');
         } catch (error) {
             toast('שגיאה במחיקה', 'error');
         } finally {
@@ -164,7 +167,8 @@ export const AdminSeekers: React.FC = () => {
             });
             const data = await res.json();
             if (data.success) {
-                toast('הסיסמה עודכנה בהצלחה', 'success');
+                await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'הסיסמה עודכנה בהצלחה');
+          toast('הסיסמה עודכנה בהצלחה', 'success');
                 setNewPasswordForUser('');
             } else {
                 toast(data.error || 'שגיאה בעדכון הסיסמה', 'error');
@@ -217,7 +221,8 @@ export const AdminSeekers: React.FC = () => {
                  console.error("Failed to update email in Auth", err);
             }
 
-            toast('מחפש העבודה עודכן בהצלחה', 'success');
+            await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'מחפש העבודה עודכן בהצלחה');
+          toast('מחפש העבודה עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setSeekerToEdit(null);
         } catch (error) {

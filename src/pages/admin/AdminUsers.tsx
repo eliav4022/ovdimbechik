@@ -16,6 +16,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import { UserPermissionsEditor } from '../../components/admin/UserPermissionsEditor';
+import { logAuditAction } from '../../lib/audit';
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -117,6 +118,7 @@ export const AdminUsers: React.FC = () => {
               createdAt: new Date().toISOString()
           });
           
+          await logAuditAction('יצירת רשומה', 'משתמשים', 'updated', 'משתמש חדש התווסף בהצלחה');
           toast('משתמש חדש התווסף בהצלחה', 'success');
           setIsAddModalOpen(false);
           setNewUser({ displayName: '', email: '', role: UserRole.SEEKER, permissions: [], phone: '', location: '', password: '' });
@@ -181,7 +183,8 @@ export const AdminUsers: React.FC = () => {
           await b.commit();
       }
 
-      toast('המשתמש הועבר לסל המיחזור בהצלחה!', 'success');
+      await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'המשתמש הועבר לסל המיחזור בהצלחה!');
+          toast('המשתמש הועבר לסל המיחזור בהצלחה!', 'success');
     } catch (error) {
       console.error("Delete failed:", error);
       toast('שגיאה במחיקת המשתמש', 'error');
@@ -218,7 +221,8 @@ export const AdminUsers: React.FC = () => {
           });
           const data = await res.json();
           if (data.success) {
-              toast('הסיסמה עודכנה בהצלחה', 'success');
+              await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'הסיסמה עודכנה בהצלחה');
+          toast('הסיסמה עודכנה בהצלחה', 'success');
               setNewPasswordForUser('');
           } else {
               const errMsg = data.error === "Firebase Admin config missing" ? "יש להגדיר FIREBASE_SERVICE_ACCOUNT בהגדרות כדי לעדכן סיסמה" : data.error;
@@ -298,6 +302,7 @@ export const AdminUsers: React.FC = () => {
                console.error("Failed to update email in Auth", err);
           }
 
+          await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'המשתמש עודכן בהצלחה');
           toast('המשתמש עודכן בהצלחה', 'success');
           setIsEditModalOpen(false);
           setUserToEdit(null);
@@ -378,7 +383,8 @@ export const AdminUsers: React.FC = () => {
             try {
               const newRole = e.target.value;
               await setDoc(doc(db, 'users', u.id || u.uid), { role: newRole }, { merge: true });
-              toast('התפקיד עודכן בהצלחה', 'success');
+              await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'התפקיד עודכן בהצלחה');
+          toast('התפקיד עודכן בהצלחה', 'success');
             } catch (error) {
               console.error("Error updating role:", error);
               toast('שגיאה בעדכון התפקיד', 'error');
@@ -611,7 +617,8 @@ export const AdminUsers: React.FC = () => {
                                       });
                                       
                                       setUserToEdit({ ...userToEdit, photoURL: url });
-                                      toast('התמונה הועלתה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)', 'success');
+                                      await logAuditAction('יצירת רשומה', 'משתמשים', 'updated', 'התמונה הועלתה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)');
+          toast('התמונה הועלתה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)', 'success');
                                   } catch (error) {
                                       console.error('Error uploading image:', error);
                                       toast('שגיאה בהעלאת התמונה', 'error');

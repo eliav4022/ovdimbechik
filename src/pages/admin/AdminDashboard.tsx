@@ -5,6 +5,7 @@ import { db } from '../../lib/firebase';
 import { JobType, WorkMode, ExperienceLevel, JobStatus, ApplicationStatus, UserRole, Job, User, Application, Report } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../lib/AuthContext';
+import { AdminAudit } from './AdminAudit';
 import { 
   AreaChart, 
   Area,
@@ -55,61 +56,58 @@ export const AdminDashboard: React.FC = () => {
     applicationsCount: 0,
     revenue: 0
   });
-  const [recentActions, setRecentActions] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const jobsSnap = await getDocs(collection(db, 'jobs'));
-        const appsSnap = await getDocs(collection(db, 'applications'));
+        try {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            const unassignedList = usersSnap.docs.map(d => ({ id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.EMPLOYER && !data.assignedAdminId);
+            setUnassignedEmployersList(unassignedList);
+            setUnassignedEmployers(unassignedList.length);
 
-        if (user) {
-            const tasksQ = query(collection(db, 'reports'), where('assigneeId', '==', user.uid), where('isResolved', '==', false));
-            const tasksSnap = await getDocs(tasksQ);
-            setMyTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Report)));
+            const admins = usersSnap.docs.map(d => ({id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.ADMIN);
+            setAdminsList(admins);
+            setStats(prev => ({ ...prev, usersCount: usersSnap.size }));
+        } catch (error) {
+            console.error("Error fetching users: ", error);
         }
 
-        const recentJobsQuery = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'), limit(5));
-        const recentJobsSnap = await getDocs(recentJobsQuery);
-        const actions = recentJobsSnap.docs.map(doc => {
-            const data = doc.data() as Job;
-            return {
-                id: doc.id,
-                action: 'משרה חדשה',
-                target: data.title,
-                user: data.employerName,
-                time: new Date(data.createdAt).toLocaleDateString('he-IL'),
-                status: data.status === 'active' ? 'success' : 'warning'
+        try {
+            const jobsSnap = await getDocs(collection(db, 'jobs'));
+            const pendingList = jobsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Job)).filter(data => data.status === JobStatus.PENDING_REVIEW);
+            setPendingJobsList(pendingList);
+            setPendingJobsCount(pendingList.length);
+            setStats(prev => ({ ...prev, jobsCount: jobsSnap.size }));
+        } catch (error) {
+            console.error("Error fetching jobs: ", error);
+        }
+
+        try {
+            const appsSnap = await getDocs(collection(db, 'applications'));
+            setStats(prev => ({ ...prev, applicationsCount: appsSnap.size }));
+        } catch (error) {
+            console.error("Error fetching applications: ", error);
+        }
+
+        try {
+            const jobReportsSnap = await getDocs(collection(db, 'jobReports'));
+            const pendingReportsList = jobReportsSnap.docs.filter(doc => !doc.data().status || doc.data().status === 'pending');
+            setPendingJobReportsCount(pendingReportsList.length);
+        } catch (error) {
+            console.error("Error fetching jobReports: ", error);
+        }
+
+        if (user) {
+            try {
+                const tasksQ = query(collection(db, 'reports'), where('assigneeId', '==', user.uid), where('isResolved', '==', false));
+                const tasksSnap = await getDocs(tasksQ);
+                setMyTasks(tasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Report)));
+            } catch (error) {
+                console.error("Error fetching reports: ", error);
             }
-        });
+        }
 
-        setStats({
-          usersCount: usersSnap.size,
-          jobsCount: jobsSnap.size,
-          applicationsCount: appsSnap.size,
-          revenue: 0 // Mock for now unless we track payments
-        });
-        
-        // Compute unassigned employers
-        const unassignedList = usersSnap.docs.map(d => ({ id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.EMPLOYER && !data.assignedAdminId);
-        setUnassignedEmployersList(unassignedList);
-        setUnassignedEmployers(unassignedList.length);
-
-        // Compute pending jobs
-        const pendingList = jobsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Job)).filter(data => data.status === JobStatus.PENDING_REVIEW);
-        setPendingJobsList(pendingList);
-        setPendingJobsCount(pendingList.length);
-
-        // Compute pending job reports
-        const jobReportsSnap = await getDocs(collection(db, 'jobReports'));
-        const pendingReportsList = jobReportsSnap.docs.filter(doc => !doc.data().status || doc.data().status === 'pending');
-        setPendingJobReportsCount(pendingReportsList.length);
-
-        const admins = usersSnap.docs.map(d => ({id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.ADMIN);
-        setAdminsList(admins);
-
-        setRecentActions(actions);
       } catch (error) {
         console.error("Error fetching dashboard data: ", error);
       } finally {
@@ -287,8 +285,8 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Main Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        <Card className="lg:col-span-2 p-4 md:p-8 border-none shadow-xl shadow-slate-200/50 w-full overflow-hidden">
+      <div className="grid grid-cols-1 gap-6 md:gap-8 mb-8">
+        <Card className="p-4 md:p-8 border-none shadow-xl shadow-slate-200/50 w-full overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-8">
             <div>
               <h3 className="text-xl font-black text-slate-900 leading-none">גרף צמיחה שימוש</h3>
@@ -321,40 +319,10 @@ export const AdminDashboard: React.FC = () => {
             </ResponsiveContainer>
           </div>
         </Card>
+      </div>
 
-        {/* Side Panel - Recent Activity */}
-        <Card className="p-4 md:p-8 border-none shadow-xl shadow-slate-200/50">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xl font-black text-slate-900 leading-none">משרות אחרונות שנוספו</h3>
-          </div>
-          <div className="space-y-6">
-            {recentActions.map((item) => (
-              <div key={item.id} className="flex gap-4 group">
-                <div className={`mt-1 w-10 h-10 shrink-0 rounded-xl flex items-center justify-center
-                  ${item.status === 'success' ? 'bg-emerald-50 text-emerald-600' : 
-                    item.status === 'warning' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                  {item.status === 'success' ? <CheckCircle2 size={18} /> : 
-                   item.status === 'warning' ? <Clock size={18} /> : <AlertTriangle size={18} />}
-                </div>
-                <div className="flex-grow">
-                  <p className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">
-                    {item.action}
-                  </p>
-                  <p className="text-xs text-slate-500 font-bold mt-0.5">{item.target}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-black">{item.user}</span>
-                    <span className="text-[10px] text-slate-400 font-medium">{item.time}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {recentActions.length === 0 && (
-                <div className="text-center text-slate-400 font-medium text-sm py-8 border-2 border-dashed border-slate-100 rounded-2xl">
-                    אין פעולות להצגה
-                </div>
-            )}
-          </div>
-        </Card>
+      <div className="mb-12">
+        <AdminAudit />
       </div>
 
       {showTasksModal && (

@@ -6,12 +6,15 @@ import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import { Trash2, File, ImageIcon, Copy, UploadCloud, Link } from 'lucide-react';
+import { Trash2, File, ImageIcon, Copy, UploadCloud, Link, Download } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../lib/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { getFileUrl } from '../../lib/utils';
+import { logAuditAction } from '../../lib/audit';
+
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
 
 interface SiteFile {
   id: string;
@@ -28,6 +31,8 @@ export const AdminFiles: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [fileToDelete, setFileToDelete] = useState<SiteFile | null>(null);
     const [fileToEdit, setFileToEdit] = useState<SiteFile | null>(null);
     const [editFileName, setEditFileName] = useState('');
     const [uploading, setUploading] = useState(false);
@@ -150,7 +155,8 @@ export const AdminFiles: React.FC = () => {
                 uploadedBy: user?.uid
             });
 
-            toast('הקובץ הועלה בהצלחה', 'success');
+            await logAuditAction('עריכת רשומה', 'קבצים', 'updated', 'הקובץ הועלה בהצלחה');
+          toast('הקובץ הועלה בהצלחה', 'success');
             setIsUploadModalOpen(false);
             setSelectedFile(null);
             setCustomFileName('');
@@ -166,22 +172,30 @@ export const AdminFiles: React.FC = () => {
         }
     };
 
-    const handleDelete = async (file: SiteFile) => {
-        if (!window.confirm('האם אתה בטוח שברצונך למחוק קובץ זה להעברה לסל המחזור?')) return;
-        
+    const promptDelete = (file: SiteFile) => {
+        setFileToDelete(file);
+        setIsConfirmModalOpen(true);
+    };
+
+    const executeDelete = async () => {
+        if (!fileToDelete) return;
+        setIsConfirmModalOpen(false);
         try {
             const { softDelete } = await import('../../lib/adminUtils');
             await softDelete({
                 collectionName: 'files',
-                id: file.id,
+                id: fileToDelete.id,
                 deletedBy: user?.uid || 'admin',
                 reason: 'נמחק ממסך ניהול קבצים'
             });
             
+            await logAuditAction('עריכת רשומה', 'קבצים', 'updated', 'הקובץ הועבר לסל מחזור בהצלחה');
             toast('הקובץ הועבר לסל מחזור בהצלחה', 'success');
         } catch (error) {
             console.error("Error deleting file:", error);
             toast('שגיאה במחיקת קובץ', 'error');
+        } finally {
+            setFileToDelete(null);
         }
     };
 
@@ -198,7 +212,8 @@ export const AdminFiles: React.FC = () => {
             await updateDoc(doc(db, 'files', fileToEdit.id), {
                 name: editFileName.trim()
             });
-            toast('שם הקובץ עודכן בהצלחה', 'success');
+            await logAuditAction('עריכת רשומה', 'קבצים', 'updated', 'שם הקובץ עודכן בהצלחה');
+          toast('שם הקובץ עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setFileToEdit(null);
             setEditFileName('');
@@ -223,6 +238,7 @@ export const AdminFiles: React.FC = () => {
             header: 'תצוגה',
             render: (file: SiteFile) => {
                 const cleanUrl = getFileUrl(file.url);
+                const downloadUrl = `${cleanUrl}?downloadName=${encodeURIComponent(file.name)}`;
                 if (file.type.startsWith('image/')) {
                     return (
                         <a href={cleanUrl} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity">
@@ -231,7 +247,7 @@ export const AdminFiles: React.FC = () => {
                     );
                 }
                 return (
-                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity">
+                    <a href={downloadUrl} target="_blank" rel="noopener noreferrer" title="להורדה" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity">
                         <File size={24} />
                     </a>
                 );
@@ -243,9 +259,10 @@ export const AdminFiles: React.FC = () => {
             sortable: true,
             render: (file: SiteFile) => {
                 const cleanUrl = getFileUrl(file.url);
+                const downloadUrl = `${cleanUrl}?downloadName=${encodeURIComponent(file.name)}`;
                 return (
                 <div className="flex flex-col">
-                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</a>
+                    <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</a>
                     <span className="text-xs text-slate-500">{formatBytes(file.size)}</span>
                 </div>
                 );
@@ -285,20 +302,25 @@ export const AdminFiles: React.FC = () => {
             header: 'קישור',
             render: (file: SiteFile) => {
                 const cleanUrl = getFileUrl(file.url);
+                const downloadUrl = `${cleanUrl}?downloadName=${encodeURIComponent(file.name)}`;
                 return (
                 <div className="flex gap-2">
                     <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => {
+                        onClick={async () => {
                             navigator.clipboard.writeText(cleanUrl);
-                            toast('הקישור הועתק ללוח', 'success');
+                            await logAuditAction('העתקת קישור', 'קבצים', 'updated', 'הקישור הועתק ללוח');
+          toast('הקישור הועתק ללוח', 'success');
                         }}
                     >
                         <Copy size={16} /> העתק קישור
                     </Button>
-                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                    <a href={cleanUrl} target="_blank" rel="noopener noreferrer" title="פתיחה" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg">
                        <Link size={16} />
+                    </a>
+                    <a href={downloadUrl} target="_blank" rel="noopener noreferrer" title="הורדה" className="p-2 text-green-600 hover:bg-green-50 rounded-lg">
+                       <Download size={16} />
                     </a>
                 </div>
                 );
@@ -316,9 +338,18 @@ export const AdminFiles: React.FC = () => {
                 data={files}
                 columns={columns}
                 onAdd={() => setIsUploadModalOpen(true)}
-                onDelete={handleDelete}
+                onDelete={promptDelete}
                 onEdit={handleEdit}
                 searchFields={['name']}
+            />
+
+            <ConfirmModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setIsConfirmModalOpen(false)}
+                onConfirm={executeDelete}
+                title="אישור מחיקה"
+                message="האם אתה בטוח שברצונך למחוק קובץ זה להעברה לסל המחזור?"
+                variant="danger"
             />
 
             <Modal 

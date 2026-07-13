@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Eye, EyeOff, Save, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Save, RefreshCw, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageConfig } from '../../context/PagesContext';
 
@@ -21,6 +21,15 @@ export const AdminPagesManager: React.FC = () => {
     const [pages, setPages] = useState<PageConfig[]>(DEFAULT_PAGES);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [expandedPageId, setExpandedPageId] = useState<string | null>(null);
+    
+    // Quick info settings
+    const [quickInfoLinks, setQuickInfoLinks] = useState<Record<string, string>>({
+        cv_pdf: '',
+        cv_word: '',
+        contract: '',
+        checklist: ''
+    });
 
     const loadPages = async () => {
         setLoading(true);
@@ -35,6 +44,11 @@ export const AdminPagesManager: React.FC = () => {
                 setPages(merged);
             } else {
                 setPages(DEFAULT_PAGES);
+            }
+
+            const infoSnap = await getDoc(doc(db, 'settings', 'quickInfo'));
+            if (infoSnap.exists() && infoSnap.data().links) {
+                setQuickInfoLinks(prev => ({ ...prev, ...infoSnap.data().links }));
             }
         } catch (error) {
             console.error('Error loading pages:', error);
@@ -76,10 +90,11 @@ export const AdminPagesManager: React.FC = () => {
             for (const page of pages) {
                 await setDoc(doc(db, 'pages', page.id), page);
             }
-            toast.success('הגדרות עמודים נשמרו בהצלחה');
+            await setDoc(doc(db, 'settings', 'quickInfo'), { links: quickInfoLinks }, { merge: true });
+            toast.success('הגדרות נשמרו בהצלחה');
         } catch (error) {
             console.error('Error saving pages:', error);
-            toast.error('שגיאה בשמירת הגדרות עמודים');
+            toast.error('שגיאה בשמירת הגדרות');
         } finally {
             setSaving(false);
         }
@@ -118,31 +133,106 @@ export const AdminPagesManager: React.FC = () => {
 
                 <div className="space-y-3">
                     {pages.map(page => (
-                        <div key={page.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-4">
-                                <span className="font-semibold text-slate-800">{page.name}</span>
-                                <span className="text-sm text-slate-400 font-mono bg-slate-100 px-2 py-0.5 rounded-md">{page.path}</span>
+                        <div 
+                            key={page.id} 
+                            className="flex flex-col bg-slate-50 rounded-xl border border-slate-100 overflow-hidden cursor-pointer hover:bg-slate-100 transition-colors"
+                            onClick={() => setExpandedPageId(expandedPageId === page.id ? null : page.id)}
+                        >
+                            <div className="flex items-center justify-between p-4">
+                                <div className="flex items-center gap-4">
+                                    <span className="font-semibold text-slate-800">{page.name}</span>
+                                    <span className="text-sm text-slate-400 font-mono bg-slate-100 px-2 py-0.5 rounded-md">{page.path}</span>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleShow(page.id);
+                                    }}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                        page.showInMenu 
+                                         ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
+                                         : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                                    }`}
+                                >
+                                    {page.showInMenu ? (
+                                        <>
+                                            <Eye size={16} />
+                                            מוצג בתפריט
+                                        </>
+                                    ) : (
+                                        <>
+                                            <EyeOff size={16} />
+                                            מוסתר מהתפריט
+                                        </>
+                                    )}
+                                </button>
                             </div>
-                            <button
-                                onClick={() => handleToggleShow(page.id)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                    page.showInMenu 
-                                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
-                                    : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                                }`}
-                            >
-                                {page.showInMenu ? (
-                                    <>
-                                        <Eye size={16} />
-                                        מוצג בתפריט
-                                    </>
-                                ) : (
-                                    <>
-                                        <EyeOff size={16} />
-                                        מוסתר מהתפריט
-                                    </>
-                                )}
-                            </button>
+                            {page.id === 'info' && expandedPageId === page.id && (
+                                <div className="p-4 bg-white border-t border-slate-100 cursor-default" onClick={(e) => e.stopPropagation()}>
+                                    <div className="mb-4">
+                                        <h3 className="text-sm font-bold text-slate-900">הגדרות עמוד מידע בצ'יק</h3>
+                                        <p className="text-xs text-slate-500 mt-1">ניהול קישורים לכלים החינמיים המוצגים בעמוד</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-medium text-slate-700">קישור תבנית קורות חיים – PDF</label>
+                                            <div className="relative">
+                                                <LinkIcon className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="url"
+                                                    value={quickInfoLinks.cv_pdf || ''}
+                                                    onChange={(e) => setQuickInfoLinks(prev => ({ ...prev, cv_pdf: e.target.value }))}
+                                                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-xs"
+                                                    placeholder="https://..."
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-medium text-slate-700">קישור תבנית קורות חיים – Word</label>
+                                            <div className="relative">
+                                                <LinkIcon className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="url"
+                                                    value={quickInfoLinks.cv_word || ''}
+                                                    onChange={(e) => setQuickInfoLinks(prev => ({ ...prev, cv_word: e.target.value }))}
+                                                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-xs"
+                                                    placeholder="https://..."
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-medium text-slate-700">קישור לחוזה עבודה בסיסי</label>
+                                            <div className="relative">
+                                                <LinkIcon className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="url"
+                                                    value={quickInfoLinks.contract || ''}
+                                                    onChange={(e) => setQuickInfoLinks(prev => ({ ...prev, contract: e.target.value }))}
+                                                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-xs"
+                                                    placeholder="https://..."
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-medium text-slate-700">קישור לצ'קליסט לפני ראיון עבודה</label>
+                                            <div className="relative">
+                                                <LinkIcon className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="url"
+                                                    value={quickInfoLinks.checklist || ''}
+                                                    onChange={(e) => setQuickInfoLinks(prev => ({ ...prev, checklist: e.target.value }))}
+                                                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-xs"
+                                                    placeholder="https://..."
+                                                    dir="ltr"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

@@ -13,6 +13,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { getFileUrl } from '../../lib/utils';
+import { logAuditAction } from '../../lib/audit';
 
 export const AdminApplications: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -25,6 +26,8 @@ export const AdminApplications: React.FC = () => {
 
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [applicationToDelete, setApplicationToDelete] = useState<any | null>(null);
+    const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+    const [appsToBulkDelete, setAppsToBulkDelete] = useState<any[]>([]);
     
     // Bulk message modal
     const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
@@ -111,7 +114,8 @@ export const AdminApplications: React.FC = () => {
                 createdAt: new Date().toISOString()
             });
             
-            toast('מועמדות חדשה התווספה בהצלחה', 'success');
+            await logAuditAction('יצירת רשומה', 'מועמדויות', 'updated', 'מועמדות חדשה התווספה בהצלחה');
+          toast('מועמדות חדשה התווספה בהצלחה', 'success');
             setIsAddModalOpen(false);
             setNewApplication({ jobId: '', seekerId: '', applicantName: '', applicantEmail: '', applicantPhone: '' });
         } catch (error) {
@@ -149,7 +153,8 @@ export const AdminApplications: React.FC = () => {
                 updatedAt: new Date().toISOString()
             }, { merge: true });
             
-            toast('המועמדות עודכנה בהצלחה', 'success');
+            await logAuditAction('עריכת רשומה', 'מועמדויות', 'updated', 'המועמדות עודכנה בהצלחה');
+          toast('המועמדות עודכנה בהצלחה', 'success');
             setIsEditModalOpen(false);
             setApplicationToEdit(null);
         } catch (error) {
@@ -198,24 +203,32 @@ export const AdminApplications: React.FC = () => {
         }
     };
 
-    const handleBulkDelete = async (items: any[]) => {
+    const handleBulkDelete = (items: any[]) => {
         if (!currentUser) return;
-        if (!window.confirm(`האם אתה בטוח שברצונך למחוק ${items.length} מועמדויות לסל מחזור?`)) return;
+        setAppsToBulkDelete(items);
+        setIsBulkDeleteModalOpen(true);
+    };
+
+    const confirmBulkDelete = async (reason: string) => {
+        if (!currentUser || appsToBulkDelete.length === 0) return;
         
         try {
             const { softDelete } = await import('../../lib/adminUtils');
-            const promises = items.map(item => 
+            const promises = appsToBulkDelete.map(item => 
                 softDelete({
                     collectionName: 'applications',
                     id: item.id,
                     deletedBy: currentUser.uid,
-                    reason: 'מחיקה מרוכזת'
+                    reason: reason || 'מחיקה מרוכזת'
                 })
             );
             await Promise.all(promises);
-            toast(`${items.length} מועמדויות הועברו לסל מחזור`, 'success');
-        } catch (e) {
+            toast(`${appsToBulkDelete.length} מועמדויות הועברו לסל מחזור`, 'success');
+        } catch (error) {
             toast('שגיאה במחיקה מרוכזת', 'error');
+        } finally {
+            setIsBulkDeleteModalOpen(false);
+            setAppsToBulkDelete([]);
         }
     };
 
@@ -445,6 +458,17 @@ export const AdminApplications: React.FC = () => {
                     onConfirm={confirmDelete}
                     title="מחיקת מועמדות"
                     message={`האם אתה בטוח שברצונך למחוק את המועמדות של ${applicationToDelete.applicantName}?`}
+                    confirmWord="מחק"
+                />
+            )}
+
+            {appsToBulkDelete.length > 0 && (
+                <TwoStepConfirmModal
+                    isOpen={isBulkDeleteModalOpen}
+                    onClose={() => setIsBulkDeleteModalOpen(false)}
+                    onConfirm={confirmBulkDelete}
+                    title="מחיקה מרוכזת של מועמדויות"
+                    message={`האם אתה בטוח שברצונך למחוק ${appsToBulkDelete.length} מועמדויות לסל מחזור?`}
                     confirmWord="מחק"
                 />
             )}
