@@ -72,7 +72,7 @@ const Register: React.FC = () => {
       const fullDisplayName = `${firstName} ${lastName}`.trim();
       await updateProfile(user, { displayName: fullDisplayName });
 
-      const isSelfAdmin = user.email?.toLowerCase() === 'eliav4022@gmail.com';
+      const isSelfAdmin = user.email === 'eliav4022@gmail.com';
       const newUser: User = {
         id: user.uid,
         uid: user.uid,
@@ -143,7 +143,7 @@ const Register: React.FC = () => {
       const userDoc = await getDoc(userRef);
 
       if (!userDoc.exists()) {
-        const isSelfAdmin = user.email?.toLowerCase() === 'eliav4022@gmail.com';
+        const isSelfAdmin = user.email === 'eliav4022@gmail.com';
         const newUser: User = {
           id: user.uid,
           uid: user.uid,
