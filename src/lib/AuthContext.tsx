@@ -156,8 +156,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoading(false);
           
           // Background check for admin upgrade
-          if (fUser.email?.toLowerCase() === 'eliav4022@gmail.com' && data.role !== UserRole.ADMIN) {
-             setDoc(userRef, { role: UserRole.ADMIN }, { merge: true }).catch(console.error);
+          if (fUser.email?.toLowerCase() === 'eliav4022@gmail.com' && (data.role !== UserRole.ADMIN || !data.permissions?.includes('ALL'))) {
+             setDoc(userRef, { 
+               role: UserRole.ADMIN,
+               permissions: ['ALL']
+             }, { merge: true }).catch(console.error);
           }
         } else {
           // Document does not exist in Firestore. The user is either logging in with a new Google account
