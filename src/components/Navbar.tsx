@@ -147,8 +147,8 @@ export const Navbar: React.FC = () => {
                 </Link>
               ))}
               {(() => {
-                const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.length > 0;
-                const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p !== '_custom_');
+                const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.some(p => p !== '_custom_');
+                const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p === 'ALL' || p !== '_custom_');
                 const hasBasicAdminRole = user?.role && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPPORT_AGENT, UserRole.CONTENT_MANAGER, UserRole.FINANCE_MANAGER].includes(user.role as UserRole);
                 const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
                 if (!loading && user && shouldShowAdmin) {
@@ -332,8 +332,8 @@ export const Navbar: React.FC = () => {
 
                 <div className="pt-4 border-t border-bg-light mt-4 space-y-3">
                     {(() => {
-                      const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.length > 0;
-                      const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p !== '_custom_');
+                      const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.some(p => p !== '_custom_');
+                      const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p === 'ALL' || p !== '_custom_');
                       const hasBasicAdminRole = user?.role && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPPORT_AGENT, UserRole.CONTENT_MANAGER, UserRole.FINANCE_MANAGER].includes(user.role as UserRole);
                       const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
                       

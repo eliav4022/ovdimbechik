@@ -75,7 +75,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = false, onCl
     // Check if the user's role fundamentally allows them to see this tab as a fallback/baseline
     const hasRole = item.roles.includes(user.role as UserRole);
 
-    const isCustomMode = Array.isArray(user.permissions) && user.permissions.length > 0;
+    const isCustomMode = Array.isArray(user.permissions) && user.permissions.some(p => p !== '_custom_');
 
     // If the user has specific explicit permissions configured, use them.
     if (isCustomMode) {

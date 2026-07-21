@@ -29,7 +29,7 @@ export const AdminLayout: React.FC = () => {
 
   // A user is allowed if they have an admin role OR if they have explicitly granted permissions
   const hasBasicAdminRole = user ? ALLOWED_ADMIN_ROLES.includes(user.role as UserRole) : false;
-  const isCustomMode = user ? (Array.isArray(user.permissions) && user.permissions.length > 0) : false;
+  const isCustomMode = user ? (Array.isArray(user.permissions) && user.permissions.some(p => p !== '_custom_')) : false;
   const hasAnyCustomPermission = user && isCustomMode ? user.permissions!.some(p => p === 'ALL' || (typeof p === 'string' && p.includes('.view')) || (adminNavItems || []).some(item => item.id === p)) : false;
   const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
 
