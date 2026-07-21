@@ -30,7 +30,9 @@ export const AdminLayout: React.FC = () => {
   // A user is allowed if they have an admin role OR if they have explicitly granted permissions
   const hasBasicAdminRole = user ? ALLOWED_ADMIN_ROLES.includes(user.role as UserRole) : false;
   const isCustomMode = user ? (Array.isArray(user.permissions) && user.permissions.length > 0) : false;
-  const hasAnyCustomPermission = user && isCustomMode ? user.permissions!.some(p => (typeof p === 'string' && p.includes('.view')) || (adminNavItems || []).some(item => item.id === p)) : false;
+  const hasAnyCustomPermission = user && isCustomMode 
+    ? (user.permissions!.includes('ALL') || user.permissions!.some(p => (typeof p === 'string' && p.includes('.view')) || (adminNavItems || []).some(item => item.id === p))) 
+    : false;
   const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
 
   if (!user || !shouldShowAdmin) {
@@ -48,7 +50,7 @@ export const AdminLayout: React.FC = () => {
   
   if (mainNavItem) {
       if (isCustomMode) {
-          hasAccess = user.permissions!.includes(mainNavItem.id) || user.permissions!.includes(`${mainNavItem.id}.view`);
+          hasAccess = user.permissions!.includes('ALL') || user.permissions!.includes(mainNavItem.id) || user.permissions!.includes(`${mainNavItem.id}.view`);
       } else {
           hasAccess = user.role === UserRole.SUPER_ADMIN || mainNavItem.roles.includes(user.role as UserRole);
       }
