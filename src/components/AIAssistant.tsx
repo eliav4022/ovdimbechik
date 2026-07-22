@@ -247,8 +247,14 @@ export const AIAssistant: React.FC = () => {
                 });
                 
                 if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.error || "Failed to contact AI Assistant");
+                    let errMessage = "Failed to contact AI Assistant";
+                    try {
+                        const err = await res.json();
+                        errMessage = err.error || errMessage;
+                    } catch (e) {
+                        errMessage = `Server error: ${res.status} ${res.statusText}`;
+                    }
+                    throw new Error(errMessage);
                 }
                 const data = await res.json();
                 
@@ -277,10 +283,9 @@ export const AIAssistant: React.FC = () => {
 
             if (functionCalls && functionCalls.length > 0) {
                 const functionResponses: any[] = [];
-                const modelParts: any[] = [];
+                const modelParts = responseData.modelParts || [];
 
                 for (const call of functionCalls) {
-                    modelParts.push({ functionCall: { id: call.id, name: call.name, args: call.args } });
                     let functionResult: any = {};
                     
                     try {

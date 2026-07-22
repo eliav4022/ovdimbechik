@@ -286,18 +286,43 @@ async function startServer() {
         model = "gemini-3-flash-preview";
       }
 
-      const response = await ai.models.generateContent({
-        model,
-        contents,
-        config,
-      });
+      let response;
+      try {
+        response = await ai.models.generateContent({
+          model,
+          contents,
+          config,
+        });
+      } catch (err: any) {
+        const isUnavailable = err.status === 'UNAVAILABLE' || err.status === 503 || (err.message && err.message.includes('503'));
+        if (model === "gemini-3.1-pro-preview" && isUnavailable) {
+          console.warn("Gemini 3.1 Pro is unavailable, falling back to Gemini 3 Flash...");
+          response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents,
+            config,
+          });
+        } else {
+          throw err;
+        }
+      }
 
       // text and functionCalls are sometimes getters in the SDK, so we explicitly extract them
       const text = response.text || "";
       const functionCalls = response.functionCalls || [];
       const usageMetadata = response.usageMetadata || null;
+      const modelParts = (response.candidates?.[0]?.content?.parts || []).map((part: any) => {
+        const plainPart: any = {};
+        if (part.text) plainPart.text = part.text;
+        if (part.functionCall) plainPart.functionCall = part.functionCall;
+        if (part.thought) plainPart.thought = part.thought;
+        if (part.thoughtSignature) plainPart.thoughtSignature = part.thoughtSignature;
+        if (part.executableCode) plainPart.executableCode = part.executableCode;
+        if (part.codeExecutionResult) plainPart.codeExecutionResult = part.codeExecutionResult;
+        return plainPart;
+      });
 
-      res.json({ text, functionCalls, usageMetadata });
+      res.json({ text, functionCalls, usageMetadata, modelParts });
     } catch (error: any) {
       console.error("Gemini Server Proxy Error:", error);
       let errorMessage = error.message || "Failed to contact Gemini API";
@@ -309,8 +334,19 @@ async function startServer() {
       let statusCode = 500;
       if (typeof error.status === 'number') {
         statusCode = error.status;
-      } else if (error.status === 400 || error.status === 401 || error.status === 403 || error.status === 404 || error.status === 500 || error.status === 503) {
-        statusCode = error.status; // wait, if it's not a number, it can't be === 400
+      } else if (typeof error.status === 'string') {
+        const statusMap: Record<string, number> = {
+          'INVALID_ARGUMENT': 400,
+          'UNAUTHENTICATED': 401,
+          'PERMISSION_DENIED': 403,
+          'NOT_FOUND': 404,
+          'ALREADY_EXISTS': 409,
+          'RESOURCE_EXHAUSTED': 429,
+          'INTERNAL': 500,
+          'UNAVAILABLE': 503,
+          'DEADLINE_EXCEEDED': 504,
+        };
+        statusCode = statusMap[error.status] || 500;
       }
 
       res.status(statusCode).json({ 
