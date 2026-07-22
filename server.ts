@@ -9,12 +9,38 @@ import helmet from "helmet";
 import cors from "cors";
 import admin from 'firebase-admin';
 
-// Initialize Firebase Admin (safe fallback if credentials aren't set)
+import fs from 'fs';
+let firebaseConfig: any = null;
+try {
+  const configContent = fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8');
+  firebaseConfig = JSON.parse(configContent);
+} catch (e) {
+  console.warn("Could not read firebase-applet-config.json");
+}
+
+// Initialize Firebase Admin
 if (!admin.apps.length) {
   try {
-    admin.initializeApp();
+    const serviceAccount = {
+      projectId: firebaseConfig?.projectId || process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      // Replace literal \n with actual newlines in private key
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+
+    if (serviceAccount.clientEmail && serviceAccount.privateKey) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log("Firebase Admin Initialized with Service Account.");
+    } else {
+      admin.initializeApp({
+        projectId: firebaseConfig?.projectId
+      });
+      console.warn("Firebase Admin Initialized without Service Account (limited permissions).");
+    }
   } catch (e) {
-    console.warn("Firebase Admin Initialization missing credentials");
+    console.warn("Firebase Admin Initialization error:", e);
   }
 }
 
