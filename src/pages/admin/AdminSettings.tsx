@@ -1571,7 +1571,6 @@ export const AdminSettings: React.FC = () => {
                                                 onChange={(e) => handleChange('aiModel', e.target.value)}
                                             >
                                                 <option value="gemini-3-flash-preview">Gemini 3 Flash (מהיר וחסכוני ביותר)</option>
-                                                <option value="gemini-flash-latest">Gemini Flash Latest (החדש ביותר)</option>
                                                 <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (חכם ומדויק מאוד - תומך ב-API בתשלום בלבד)</option>
                                             </select>
                                         </div>

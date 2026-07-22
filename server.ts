@@ -21,11 +21,20 @@ try {
 // Initialize Firebase Admin
 if (!admin.apps.length) {
   try {
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    if (privateKey) {
+      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+        privateKey = privateKey.slice(1, -1);
+      } else if (privateKey.startsWith("'") && privateKey.endsWith("'")) {
+        privateKey = privateKey.slice(1, -1);
+      }
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+
     const serviceAccount = {
       projectId: firebaseConfig?.projectId || process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // Replace literal \n with actual newlines in private key
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      privateKey: privateKey,
     };
 
     if (serviceAccount.clientEmail && serviceAccount.privateKey) {
@@ -271,10 +280,9 @@ async function startServer() {
 
       const ai = new GoogleGenAI({ apiKey });
       const { contents, config } = req.body;
-      let model = req.body.model || "gemini-3-flash-preview";
-
-      // Map deprecated models to the current ones
-      if (model.includes("gemini-1.5") || model.includes("gemini-2.0")) {
+      const allowedModels = ["gemini-3-flash-preview", "gemini-3.1-pro-preview"];
+      let model = req.body.model;
+      if (!model || !allowedModels.includes(model)) {
         model = "gemini-3-flash-preview";
       }
 
@@ -298,7 +306,14 @@ async function startServer() {
           text: "מפתח ה-API שהוזן קצת שגוי 😅.\nבוא נתקן את זה: לחץ על סמל ההגדרות בפלטפורמה (Settings > Secrets), ערוך את `GEMINI_API_KEY` למפתח תקין וחזור לכאן. אני מחכה לך!"
         });
       }
-      res.status(error.status || 500).json({ 
+      let statusCode = 500;
+      if (typeof error.status === 'number') {
+        statusCode = error.status;
+      } else if (error.status === 400 || error.status === 401 || error.status === 403 || error.status === 404 || error.status === 500 || error.status === 503) {
+        statusCode = error.status; // wait, if it's not a number, it can't be === 400
+      }
+
+      res.status(statusCode).json({ 
         error: errorMessage,
         status: error.status
       });

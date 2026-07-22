@@ -228,7 +228,8 @@ export const AIAssistant: React.FC = () => {
                 tools: tools,
                 temperature: systemSettings?.aiTemperature ?? 0.7
             };
-            const modelName = systemSettings?.aiModel && !systemSettings.aiModel.includes('1.5') ? systemSettings.aiModel : 'gemini-3-flash-preview';
+            const validModels = ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'];
+            const modelName = systemSettings?.aiModel && validModels.includes(systemSettings.aiModel) ? systemSettings.aiModel : 'gemini-3-flash-preview';
 
             const getGeminiResponse = async (reqContents: any[]) => {
                 let token = '';
