@@ -33,7 +33,6 @@ RUN npm ci --only=production
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/public ./public 2>/dev/null || true
 
 EXPOSE 3000
 
