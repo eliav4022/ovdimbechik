@@ -72,24 +72,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = false, onCl
   const filteredNavItems = adminNavItems.filter(item => {
     if (!user?.role) return false;
     
-    // Check if the user's role fundamentally allows them to see this tab as a fallback/baseline
-    const hasRole = item.roles.includes(user.role as UserRole);
+    if (user.role === UserRole.SUPER_ADMIN || (user.permissions && user.permissions.includes('ALL'))) {
+      return true;
+    }
 
-    const isCustomMode = Array.isArray(user.permissions) && user.permissions.some(p => p !== '_custom_');
+    const isCustomMode = Array.isArray(user.permissions) && user.permissions.length > 0;
 
-    // If the user has specific explicit permissions configured, use them.
     if (isCustomMode) {
-      if (user.permissions!.includes('ALL')) return true;
-      // Must have the permission ID (legacy) or the specific explicit .view permission 
       return user.permissions!.includes(item.id) || 
              user.permissions!.includes(`${item.id}.view`) || 
+             user.permissions!.includes(`${item.id}.all`) ||
              user.permissions!.some(p => p.startsWith(`${item.id}.`));
     }
     
-    // Default to role-based access for backwards compatibility and easy defaults
-    if (user.role === UserRole.SUPER_ADMIN) return true;
+    // Default role-based access for ADMIN and SUPER_ADMIN
+    if (user.role === UserRole.ADMIN) {
+      return item.roles.includes(UserRole.ADMIN);
+    }
     
-    return hasRole;
+    return false;
   });
 
   return (

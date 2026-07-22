@@ -393,9 +393,11 @@ export const AdminUsers: React.FC = () => {
           className="text-[12px] font-black tracking-wider border border-slate-200 text-slate-600 rounded-md bg-transparent focus:ring-primary focus:border-primary px-2 py-1 cursor-pointer min-w-[100px]"
           onClick={(e) => e.stopPropagation()}
         >
-          {Object.values(UserRole).map(role => (
-            <option key={role} value={role}>{role.replace('_', ' ')}</option>
-          ))}
+          <option value={UserRole.SEEKER}>SEEKER (מחפש עבודה)</option>
+          <option value={UserRole.EMPLOYER}>EMPLOYER (מעסיק)</option>
+          <option value={UserRole.SUPPORT_AGENT}>SUPPORT AGENT (אייגנט)</option>
+          <option value={UserRole.ADMIN}>ADMIN (מנהל)</option>
+          <option value={UserRole.SUPER_ADMIN}>SUPER ADMIN (מנהל על)</option>
         </select>
       )
     },
@@ -546,9 +548,11 @@ export const AdminUsers: React.FC = () => {
                       value={newUser.role}
                       onChange={(e) => setNewUser(prev => ({...prev, role: e.target.value as UserRole}))}
                   >
-                      {Object.values(UserRole).map(s => (
-                          <option key={s} value={s}>{s}</option>
-                      ))}
+                      <option value={UserRole.SEEKER}>מחפש עבודה (עובד)</option>
+                      <option value={UserRole.EMPLOYER}>מעסיק (מעביד)</option>
+                      <option value={UserRole.SUPPORT_AGENT}>נציג תמיכה / אייגנט (Agent)</option>
+                      <option value={UserRole.ADMIN}>מנהל מערכת (Admin)</option>
+                      <option value={UserRole.SUPER_ADMIN}>סופר אדמין (Super Admin)</option>
                   </select>
               </div>
               
@@ -667,9 +671,11 @@ export const AdminUsers: React.FC = () => {
                           value={userToEdit.role}
                           onChange={(e) => setUserToEdit({ ...userToEdit, role: e.target.value as UserRole })}
                       >
-                          {Object.values(UserRole).map(s => (
-                              <option key={s} value={s}>{s}</option>
-                          ))}
+                          <option value={UserRole.SEEKER}>מחפש עבודה (עובד)</option>
+                          <option value={UserRole.EMPLOYER}>מעסיק (מעביד)</option>
+                          <option value={UserRole.SUPPORT_AGENT}>נציג תמיכה / אייגנט (Agent)</option>
+                          <option value={UserRole.ADMIN}>מנהל מערכת (Admin)</option>
+                          <option value={UserRole.SUPER_ADMIN}>סופר אדמין (Super Admin)</option>
                       </select>
                   </div>
 

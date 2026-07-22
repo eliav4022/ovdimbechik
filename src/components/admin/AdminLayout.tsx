@@ -8,10 +8,7 @@ import { Menu, X, ShieldAlert } from 'lucide-react';
 
 const ALLOWED_ADMIN_ROLES = [
   UserRole.ADMIN,
-  UserRole.SUPER_ADMIN,
-  UserRole.SUPPORT_AGENT,
-  UserRole.CONTENT_MANAGER,
-  UserRole.FINANCE_MANAGER
+  UserRole.SUPER_ADMIN
 ];
 
 export const AdminLayout: React.FC = () => {
@@ -27,11 +24,20 @@ export const AdminLayout: React.FC = () => {
     );
   }
 
-  // A user is allowed if they have an admin role OR if they have explicitly granted permissions
+  // Check if user has explicit custom permissions configured
+  const isCustomMode = user ? (Array.isArray(user.permissions) && user.permissions.length > 0) : false;
+  
+  // Basic admin role check (ADMIN or SUPER_ADMIN)
   const hasBasicAdminRole = user ? ALLOWED_ADMIN_ROLES.includes(user.role as UserRole) : false;
-  const isCustomMode = user ? (Array.isArray(user.permissions) && user.permissions.some(p => p !== '_custom_')) : false;
-  const hasAnyCustomPermission = user && isCustomMode ? user.permissions!.some(p => p === 'ALL' || (typeof p === 'string' && p.includes('.view')) || (adminNavItems || []).some(item => item.id === p)) : false;
-  const shouldShowAdmin = (!isCustomMode && hasBasicAdminRole) || hasAnyCustomPermission;
+  
+  // Custom permissions check: has admin.access or ALL or any view permission
+  const hasAdminPermission = user && Array.isArray(user.permissions) && (
+    user.permissions.includes('admin.access') ||
+    user.permissions.includes('ALL') ||
+    user.permissions.some(p => typeof p === 'string' && (p.endsWith('.view') || (adminNavItems || []).some(item => item.id === p)))
+  );
+
+  const shouldShowAdmin = isCustomMode ? hasAdminPermission : hasBasicAdminRole;
 
   if (!user || !shouldShowAdmin) {
     return <Navigate to="/" replace />;
@@ -47,10 +53,15 @@ export const AdminLayout: React.FC = () => {
   );
   
   if (mainNavItem) {
-      if (isCustomMode) {
-          hasAccess = user.permissions!.includes('ALL') || user.permissions!.includes(mainNavItem.id) || user.permissions!.includes(`${mainNavItem.id}.view`);
+      if (user.role === UserRole.SUPER_ADMIN || (user.permissions && user.permissions.includes('ALL'))) {
+          hasAccess = true;
+      } else if (isCustomMode) {
+          hasAccess = user.permissions!.includes(mainNavItem.id) || 
+                      user.permissions!.includes(`${mainNavItem.id}.view`) || 
+                      user.permissions!.includes(`${mainNavItem.id}.all`) ||
+                      user.permissions!.some(p => p.startsWith(`${mainNavItem.id}.`));
       } else {
-          hasAccess = user.role === UserRole.SUPER_ADMIN || mainNavItem.roles.includes(user.role as UserRole);
+          hasAccess = mainNavItem.roles.includes(user.role as UserRole);
       }
   }
 

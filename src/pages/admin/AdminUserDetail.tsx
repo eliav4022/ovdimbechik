@@ -450,9 +450,11 @@ export const AdminUserDetail: React.FC = () => {
                             value={editData.role}
                             onChange={(e) => setEditData({ ...editData, role: e.target.value as UserRole })}
                         >
-                            {Object.values(UserRole).map(s => (
-                                <option key={s} value={s}>{s}</option>
-                            ))}
+                            <option value={UserRole.SEEKER}>מחפש עבודה (עובד)</option>
+                            <option value={UserRole.EMPLOYER}>מעסיק (מעביד)</option>
+                            <option value={UserRole.SUPPORT_AGENT}>נציג תמיכה / אייגנט (Agent)</option>
+                            <option value={UserRole.ADMIN}>מנהל מערכת (Admin)</option>
+                            <option value={UserRole.SUPER_ADMIN}>סופר אדמין (Super Admin)</option>
                         </select>
                         <p className="text-xs text-slate-500 mt-2">
                             שינוי תפקיד ישפיע על אפשרות הגישה הבסיסית של המשתמש.
