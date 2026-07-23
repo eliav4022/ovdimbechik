@@ -94,7 +94,10 @@ const JobPost: React.FC = () => {
         const jobDoc = await getDoc(doc(db, 'jobs', id));
         if (jobDoc.exists()) {
           const jobData = jobDoc.data() as Job;
-          if (jobData.employerId !== user?.uid && !hasAdminPermission(user?.role)) {
+          const isOwner = jobData.employerId === user?.uid || jobData.ownerId === user?.uid;
+          const isAdminUser = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN || (user?.permissions && user.permissions.includes('ALL'));
+          
+          if (!isOwner && !isAdminUser && !hasAdminPermission(user?.role as UserRole)) {
             navigate('/');
             return;
           }
@@ -946,6 +949,7 @@ const JobPost: React.FC = () => {
                             <option value="Published">Published (מפורסם)</option>
                             <option value="active">Active (פעיל)</option>
                             <option value="pending_review">Pending Review (ממתין)</option>
+                            <option value="pending_employer_approval">Pending Employer Approval (בהמתנה לאישור מעסיק)</option>
                             <option value="rejected">Rejected (נדחה)</option>
                             <option value="Draft">Draft (טיוטה)</option>
                             <option value="Archived">Archived (בארכיון)</option>

@@ -135,6 +135,7 @@ export enum ExperienceLevel {
 export enum JobStatus {
   DRAFT = 'draft',
   PENDING_REVIEW = 'pending_review',
+  PENDING_EMPLOYER_APPROVAL = 'pending_employer_approval',
   ACTIVE = 'active',
   PAUSED = 'paused',
   REJECTED = 'rejected',

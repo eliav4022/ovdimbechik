@@ -8,7 +8,8 @@ import { useToast } from '../context/ToastContext';
 import { Helmet } from 'react-helmet-async';
 import { LoadingSpinner, FullPageLoading } from '../components/ui/Loading';
 import { TrustBadge } from '../components/ui/TrustBadge';
-import { Job, Application, ApplicationStatus, UserRole, JobType, WorkMode, ExperienceLevel } from '../types';
+import { Job, Application, ApplicationStatus, UserRole, JobType, WorkMode, ExperienceLevel, JobStatus } from '../types';
+import { hasAdminPermission } from '../lib/adminUtils';
 import { 
     MapPin, 
     Clock, 
@@ -141,6 +142,15 @@ const JobDetails: React.FC = () => {
         
         if (jobDoc.exists()) {
           const jobData = { id: jobDoc.id, ...jobDoc.data() } as Job;
+
+          if (jobData.status === JobStatus.PENDING_REVIEW || jobData.status === 'pending_review') {
+              if (!hasAdminPermission(user?.role as UserRole)) {
+                  toast('המשרה ממתינה לאישור הנהלה ולכן לא ניתן לצפות בה כרגע', 'error');
+                  navigate('/');
+                  return;
+              }
+          }
+
           setJob(jobData);
 
           // Track job view

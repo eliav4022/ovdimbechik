@@ -4,7 +4,7 @@ import {
   LogOut, Menu, X, Shield, Phone, Facebook, Mail, 
   Send as TelegramIcon, Home, Briefcase, MessageCircle, 
   BookOpen, Info, FileText, BarChart, UserPlus, 
-  Accessibility, User, LogIn, ChevronLeft, LayoutDashboard
+  Accessibility, User, LogIn, ChevronLeft, LayoutDashboard, ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { usePages } from '../context/PagesContext';
@@ -133,8 +133,8 @@ export const Navbar: React.FC = () => {
             </Link>
 
             {/* Desktop Nav */}
-            <div className="hidden 2xl:flex 2xl:items-center 2xl:gap-6">
-              {menuItems.map((item) => (
+            <div className="hidden lg:flex lg:items-center lg:gap-6">
+              {menuItems.slice(0, 4).map((item) => (
                 <Link 
                   key={item.label} 
                   to={item.path} 
@@ -146,6 +146,28 @@ export const Navbar: React.FC = () => {
                   {item.label}
                 </Link>
               ))}
+              {menuItems.length > 4 && (
+                <div className="relative group flex items-center h-full py-4">
+                  <button className="text-sm font-black text-text-muted hover:text-primary transition-all flex items-center gap-1">
+                    עוד
+                    <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
+                  </button>
+                  <div className="absolute top-14 right-0 w-56 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all flex flex-col overflow-hidden z-[100] p-2">
+                    {menuItems.slice(4).map(item => (
+                       <Link
+                         key={item.label}
+                         to={item.path}
+                         className={cn(
+                           "px-4 py-3 text-sm font-black transition-all whitespace-nowrap rounded-lg",
+                           item.label.includes('מזדמנות') ? "bg-purple-50 text-purple-700 hover:bg-purple-100 mb-1" : "text-slate-600 hover:bg-slate-50 hover:text-primary mb-1"
+                         )}
+                       >
+                         {item.label}
+                       </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
               {(() => {
                 const isCustomMode = Array.isArray(user?.permissions) && user?.permissions.some(p => p !== '_custom_');
                 const hasAnyCustomPermission = isCustomMode && user?.permissions!.some(p => p === 'ALL' || p !== '_custom_');
@@ -217,7 +239,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={() => setIsOpen(true)}
               aria-label="פתח תפריט"
-              className="2xl:hidden p-3 text-text-main hover:bg-bg-light rounded-2xl transition-all"
+              className="lg:hidden p-3 text-text-main hover:bg-bg-light rounded-2xl transition-all"
             >
               <Menu size={28} />
             </button>
