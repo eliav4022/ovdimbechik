@@ -7,10 +7,10 @@ import {
   GoogleAuthProvider,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { setDoc } from '../lib/firestore-audit';;
+import { updateDoc } from '../lib/firestore-audit';;
 import { trackEvent } from '../lib/analytics';
-import { logAuditAction } from "../lib/audit";
 import { auth, db } from '../lib/firebase';
 import { UserRole, User } from '../types';
 import { Briefcase, User as UserIcon, Mail, Lock, Chrome, Rocket, ArrowRight, Bot, AlertCircle } from 'lucide-react';
@@ -87,7 +87,6 @@ const Register: React.FC = () => {
       };
 
       await setDoc(doc(db, 'users', user.uid), newUser);
-      await logAuditAction("רישום משתמש חדש", "משתמשים", user.uid, `משתמש נרשם במערכת: ${fullDisplayName} תפקיד: ${role}`);
       
       trackEvent({ type: 'register' as any, metadata: { role, method: 'email' } });
 

@@ -3,7 +3,8 @@ import { Search, Database, Columns, LayoutGrid, Info, Tag, ArrowLeft, Plus, Edit
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { setDoc } from '../../lib/firestore-audit';;
 import { db } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { Modal } from '../ui/Modal';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { collection, onSnapshot, query, where, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
+import { setDoc } from '../../lib/firestore-audit';;
 import { db } from '../../lib/firebase';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
@@ -14,7 +15,6 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { addCredits } from '../../services/creditService';
-import { logAuditAction } from '../../lib/audit';
 
 export const AdminEmployers: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -129,7 +129,6 @@ export const AdminEmployers: React.FC = () => {
                 createdAt: new Date().toISOString()
             });
             
-            await logAuditAction('יצירת רשומה', 'מעסיקים', 'updated', 'מעסיק חדש התווסף בהצלחה');
           toast('מעסיק חדש התווסף בהצלחה', 'success');
             setIsAddModalOpen(false);
             setNewEmployer({ displayName: '', email: '', companyName: '', phone: '', location: '', password: '' });
@@ -166,7 +165,6 @@ export const AdminEmployers: React.FC = () => {
             });
             const data = await res.json();
             if (data.success) {
-                await logAuditAction('עריכת רשומה', 'מעסיקים', 'updated', 'הסיסמה עודכנה בהצלחה');
           toast('הסיסמה עודכנה בהצלחה', 'success');
                 setNewPasswordForUser('');
             } else {
@@ -221,7 +219,6 @@ export const AdminEmployers: React.FC = () => {
                  console.error("Failed to update email in Auth", err);
             }
             
-            await logAuditAction('עריכת רשומה', 'מעסיקים', 'updated', 'המעסיק עודכן בהצלחה');
           toast('המעסיק עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setEmployerToEdit(null);
@@ -245,7 +242,6 @@ export const AdminEmployers: React.FC = () => {
                 deletedBy: currentUser.uid,
                 reason
             });
-            await logAuditAction('עריכת רשומה', 'מעסיקים', 'updated', 'המעסיק הועבר לארכיון');
           toast('המעסיק הועבר לארכיון', 'success');
         } catch (error) {
             toast('שגיאה במחיקה', 'error');

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, addDoc, getDocs, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDocs, writeBatch, getDoc } from 'firebase/firestore';
+import { deleteDoc, updateDoc, addDoc } from '../lib/firestore-audit';;
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../lib/AuthContext';

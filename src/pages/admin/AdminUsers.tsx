@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, doc, setDoc, where, getDocs, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { setDoc, addDoc } from '../../lib/firestore-audit';;
 import { db, storage } from '../../lib/firebase';
 import { moveToRecycleBin } from '../../lib/recycleBin';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -16,7 +17,6 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import { UserPermissionsEditor } from '../../components/admin/UserPermissionsEditor';
-import { logAuditAction } from '../../lib/audit';
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -118,7 +118,6 @@ export const AdminUsers: React.FC = () => {
               createdAt: new Date().toISOString()
           });
           
-          await logAuditAction('יצירת רשומה', 'משתמשים', 'updated', 'משתמש חדש התווסף בהצלחה');
           toast('משתמש חדש התווסף בהצלחה', 'success');
           setIsAddModalOpen(false);
           setNewUser({ displayName: '', email: '', role: UserRole.SEEKER, permissions: [], phone: '', location: '', password: '' });
@@ -183,7 +182,6 @@ export const AdminUsers: React.FC = () => {
           await b.commit();
       }
 
-      await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'המשתמש הועבר לסל המיחזור בהצלחה!');
           toast('המשתמש הועבר לסל המיחזור בהצלחה!', 'success');
     } catch (error) {
       console.error("Delete failed:", error);
@@ -221,7 +219,6 @@ export const AdminUsers: React.FC = () => {
           });
           const data = await res.json();
           if (data.success) {
-              await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'הסיסמה עודכנה בהצלחה');
           toast('הסיסמה עודכנה בהצלחה', 'success');
               setNewPasswordForUser('');
           } else {
@@ -302,7 +299,6 @@ export const AdminUsers: React.FC = () => {
                console.error("Failed to update email in Auth", err);
           }
 
-          await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'המשתמש עודכן בהצלחה');
           toast('המשתמש עודכן בהצלחה', 'success');
           setIsEditModalOpen(false);
           setUserToEdit(null);
@@ -383,7 +379,6 @@ export const AdminUsers: React.FC = () => {
             try {
               const newRole = e.target.value;
               await setDoc(doc(db, 'users', u.id || u.uid), { role: newRole }, { merge: true });
-              await logAuditAction('עריכת רשומה', 'משתמשים', 'updated', 'התפקיד עודכן בהצלחה');
           toast('התפקיד עודכן בהצלחה', 'success');
             } catch (error) {
               console.error("Error updating role:", error);
@@ -621,7 +616,6 @@ export const AdminUsers: React.FC = () => {
                                       });
                                       
                                       setUserToEdit({ ...userToEdit, photoURL: url });
-                                      await logAuditAction('יצירת רשומה', 'משתמשים', 'updated', 'התמונה הועלתה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)');
           toast('התמונה הועלתה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)', 'success');
                                   } catch (error) {
                                       console.error('Error uploading image:', error);

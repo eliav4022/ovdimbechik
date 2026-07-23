@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, getRedirectResult } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { setDoc } from './firestore-audit';;
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { User, UserRole } from '../types';
 

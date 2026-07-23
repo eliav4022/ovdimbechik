@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { setDoc, deleteDoc } from '../../lib/firestore-audit';;
 import { db } from '../../lib/firebase';
 import { Popup } from '../../types';
 import { Card } from '../../components/ui/Card';

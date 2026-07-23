@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, setDoc, updateDoc, collection, increment, runTransaction, getDocs, query, where, arrayUnion, serverTimestamp, addDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, increment, runTransaction, getDocs, query, where, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { setDoc, updateDoc, addDoc } from '../lib/firestore-audit';;
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -18,7 +19,6 @@ import { trackEvent } from '../lib/analytics';
 import { predefinedTagsByCategory, getAllPredefinedTags } from '../lib/predefinedTags';
 
 import { hasAdminPermission } from '../lib/adminUtils';
-import { logAuditAction } from '../lib/audit';
 
 const JobPost: React.FC = () => {
     const { id } = useParams();
@@ -229,7 +229,6 @@ const JobPost: React.FC = () => {
                     }
                 } catch(e) { console.error("Failed to update global tags", e); }
             }
-            await logAuditAction('עריכת משרה', 'משרות', id, 'פרטי המשרה עודכנו בהצלחה');
             toast('המשרה עודכנה בהצלחה!', 'success');
         } else {
             await updateDoc(doc(db, 'jobs', id), {
@@ -240,7 +239,6 @@ const JobPost: React.FC = () => {
                     updatedAt: now,
                 }
             });
-            await logAuditAction('בקשה לעדכון משרה', 'משרות', id, 'הבקשה נשלחה לאישור מנהל');
             toast('השינויים נשמרו ונשלחו לאישור מנהל (בינתיים המשרה מוצגת כרגיל)', 'success');
         }
       } else {
@@ -386,7 +384,6 @@ const JobPost: React.FC = () => {
             }
         });
 
-        await logAuditAction('הוספת משרה', 'משרות', newJobRef.id, `משרה חדשה נוצרה: ${newJob.title}`);
 
         toast(hasAdminPermission(user.role) ? 'המשרה פורסמה בהצלחה!' : 'המשרה נשלחה לאישור המערכת.', 'success');
       }

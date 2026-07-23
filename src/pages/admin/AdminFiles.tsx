@@ -12,7 +12,6 @@ import { useAuth } from '../../lib/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { getFileUrl } from '../../lib/utils';
-import { logAuditAction } from '../../lib/audit';
 
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 
@@ -155,7 +154,6 @@ export const AdminFiles: React.FC = () => {
                 uploadedBy: user?.uid
             });
 
-            await logAuditAction('עריכת רשומה', 'קבצים', 'updated', 'הקובץ הועלה בהצלחה');
           toast('הקובץ הועלה בהצלחה', 'success');
             setIsUploadModalOpen(false);
             setSelectedFile(null);
@@ -189,7 +187,6 @@ export const AdminFiles: React.FC = () => {
                 reason: 'נמחק ממסך ניהול קבצים'
             });
             
-            await logAuditAction('עריכת רשומה', 'קבצים', 'updated', 'הקובץ הועבר לסל מחזור בהצלחה');
             toast('הקובץ הועבר לסל מחזור בהצלחה', 'success');
         } catch (error) {
             console.error("Error deleting file:", error);
@@ -212,7 +209,6 @@ export const AdminFiles: React.FC = () => {
             await updateDoc(doc(db, 'files', fileToEdit.id), {
                 name: editFileName.trim()
             });
-            await logAuditAction('עריכת רשומה', 'קבצים', 'updated', 'שם הקובץ עודכן בהצלחה');
           toast('שם הקובץ עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setFileToEdit(null);
@@ -310,7 +306,6 @@ export const AdminFiles: React.FC = () => {
                         size="sm" 
                         onClick={async () => {
                             navigator.clipboard.writeText(cleanUrl);
-                            await logAuditAction('העתקת קישור', 'קבצים', 'updated', 'הקישור הועתק ללוח');
           toast('הקישור הועתק ללוח', 'success');
                         }}
                     >

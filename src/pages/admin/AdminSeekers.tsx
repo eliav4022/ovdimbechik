@@ -13,7 +13,6 @@ import { TwoStepConfirmModal } from '../../components/ui/TwoStepConfirmModal';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { logAuditAction } from '../../lib/audit';
 
 export const AdminSeekers: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -106,7 +105,6 @@ export const AdminSeekers: React.FC = () => {
                 }
             });
             
-            await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'מחפש עבודה התווסף בהצלחה');
           toast('מחפש עבודה התווסף בהצלחה', 'success');
             setIsAddModalOpen(false);
             setNewSeeker({ displayName: '', email: '', jobTitle: '', phone: '', location: '', password: '' });
@@ -130,7 +128,6 @@ export const AdminSeekers: React.FC = () => {
                 deletedBy: currentUser.uid,
                 reason
             });
-            await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'מחפש העבודה הועבר לארכיון');
           toast('מחפש העבודה הועבר לארכיון', 'success');
         } catch (error) {
             toast('שגיאה במחיקה', 'error');
@@ -167,7 +164,6 @@ export const AdminSeekers: React.FC = () => {
             });
             const data = await res.json();
             if (data.success) {
-                await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'הסיסמה עודכנה בהצלחה');
           toast('הסיסמה עודכנה בהצלחה', 'success');
                 setNewPasswordForUser('');
             } else {
@@ -221,7 +217,6 @@ export const AdminSeekers: React.FC = () => {
                  console.error("Failed to update email in Auth", err);
             }
 
-            await logAuditAction('עריכת רשומה', 'מחפשי עבודה', 'updated', 'מחפש העבודה עודכן בהצלחה');
           toast('מחפש העבודה עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setSeekerToEdit(null);

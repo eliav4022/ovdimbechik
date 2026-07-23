@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, onSnapshot, query, where, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, serverTimestamp } from 'firebase/firestore';
+import { setDoc, addDoc } from '../../lib/firestore-audit';;
 import { db, storage } from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminTable } from '../../components/admin/AdminTable';

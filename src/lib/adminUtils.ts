@@ -1,4 +1,5 @@
-import { doc, updateDoc, serverTimestamp, getDoc, deleteDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { updateDoc, deleteDoc } from './firestore-audit';;
 import { db } from './firebase';
 import { UserRole } from '../types';
 import { moveToRecycleBin } from './recycleBin';

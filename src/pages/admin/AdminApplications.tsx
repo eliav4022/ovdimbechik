@@ -13,7 +13,6 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { getFileUrl } from '../../lib/utils';
-import { logAuditAction } from '../../lib/audit';
 
 export const AdminApplications: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -114,7 +113,6 @@ export const AdminApplications: React.FC = () => {
                 createdAt: new Date().toISOString()
             });
             
-            await logAuditAction('יצירת רשומה', 'מועמדויות', 'updated', 'מועמדות חדשה התווספה בהצלחה');
           toast('מועמדות חדשה התווספה בהצלחה', 'success');
             setIsAddModalOpen(false);
             setNewApplication({ jobId: '', seekerId: '', applicantName: '', applicantEmail: '', applicantPhone: '' });
@@ -153,7 +151,6 @@ export const AdminApplications: React.FC = () => {
                 updatedAt: new Date().toISOString()
             }, { merge: true });
             
-            await logAuditAction('עריכת רשומה', 'מועמדויות', 'updated', 'המועמדות עודכנה בהצלחה');
           toast('המועמדות עודכנה בהצלחה', 'success');
             setIsEditModalOpen(false);
             setApplicationToEdit(null);
