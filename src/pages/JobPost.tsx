@@ -17,6 +17,7 @@ import { trackEvent } from '../lib/analytics';
 
 import { predefinedTagsByCategory, getAllPredefinedTags } from '../lib/predefinedTags';
 
+import { hasAdminPermission } from '../lib/adminUtils';
 const JobPost: React.FC = () => {
     const { id } = useParams();
     const { user } = useAuth();
@@ -51,7 +52,7 @@ const JobPost: React.FC = () => {
 
   useEffect(() => {
     const fetchEmployers = async () => {
-      if (user?.role === UserRole.ADMIN) {
+      if (hasAdminPermission(user?.role)) {
         try {
           const q = query(collection(db, 'users'), where('role', 'in', [UserRole.EMPLOYER, UserRole.ADMIN]));
           const snap = await getDocs(q);
@@ -93,7 +94,7 @@ const JobPost: React.FC = () => {
         const jobDoc = await getDoc(doc(db, 'jobs', id));
         if (jobDoc.exists()) {
           const jobData = jobDoc.data() as Job;
-          if (jobData.employerId !== user?.uid && user?.role !== UserRole.ADMIN) {
+          if (jobData.employerId !== user?.uid && !hasAdminPermission(user?.role)) {
             navigate('/');
             return;
           }
@@ -177,7 +178,7 @@ const JobPost: React.FC = () => {
     const cost = 5; // 5 credits = 1 job post
     
     // Admin doesn't pay credits. If editing, we don't charge again (simplification).
-    if (user.role !== UserRole.ADMIN && !isEditing) {
+    if (!hasAdminPermission(user.role) && !isEditing) {
         const userCredits = user.credits || 0;
         if (userCredits < cost) {
             toast('אין לך מספיק קרדיטים לפרסום משרה זו', 'error');
@@ -196,7 +197,7 @@ const JobPost: React.FC = () => {
         
         const knownTags = new Set([...globalTags, ...globalCategories]);
         const isTagApproved = (t: string) => knownTags.has(t);
-        const isAdmin = user.role === UserRole.ADMIN;
+        const isAdmin = hasAdminPermission(user.role);
         const allTags = rawTags || [];
 
         const approvedTags = isAdmin ? allTags : allTags.filter(isTagApproved);
@@ -247,7 +248,7 @@ const JobPost: React.FC = () => {
 
         const knownTags = new Set([...globalTags, ...globalCategories]);
         const isTagApproved = (t: string) => knownTags.has(t);
-        const isAdmin = user.role === UserRole.ADMIN;
+        const isAdmin = hasAdminPermission(user.role);
         const allTags = formData.tags || [];
 
         const newJob: Job = {
@@ -281,7 +282,7 @@ const JobPost: React.FC = () => {
           updatedAt: now,
         };
 
-        if (user.role !== UserRole.ADMIN) {
+        if (!hasAdminPermission(user.role)) {
             let eliavAdminId = '';
             // Try to find Eliav as fallback
             const adminQuery = query(collection(db, 'users'), where('role', '==', UserRole.ADMIN));
@@ -336,7 +337,7 @@ const JobPost: React.FC = () => {
         }
 
         // Add category, tags, and location to global tags list (ONLY FOR ADMINS)
-        if (user.role === UserRole.ADMIN) {
+        if (hasAdminPermission(user.role)) {
             try {
                 const validCategory = newJob.category?.trim();
                 const validTags = newJob.tags.filter(t => t && t.trim() !== '');
@@ -378,9 +379,9 @@ const JobPost: React.FC = () => {
             }
         });
 
-        toast(user.role === UserRole.ADMIN ? 'המשרה פורסמה בהצלחה!' : 'המשרה נשלחה לאישור המערכת.', 'success');
+        toast(hasAdminPermission(user.role) ? 'המשרה פורסמה בהצלחה!' : 'המשרה נשלחה לאישור המערכת.', 'success');
       }
-      navigate(user.role === UserRole.ADMIN ? '/admin' : '/employer/dashboard');
+      navigate(hasAdminPermission(user.role) ? '/admin' : '/employer/dashboard');
     } catch (error: any) {
         if (error.message === "אין לך מספיק קרדיטים לפרסום משרה זו") {
             toast(error.message, 'error');
@@ -480,7 +481,7 @@ const JobPost: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                 />
                 
-                {isEditing && user?.role === UserRole.ADMIN && (
+                {isEditing && hasAdminPermission(user?.role) && (
                     <div className="flex items-center gap-4 mt-2">
                         <div className="flex-shrink-0 w-14 h-14 bg-slate-100 rounded-full overflow-hidden border border-slate-200 flex items-center justify-center">
                             {formData.companyLogo ? (
@@ -907,7 +908,7 @@ const JobPost: React.FC = () => {
                 </div>
             )}
 
-            {user?.role === UserRole.ADMIN && (
+            {hasAdminPermission(user?.role) && (
               <div className="space-y-4 pt-6 mt-6 border-t font-sans border-slate-100">
                   <h3 className="font-black text-slate-800 flex items-center gap-2 pr-2">
                     <Shield size={18} className="text-indigo-600" /> הגדרות מנהל מערכת
