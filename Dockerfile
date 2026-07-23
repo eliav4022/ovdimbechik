@@ -24,7 +24,6 @@ FROM node:22-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 # Copy package manifests and install production dependencies only
@@ -33,7 +32,5 @@ RUN npm ci --only=production
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
-
-EXPOSE 3000
 
 CMD ["node", "dist/server.cjs"]
