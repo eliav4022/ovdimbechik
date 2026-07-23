@@ -1,17 +1,16 @@
 import { readFileSync } from 'fs';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query } from 'firebase/firestore';
 
 const config = JSON.parse(readFileSync('./firebase-applet-config.json', 'utf8'));
 const app = initializeApp(config);
 const db = getFirestore(app, config.firestoreDatabaseId);
 
 async function test() {
-  const snap = await getDocs(collection(db, 'audit_logs'));
-  console.log("Audit Logs Count:", snap.size);
-  if (snap.size > 0) {
-     snap.docs.slice(0, 3).forEach(doc => console.log(doc.data()));
-  }
+  const snap = await getDocs(collection(db, 'reports'));
+  snap.forEach(doc => {
+    console.log("Report:", doc.id, doc.data());
+  });
   process.exit(0);
 }
 test();

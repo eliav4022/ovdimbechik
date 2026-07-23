@@ -1137,12 +1137,6 @@ export const AdminTags: React.FC = () => {
                                 <input type="checkbox" className="w-4 h-4 accent-brand-teal" />
                                 <span>השתמש ב-AI להציע תגיות למחפשי עבודה</span>
                             </label>
-                            
-                            <div className="pt-4 border-t border-slate-100">
-                                <Button type="button" variant="primary" className="bg-brand-teal shadow-lg hover:bg-brand-dark px-8 font-bold">
-                                    שמור הגדרות
-                                </Button>
-                            </div>
                         </div>
                     </Card>
                 </div>

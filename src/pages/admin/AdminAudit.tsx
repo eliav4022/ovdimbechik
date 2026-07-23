@@ -3,13 +3,13 @@ import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
-import { User, Activity, Trash2, PlusCircle, ShieldAlert, Briefcase, CheckSquare } from 'lucide-react';
+import { User, Activity, Trash2, PlusCircle, ShieldAlert, Briefcase, CheckSquare, Building2, CreditCard, MessageSquare, FileText, Settings, Users } from 'lucide-react';
 import { Job, UserRole } from '../../types';
 
 export const AdminAudit: React.FC = () => {
     const [allLogs, setAllLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'ALL' | 'JOBS' | 'USERS' | 'TASKS'>('ALL');
+    const [activeTab, setActiveTab] = useState<'ALL' | 'JOBS' | 'USERS' | 'GENERAL' | 'COMPANIES' | 'PAYMENTS' | 'INQUIRIES' | 'REPORTS' | 'EMPLOYERS'>('ALL');
 
     useEffect(() => {
         const fetchLogs = async () => {
@@ -48,9 +48,14 @@ export const AdminAudit: React.FC = () => {
 
     const filteredLogs = useMemo(() => {
         let filtered = allLogs;
-        if (activeTab === 'JOBS') filtered = allLogs.filter(log => log.entity === 'משרות' || log.entity === 'קורות חיים');
-        if (activeTab === 'USERS') filtered = allLogs.filter(log => log.entity === 'משתמשים' || log.entity === 'מעסיקים' || log.entity === 'מחפשי עבודה');
-        if (activeTab === 'TASKS') filtered = allLogs.filter(log => log.entity === 'משימות' || log.entity === 'applications');
+        if (activeTab === 'JOBS') filtered = allLogs.filter(log => ['משרות', 'jobs'].includes(log.entity));
+        if (activeTab === 'USERS') filtered = allLogs.filter(log => ['משתמשים', 'users', 'מחפשי עבודה'].includes(log.entity));
+        if (activeTab === 'EMPLOYERS') filtered = allLogs.filter(log => ['מעסיקים'].includes(log.entity));
+        if (activeTab === 'COMPANIES') filtered = allLogs.filter(log => ['חברות', 'companies'].includes(log.entity));
+        if (activeTab === 'PAYMENTS') filtered = allLogs.filter(log => ['תשלומים', 'credit_transactions'].includes(log.entity));
+        if (activeTab === 'INQUIRIES') filtered = allLogs.filter(log => ['פניות', 'inquiries'].includes(log.entity));
+        if (activeTab === 'REPORTS') filtered = allLogs.filter(log => ['דיווחים', 'משימות', 'reports', 'jobReports'].includes(log.entity));
+        if (activeTab === 'GENERAL') filtered = allLogs.filter(log => ['עדכונים כלליים', 'settings', 'קבצים', 'files', 'audit_logs'].includes(log.entity));
         return filtered;
     }, [allLogs, activeTab]);
 
@@ -91,27 +96,69 @@ export const AdminAudit: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 overflow-x-auto">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 overflow-x-auto scrollbar-hide">
                 <button 
                     onClick={() => setActiveTab('ALL')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'ALL' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
                 >
                     <Activity size={18} />
-                    כל הפעולות
-                </button>
-                <button 
-                    onClick={() => setActiveTab('JOBS')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'JOBS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
-                >
-                    <Briefcase size={18} />
-                    פעולות במשרות
+                    ראשי
                 </button>
                 <button 
                     onClick={() => setActiveTab('USERS')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'USERS' ? 'bg-orange-600 text-white shadow-md shadow-orange-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'USERS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <Users size={18} />
+                    משתמשים
+                </button>
+                <button 
+                    onClick={() => setActiveTab('JOBS')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'JOBS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <Briefcase size={18} />
+                    משרות
+                </button>
+                <button 
+                    onClick={() => setActiveTab('GENERAL')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'GENERAL' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <Settings size={18} />
+                    עדכונים כלליים
+                </button>
+                <button 
+                    onClick={() => setActiveTab('COMPANIES')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'COMPANIES' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <Building2 size={18} />
+                    חברות
+                </button>
+                <button 
+                    onClick={() => setActiveTab('PAYMENTS')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'PAYMENTS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <CreditCard size={18} />
+                    תשלומים
+                </button>
+                <button 
+                    onClick={() => setActiveTab('INQUIRIES')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'INQUIRIES' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <MessageSquare size={18} />
+                    פניות
+                </button>
+                <button 
+                    onClick={() => setActiveTab('REPORTS')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'REPORTS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <FileText size={18} />
+                    דיווחים
+                </button>
+                <button 
+                    onClick={() => setActiveTab('EMPLOYERS')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'EMPLOYERS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
                 >
                     <User size={18} />
-                    פעולות משתמשים
+                    מעסיקים
                 </button>
             </div>
 

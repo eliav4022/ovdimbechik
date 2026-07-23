@@ -186,13 +186,13 @@ export const AdminReports: React.FC = () => {
             key: 'title',
             header: 'משימה/תקלה',
             render: (r: Report) => (
-                <div className={cn("font-bold text-sm", r.isResolved ? "text-slate-400 line-through" : "text-slate-800")}>{r.title}</div>
+                <div className={cn("font-bold text-sm", r.isResolved ? "text-slate-400 line-through" : "text-slate-800")}>{r.title || 'משימה ללא כותרת'}</div>
             )
         },
         {
             key: 'description',
             header: 'תיאור',
-            render: (r: Report) => <div className="text-xs text-slate-500 max-w-xs">{r.description}</div>
+            render: (r: Report) => <div className="text-xs text-slate-500 max-w-xs">{r.description || 'אין תיאור למשימה.'}</div>
         },
         {
             key: 'priority',
@@ -208,7 +208,8 @@ export const AdminReports: React.FC = () => {
                     'High': 'גבוהה',
                     'Urgent': 'דחופה!'
                 };
-                return <span className={cn("text-[10px] px-2 py-1 flex max-w-max rounded-md font-bold", colors[r.priority])}>{labels[r.priority]}</span>;
+                const safePriority = r.priority || 'Low';
+                return <span className={cn("text-[10px] px-2 py-1 flex max-w-max rounded-md font-bold", colors[safePriority])}>{labels[safePriority]}</span>;
             }
         },
         {

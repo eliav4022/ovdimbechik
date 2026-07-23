@@ -18,6 +18,8 @@ import { trackEvent } from '../lib/analytics';
 import { predefinedTagsByCategory, getAllPredefinedTags } from '../lib/predefinedTags';
 
 import { hasAdminPermission } from '../lib/adminUtils';
+import { logAuditAction } from '../lib/audit';
+
 const JobPost: React.FC = () => {
     const { id } = useParams();
     const { user } = useAuth();
@@ -227,6 +229,7 @@ const JobPost: React.FC = () => {
                     }
                 } catch(e) { console.error("Failed to update global tags", e); }
             }
+            await logAuditAction('עריכת משרה', 'משרות', id, 'פרטי המשרה עודכנו בהצלחה');
             toast('המשרה עודכנה בהצלחה!', 'success');
         } else {
             await updateDoc(doc(db, 'jobs', id), {
@@ -237,6 +240,7 @@ const JobPost: React.FC = () => {
                     updatedAt: now,
                 }
             });
+            await logAuditAction('בקשה לעדכון משרה', 'משרות', id, 'הבקשה נשלחה לאישור מנהל');
             toast('השינויים נשמרו ונשלחו לאישור מנהל (בינתיים המשרה מוצגת כרגיל)', 'success');
         }
       } else {
@@ -381,6 +385,8 @@ const JobPost: React.FC = () => {
                 promotionLevel: newJob.promotionLevel
             }
         });
+
+        await logAuditAction('הוספת משרה', 'משרות', newJobRef.id, `משרה חדשה נוצרה: ${newJob.title}`);
 
         toast(hasAdminPermission(user.role) ? 'המשרה פורסמה בהצלחה!' : 'המשרה נשלחה לאישור המערכת.', 'success');
       }

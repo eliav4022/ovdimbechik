@@ -8,10 +8,9 @@ const db = getFirestore(app, config.firestoreDatabaseId);
 
 async function test() {
   const snap = await getDocs(collection(db, 'audit_logs'));
-  console.log("Audit Logs Count:", snap.size);
-  if (snap.size > 0) {
-     snap.docs.slice(0, 3).forEach(doc => console.log(doc.data()));
-  }
+  const entities = new Set();
+  snap.docs.forEach(doc => entities.add(doc.data().collection));
+  console.log([...entities]);
   process.exit(0);
 }
 test();

@@ -344,10 +344,10 @@ export const AdminDashboard: React.FC = () => {
                                       <div className="flex items-start justify-between">
                                           <div>
                                               <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-1 rounded font-bold mb-2 inline-block">
-                                                  עדיפות: {task.priority}
+                                                  עדיפות: {task.priority || 'רגילה'}
                                               </span>
-                                              <h4 className="font-bold text-slate-800 mb-1">{task.title}</h4>
-                                              <p className="text-sm text-slate-600 line-clamp-2">{task.description}</p>
+                                              <h4 className="font-bold text-slate-800 mb-1">{task.title || 'משימה ללא כותרת'}</h4>
+                                              <p className="text-sm text-slate-600 line-clamp-2">{task.description || 'אין תיאור מפורט למשימה זו.'}</p>
                                           </div>
                                       </div>
                                   </Link>
