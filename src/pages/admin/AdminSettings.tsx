@@ -418,7 +418,7 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
                                                                 setFilters(newFilters);
                                                             }}
                                                         />
-                                                    );
+                                                    );;
                                                 }
                                             })()
                                         )}
@@ -431,7 +431,7 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
-                                ))}
+))}
                             </div>
                         )}
 
@@ -714,6 +714,65 @@ export const AdminSettings: React.FC = () => {
         { id: 'recycle', label: 'סל מחזור', icon: <Trash2 size={18} /> },
     ];
 
+
+    const processCSVResults = async (results: any, errorMsg: string) => {
+        if (results.errors.length > 0 && results.data.length === 0) {
+            toast(errorMsg, 'error');
+            return;
+        }
+
+        let existingJobs: any[] = [];
+        try {
+            const snap = await getDocs(collection(db, 'jobs'));
+            existingJobs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (e) {
+            console.error("Failed to fetch jobs for duplication check", e);
+        }
+
+        const parsed = results.data.map((row: any) => {
+            const defaultUploader = employers.find(e => e.name === 'שיוך משרות (משתמש כללי)');
+            const jobData: any = {
+                id: row.id || '',
+                _ownerId: defaultUploader ? defaultUploader.id : (user?.uid || '')
+            };
+            Object.keys(row).forEach(h => {
+                if (h === 'id') return;
+                const val = row[h] ? String(row[h]).trim() : '';
+                if (h === 'tags') {
+                    jobData[h] = val ? val.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
+                } else if (h === 'isImmediate' || h === 'requireCV' || h === 'isCasual') {
+                    jobData[h] = val.toLowerCase() === 'true' || val === 'TRUE';
+                } else if (h === 'type') {
+                    jobData.type = mapHebrewJobType(val);
+                } else if (h === 'workMode') {
+                    jobData.workMode = mapHebrewWorkMode(val);
+                } else if (h === 'experienceLevel') {
+                    jobData.experienceLevel = mapHebrewExp(val);
+                } else {
+                    jobData[h] = val;
+                }
+            });
+
+            const isDuplicate = existingJobs.some(existing => {
+                const sameLocation = existing.location?.trim() === jobData.location?.trim();
+                const sameCompany = existing.companyName?.trim() === jobData.companyName?.trim();
+                const sameDesc = existing.description?.trim() === jobData.description?.trim();
+                return sameLocation && sameCompany && sameDesc && !!jobData.description;
+            });
+
+            if (isDuplicate) {
+                jobData._isDuplicate = true;
+                jobData._skip = true;
+            } else {
+                jobData._skip = false;
+            }
+
+            return jobData;
+        });
+
+        setPreviewJobs(parsed);
+    };
+
     if (previewJobs) {
         const updateJobField = (idx: number, field: string, value: any) => {
             const newJobs = [...previewJobs];
@@ -761,8 +820,11 @@ export const AdminSettings: React.FC = () => {
                                 const newCategories = new Set<string>();
                                 const newLocations = new Set<string>();
 
-                                for (const jobData of previewJobs) {
-                                    const { _ownerId, ...cleanData } = jobData;
+                                
+for (const jobData of previewJobs) {
+    if (jobData._skip) continue;
+
+                                    const { _ownerId, _isDuplicate, _skip, ...cleanData } = jobData;
                                     const docId = cleanData.id?.trim();
                                     const opName = bulkOperation;
 
@@ -854,19 +916,25 @@ export const AdminSettings: React.FC = () => {
                     <table className="w-full text-sm text-right align-middle whitespace-nowrap min-w-max">
                         <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase border-b border-slate-200 sticky top-0 z-10">
                             <tr>
-                                {previewJobs.length > 0 && Object.keys(previewJobs[0]).map(h => (
-                                    <th key={h} className="px-4 py-3 min-w-[128px]">
-                                        {h === '_ownerId' ? 'שיוך מעסיק' : h}
-                                    </th>
-                                ))}
-                                <th className="px-4 py-3 sticky left-0 bg-slate-50 w-[50px]"></th>
+                                {previewJobs.length > 0 && Object.keys(previewJobs[0]).map(h => h === '_isDuplicate' || h === '_skip' ? null : (
+        <th key={h} className="px-4 py-3 min-w-[128px]">
+            {h === '_ownerId' ? 'שיוך מעסיק' : h}
+        </th>
+    )
+
+)}
+                                
+    <th className="px-4 py-3 min-w-[100px]">סטטוס / ייבוא</th>
+    <th className="px-4 py-3 sticky left-0 bg-slate-50 w-[50px]"></th>
+
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {previewJobs.map((job, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                    {Object.keys(job).map(h => (
-                                        <td key={h} className="px-2 py-2 max-w-[300px]">
+                                <tr key={idx} className={`hover:bg-slate-50 transition-colors ${job._isDuplicate ? 'bg-amber-50/50' : ''}`}>
+                                    {Object.keys(job).map(h => h === '_isDuplicate' || h === '_skip' ? null : (
+        <td key={h} className="px-2 py-2 max-w-[300px]">
+
                                             {h === '_ownerId' ? (
                                                 <select 
                                                     className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
@@ -876,7 +944,7 @@ export const AdminSettings: React.FC = () => {
                                                     <option value={user?.uid}>אני (מנהל המערכת)</option>
                                                     {employers.filter(e => e.id !== user?.uid).map(emp => (
                                                         <option key={emp.id} value={emp.id}>{emp.name} {emp.company && emp.company !== 'ללא חברה' ? `(${emp.company})` : ''}</option>
-                                                    ))}
+                    ))}
                                                 </select>
                                             ) : h === 'type' ? (
                                                 <select 
@@ -887,7 +955,7 @@ export const AdminSettings: React.FC = () => {
                                                     <option value="">בחר...</option>
                                                     {Object.values(JobType).map(v => <option key={v} value={v}>{v}</option>)}
                                                 </select>
-                                            ) : h === 'workMode' ? (
+                                             ) : h === 'workMode' ? (
                                                 <select 
                                                     className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500 bg-white min-w-[100px]"
                                                     value={job[h] || ''}
@@ -896,7 +964,7 @@ export const AdminSettings: React.FC = () => {
                                                     <option value="">בחר...</option>
                                                     {Object.values(WorkMode).map(v => <option key={v} value={v}>{v}</option>)}
                                                 </select>
-                                            ) : h === 'experienceLevel' ? (
+                                             ) : h === 'experienceLevel' ? (
                                                 <select 
                                                     className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500 bg-white min-w-[120px]"
                                                     value={job[h] || ''}
@@ -905,7 +973,7 @@ export const AdminSettings: React.FC = () => {
                                                     <option value="">בחר...</option>
                                                     {Object.values(ExperienceLevel).map(v => <option key={v} value={v}>{v}</option>)}
                                                 </select>
-                                            ) : h === 'isCasual' || typeof job[h] === 'boolean' || h === 'isImmediate' || h === 'requireCV' ? (
+                                             ) : h === 'isCasual' || typeof job[h] === 'boolean' || h === 'isImmediate' || h === 'requireCV' ? (
                                                 <select 
                                                     className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                                                     value={job[h] ? 'true' : 'false'}
@@ -914,7 +982,7 @@ export const AdminSettings: React.FC = () => {
                                                     <option value="true">כן</option>
                                                     <option value="false">לא</option>
                                                 </select>
-                                            ) : h === 'salary' ? (
+                                             ) : h === 'salary' ? (
                                                 <div className="flex items-center gap-1 min-w-[220px]">
                                                     <input 
                                                         type="number" 
@@ -953,7 +1021,7 @@ export const AdminSettings: React.FC = () => {
                                                         <option value="גלובלית">גלובלית</option>
                                                     </select>
                                                 </div>
-                                            ) : h === 'category' ? (
+                                             ) : h === 'category' ? (
                                                 <div className="flex flex-col gap-1 min-w-[150px]">
                                                     <select 
                                                         className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
@@ -972,7 +1040,7 @@ export const AdminSettings: React.FC = () => {
                                                         onChange={(e) => updateJobField(idx, h, e.target.value)}
                                                     />
                                                 </div>
-                                            ) : h === 'tags' ? (
+                                             ) : h === 'tags' ? (
                                                 <div className="flex flex-col gap-1 min-w-[180px]">
                                                     <select 
                                                         className="w-full text-xs p-1.5 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
@@ -1000,7 +1068,7 @@ export const AdminSettings: React.FC = () => {
                                                         }}
                                                     />
                                                 </div>
-                                            ) : (
+                                             ) : (
                                                 <input 
                                                     type="text" 
                                                     className="w-full text-xs p-1.5 border border-transparent hover:border-slate-200 focus:border-indigo-500 rounded outline-none bg-transparent focus:bg-white transition-colors min-w-[80px]"
@@ -1009,7 +1077,7 @@ export const AdminSettings: React.FC = () => {
                                                 />
                                             )}
                                         </td>
-                                    ))}
+                                ))}
                                     <td className="px-2 py-2 sticky left-0 bg-white group-hover:bg-slate-50 transition-colors border-l border-slate-100">
                                         <button 
                                             onClick={() => removeJob(idx)}
@@ -1754,7 +1822,7 @@ export const AdminSettings: React.FC = () => {
                                                     />
                                                 </div>
                                             </div>
-                                        );
+                                        );;
                                     })}
                                 </div>
                             </Card>
@@ -1826,7 +1894,7 @@ export const AdminSettings: React.FC = () => {
                                                 >
                                                     {btn.label}
                                                 </Button>
-                                            ))}
+            ))}
                                         </div>
                                     </div>
                                 </div>
@@ -1909,40 +1977,10 @@ export const AdminSettings: React.FC = () => {
                                                         header: true,
                                                         skipEmptyLines: true,
                                                         complete: (results) => {
-                                                            if (results.errors.length > 0 && results.data.length === 0) {
-                                                                toast('שגיאה בפענוח הנתונים המודבקים', 'error');
-                                                                return;
-                                                            }
-                                                            const parsed = results.data.map((row: any) => {
-                                                                const defaultUploader = employers.find(e => e.name === 'שיוך משרות (משתמש כללי)');
-                                                                const jobData: any = {
-                                                                    id: row.id || '',
-                                                                    _ownerId: defaultUploader ? defaultUploader.id : (user?.uid || '')
-                                                                };
-                                                                Object.keys(row).forEach(h => {
-                                                                    if (h === 'id') return;
-                                                                    const val = row[h] ? String(row[h]).trim() : '';
-                                                                    if (h === 'tags') {
-                                                                        jobData[h] = val ? val.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
-                                                                    } else if (h === 'isImmediate' || h === 'requireCV' || h === 'isCasual') {
-                                                                        jobData[h] = val.toLowerCase() === 'true' || val === 'TRUE';
-                                                                    } else if (h === 'type') {
-                                                                        jobData.type = mapHebrewJobType(val);
-                                                                    } else if (h === 'workMode') {
-                                                                        jobData.workMode = mapHebrewWorkMode(val);
-                                                                    } else if (h === 'experienceLevel') {
-                                                                        jobData.experienceLevel = mapHebrewExp(val);
-                                                                    } else {
-                                                                        jobData[h] = val;
-                                                                    }
-                                                                });
-                                                                return jobData;
-                                                            });
-                                                            setPreviewJobs(parsed);
+                                                            processCSVResults(results, 'שגיאה בפענוח הנתונים המודבקים');
                                                         }
                                                     });
-                                                    // clear textarea after shortly
-                                                    setTimeout(() => { if(e.target instanceof HTMLTextAreaElement) e.target.value = '' }, 100);
+                                                    // setTimeout(() => { if(e.target instanceof HTMLTextAreaElement) e.target.value = '' }, 100);
                                                 }
                                             }}
                                         ></textarea>
@@ -1960,38 +1998,7 @@ export const AdminSettings: React.FC = () => {
                                                     header: true,
                                                     skipEmptyLines: true,
                                                     complete: (results) => {
-                                                        if (results.errors.length > 0 && results.data.length === 0) {
-                                                            toast('שגיאה בפענוח הקובץ', 'error');
-                                                            return;
-                                                        }
-                                                        
-                                                        const parsed = results.data.map((row: any) => {
-                                                            const defaultUploader = employers.find(e => e.name === 'שיוך משרות (משתמש כללי)');
-                                                            const jobData: any = {
-                                                                id: row.id || '',
-                                                                _ownerId: defaultUploader ? defaultUploader.id : (user?.uid || '')
-                                                            };
-                                                            Object.keys(row).forEach(h => {
-                                                                if (h === 'id') return;
-                                                                const val = row[h] ? String(row[h]).trim() : '';
-                                                                if (h === 'tags') {
-                                                                    jobData[h] = val ? val.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
-                                                                } else if (h === 'isImmediate' || h === 'requireCV' || h === 'isCasual') {
-                                                                    jobData[h] = val.toLowerCase() === 'true' || val === 'TRUE';
-                                                                } else if (h === 'type') {
-                                                                    jobData.type = mapHebrewJobType(val);
-                                                                } else if (h === 'workMode') {
-                                                                    jobData.workMode = mapHebrewWorkMode(val);
-                                                                } else if (h === 'experienceLevel') {
-                                                                    jobData.experienceLevel = mapHebrewExp(val);
-                                                                } else {
-                                                                    jobData[h] = val;
-                                                                }
-                                                            });
-                                                            return jobData;
-                                                        });
-                                                        
-                                                        setPreviewJobs(parsed);
+                                                        processCSVResults(results, 'שגיאה בפענוח הקובץ');
                                                         e.target.value = '';
                                                     }
                                                 });
