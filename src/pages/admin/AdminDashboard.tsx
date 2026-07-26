@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, limit, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, writeBatch, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { JobType, WorkMode, ExperienceLevel, JobStatus, ApplicationStatus, UserRole, Job, User, Application, Report } from '../../types';
 import { useToast } from '../../context/ToastContext';
@@ -59,6 +59,7 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      let unsubscribeJobReports: (() => void) | undefined;
       try {
         try {
             const usersSnap = await getDocs(collection(db, 'users'));
@@ -91,11 +92,14 @@ export const AdminDashboard: React.FC = () => {
         }
 
         try {
-            const jobReportsSnap = await getDocs(collection(db, 'jobReports'));
-            const pendingReportsList = jobReportsSnap.docs.filter(doc => !doc.data().status || doc.data().status === 'pending');
-            setPendingJobReportsCount(pendingReportsList.length);
+            unsubscribeJobReports = onSnapshot(collection(db, 'jobReports'), (snapshot) => {
+                const pendingReportsList = snapshot.docs.filter(doc => !doc.data().status || doc.data().status === 'pending');
+                setPendingJobReportsCount(pendingReportsList.length);
+            }, (error) => {
+                console.error("Error subscribing to jobReports: ", error);
+            });
         } catch (error) {
-            console.error("Error fetching jobReports: ", error);
+            console.error("Error setting up jobReports snapshot", error);
         }
 
         if (user) {
@@ -113,10 +117,15 @@ export const AdminDashboard: React.FC = () => {
       } finally {
         setLoading(false);
       }
+      return unsubscribeJobReports;
     };
 
+    let unsub: (() => void) | undefined;
     if (user) {
-        fetchDashboardData();
+        fetchDashboardData().then(fn => { unsub = fn; });
+    }
+    return () => {
+        if (unsub) unsub();
     }
   }, [toast, user]);
 

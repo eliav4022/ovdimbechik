@@ -37,7 +37,8 @@ import {
     X,
     Heart,
     Shield,
-    Pencil
+    Pencil,
+    ChevronDown
 } from 'lucide-react';
 import { cn, validateFile } from '../lib/utils';
 import { motion } from 'framer-motion';
@@ -143,7 +144,7 @@ const JobDetails: React.FC = () => {
         if (jobDoc.exists()) {
           const jobData = { id: jobDoc.id, ...jobDoc.data() } as Job;
 
-          if (jobData.status === JobStatus.PENDING_REVIEW || jobData.status === 'pending_review') {
+          if (jobData.status === JobStatus.PENDING_REVIEW) {
               if (!hasAdminPermission(user?.role as UserRole)) {
                   toast('המשרה ממתינה לאישור הנהלה ולכן לא ניתן לצפות בה כרגע', 'error');
                   navigate('/');
@@ -154,26 +155,38 @@ const JobDetails: React.FC = () => {
           setJob(jobData);
 
           // Track job view
-          trackEvent({
-              type: 'view_job',
-              metadata: {
-                  jobId: jobData.id,
-                  title: jobData.title,
-                  companyName: jobData.companyName,
-                  category: jobData.category
-              }
-          });
+          try {
+              trackEvent({
+                  type: 'view_job',
+                  metadata: {
+                      jobId: jobData.id,
+                      title: jobData.title,
+                      companyName: jobData.companyName,
+                      category: jobData.category
+                  }
+              });
+          } catch (e) {
+              console.warn("Could not track event", e);
+          }
 
-          // Fetch Employer for verification badge
-          const employerDoc = await getDoc(doc(db, 'users', jobData.employerId));
-          if (employerDoc.exists()) {
-              setEmployer(employerDoc.data());
+          // Fetch Employer for verification badge (do this silently)
+          try {
+              const employerDoc = await getDoc(doc(db, 'users', jobData.employerId));
+              if (employerDoc.exists()) {
+                  setEmployer(employerDoc.data());
+              }
+          } catch (e) {
+              console.warn("Could not fetch employer details", e);
           }
           
-          // Increment views
-          await updateDoc(jobDocRef, {
-            views: increment(1)
-          });
+          // Increment views (do this silently)
+          try {
+              await updateDoc(jobDocRef, {
+                views: increment(1)
+              });
+          } catch (e) {
+              console.warn("Could not increment views", e);
+          }
 
           // Check if applied
           if (user) {
@@ -353,15 +366,15 @@ const JobDetails: React.FC = () => {
 
   const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !job || !reportReason) return;
+    if (!job || !reportReason) return;
     setReporting(true);
 
     try {
       const reportRef = doc(collection(db, 'jobReports'));
       await setDoc(reportRef, {
         id: reportRef.id,
-        reporterId: user.uid,
-        reporterName: user.displayName,
+        reporterId: user?.uid || 'anonymous',
+        reporterName: user?.displayName || user?.email || 'אורח',
         targetId: job.id,
         targetType: 'job',
         reason: reportReason,
@@ -370,7 +383,7 @@ const JobDetails: React.FC = () => {
         createdAt: new Date().toISOString()
       });
 
-      toast('תודה על הדיווח. הנושא ייבדק עליו ידי הצוות.', 'info');
+      toast('תודה על הדיווח. הנושא ייבדק על ידי הצוות.', 'success');
       setShowReportModal(false);
       setReportReason('');
       setReportDetails('');
@@ -399,31 +412,31 @@ const JobDetails: React.FC = () => {
         <meta name="description" content={`משרת ${job.title} בחברת ${job.companyName} ${job.location ? `ב${job.location}` : ''}. הגש מועמדות עכשיו בצ'יק!`.replace('  ', ' ')} />
       </Helmet>
       {/* Hero Header */}
-      <div className="bg-slate-900 text-white pt-24 pb-32 relative overflow-hidden">
+      <div className="bg-slate-900 text-white pt-4 md:pt-6 pb-12 md:pb-16 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-highlight/10 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/3 pointer-events-none" />
         
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
           <button 
             onClick={() => navigate(-1)} 
             aria-label="חזרה לעמוד הקודם"
-            className="flex items-center gap-2 text-white/50 hover:text-white mb-10 transition-all font-black text-sm group"
+            className="flex items-center gap-2 text-white/50 hover:text-white mb-2 md:mb-4 transition-all font-black text-sm group"
           >
             <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /> 
             חזרה ללוח המשרות
           </button>
 
-          <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center text-white border-2 border-white/10 shadow-2xl overflow-hidden shrink-0">
+          <div className="flex flex-col xl:flex-row items-start xl:items-end justify-between gap-6 md:gap-8">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
+              <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center text-white border-2 border-white/10 shadow-2xl overflow-hidden shrink-0">
                 {job.companyLogo ? (
                     <img src={job.companyLogo} alt={job.companyName} className="w-full h-full object-cover" />
                 ) : (
-                    <Building2 size={56} className="text-primary" />
+                    <Building2 size={36} className="text-primary" />
                 )}
               </div>
-              <div className="space-y-4 text-right">
-                <div className="flex flex-wrap gap-2 mb-3">
+              <div className="space-y-3 text-right">
+                <div className="flex flex-wrap gap-2 mb-2">
                     {user?.role === UserRole.ADMIN && (
                         <Link to={`/admin/jobs/${job.id}`} className="bg-indigo-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em] shadow-lg hover:bg-indigo-600 transition-colors flex items-center gap-1">
                             <Shield size={12} /> מסך ניהול משרה
@@ -467,7 +480,7 @@ const JobDetails: React.FC = () => {
                       </p>
                     </>
                   )}
-                  <span className="w-2 h-2 bg-white/10 rounded-full" />
+                  <span className="w-2 h-2 bg-white/10 rounded-full hidden sm:block" />
                   <p className="flex items-center gap-2">
                     <Eye size={20} className="text-primary" />
                     <span className="text-white font-black">{job.views || 0}</span> צפיות
@@ -476,11 +489,11 @@ const JobDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 shrink-0 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 shrink-0 w-full xl:w-auto">
                <button 
                 onClick={toggleSave}
                 className={cn(
-                    "p-5 rounded-[1.5rem] transition-all border backdrop-blur-xl shadow-xl hover:-translate-y-1",
+                    "p-4 md:p-5 rounded-[1.25rem] md:rounded-[1.5rem] transition-all border backdrop-blur-xl shadow-xl hover:-translate-y-1 flex-1 sm:flex-none flex items-center justify-center",
                     isSaved ? "bg-red-500/10 border-red-500/20 text-red-500" : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
                 )}
                 title={isSaved ? "הסר משמירה" : "שמור משרה"}
@@ -489,14 +502,14 @@ const JobDetails: React.FC = () => {
                </button>
                <button 
                 onClick={handleShare}
-                className="bg-white/5 hover:bg-white/10 text-white p-5 rounded-[1.5rem] transition-all border border-white/10 backdrop-blur-xl shadow-xl hover:-translate-y-1"
+                className="bg-white/5 hover:bg-white/10 text-white p-4 md:p-5 rounded-[1.25rem] md:rounded-[1.5rem] transition-all border border-white/10 backdrop-blur-xl shadow-xl hover:-translate-y-1 flex-1 sm:flex-none flex items-center justify-center"
                 title="שתף משרה"
                >
                  <Share2 size={24} />
                </button>
                <button 
                 onClick={() => setShowReportModal(true)}
-                className="bg-white/5 hover:bg-red-500/20 text-white hover:text-red-400 p-5 rounded-[1.5rem] transition-all border border-white/10 backdrop-blur-xl shadow-xl hover:-translate-y-1"
+                className="bg-white/5 hover:bg-red-500/20 text-white hover:text-red-400 p-4 md:p-5 rounded-[1.25rem] md:rounded-[1.5rem] transition-all border border-white/10 backdrop-blur-xl shadow-xl hover:-translate-y-1 flex-1 sm:flex-none flex items-center justify-center"
                 title="דווח"
                >
                  <Flag size={24} />
@@ -512,34 +525,34 @@ const JobDetails: React.FC = () => {
                         }
                         target="_blank"
                         rel="noreferrer"
-                        className="flex-1 md:flex-none bg-gradient-to-r from-emerald-500 to-emerald-400 text-white px-12 py-5 rounded-[1.5rem] font-black text-xl hover:shadow-2xl hover:shadow-emerald-500/40 transition-all active:scale-95 tracking-tight flex items-center justify-center gap-3"
+                        className="flex-[2] sm:flex-none bg-gradient-to-r from-emerald-500 to-emerald-400 text-white px-6 md:px-12 py-4 md:py-5 rounded-[1.25rem] md:rounded-[1.5rem] font-black text-sm md:text-xl hover:shadow-2xl hover:shadow-emerald-500/40 transition-all active:scale-95 tracking-tight flex items-center justify-center gap-2 md:gap-3 whitespace-nowrap"
                     >
                         {(job.directContact.includes('wa.me') || job.directContact.includes('whatsapp')) ? (
                             <>
-                                <Phone size={24} /> צור קשר בוואטסאפ
+                                <Phone size={20} className="md:w-6 md:h-6" /> וואטסאפ
                             </>
                         ) : (!job.directContact.includes('http') && !job.directContact.includes('@') && /[0-9]{3}/.test(job.directContact)) ? (
                             <>
-                                <Phone size={24} /> חייג עכשיו: {job.directContact}
+                                <Phone size={20} className="md:w-6 md:h-6" /> התקשר
                             </>
                         ) : job.directContact.includes('@') ? (
                             <>
-                                <Mail size={24} /> שלח דוא"ל
+                                <Mail size={20} className="md:w-6 md:h-6" /> דוא"ל
                             </>
                         ) : (
                             <>
-                                <ExternalLink size={24} /> צור קשר ישירות
+                                <ExternalLink size={20} className="md:w-6 md:h-6" /> צור קשר
                             </>
                         )}
                    </a>
                ) : applied ? (
-                   <div className="flex-1 md:flex-none bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black flex items-center justify-center gap-3 shadow-2xl shadow-slate-900/20">
-                       <CheckCircle size={24} />
+                   <div className="flex-[2] sm:flex-none bg-slate-900 text-white px-6 md:px-10 py-4 md:py-5 rounded-[1.25rem] md:rounded-[1.5rem] font-black flex items-center justify-center gap-2 md:gap-3 shadow-2xl shadow-slate-900/20 whitespace-nowrap">
+                       <CheckCircle size={20} className="md:w-6 md:h-6" />
                        מועמדות הוגשה
                    </div>
                ) : user?.uid === job.employerId || user?.companyId === job.employerId || user?.role === 'EMPLOYER' ? (
-                   <div className="flex-1 md:flex-none bg-slate-200 text-slate-500 px-10 py-5 rounded-[1.5rem] font-black flex items-center justify-center gap-3">
-                       <Briefcase size={24} />
+                   <div className="flex-[2] sm:flex-none bg-slate-200 text-slate-500 px-6 md:px-10 py-4 md:py-5 rounded-[1.25rem] md:rounded-[1.5rem] font-black flex items-center justify-center gap-2 md:gap-3 whitespace-nowrap">
+                       <Briefcase size={20} className="md:w-6 md:h-6" />
                        תצוגת מעסיק
                    </div>
                ) : (
@@ -554,9 +567,9 @@ const JobDetails: React.FC = () => {
                                 document.getElementById('apply-form-section')?.scrollIntoView({ behavior: 'smooth' });
                             }, 100);
                         }}
-                        className="flex-1 md:flex-none bg-gradient-to-r from-primary to-highlight text-white px-12 py-5 rounded-[1.5rem] font-black text-xl hover:shadow-2xl hover:shadow-primary/40 transition-all active:scale-95 tracking-tight"
+                        className="flex-[2] sm:flex-none bg-gradient-to-r from-primary to-highlight text-white px-6 md:px-12 py-4 md:py-5 rounded-[1.25rem] md:rounded-[1.5rem] font-black text-sm md:text-xl hover:shadow-2xl hover:shadow-primary/40 transition-all active:scale-95 tracking-tight whitespace-nowrap"
                     >
-                        הגשת מועמדות מהירה
+                        הגשת מועמדות
                    </button>
                )}
             </div>
@@ -564,63 +577,63 @@ const JobDetails: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 -mt-16 pb-12">
+      <div className="max-w-7xl mx-auto px-6 -mt-8 md:-mt-10 pb-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Main Info Sidebar */}
-          <div className="lg:col-span-4 lg:order-2 space-y-8">
-            <div className="bg-white rounded-[3rem] p-8 shadow-2xl shadow-slate-200/60 border border-slate-100 relative z-20">
-                <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-8 border-b border-bg-light pb-6 text-center">מפרט המשרה</h3>
+          <div className="lg:col-span-4 lg:order-2 space-y-4">
+            <div className="bg-white rounded-2xl md:rounded-[2rem] p-4 shadow-xl shadow-slate-200/60 border border-slate-100 relative z-20">
+                <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-3 border-b border-bg-light pb-2 text-center">מפרט המשרה</h3>
                 
-                <div className="grid grid-cols-2 lg:grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 md:gap-3">
                     {job.salary && (
-                        <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                            <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
-                                <DollarSign size={28} />
+                        <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-bg-light/50 border border-slate-50">
+                            <div className="w-8 h-8 rounded-xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
+                                <DollarSign size={16} />
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">שכר חודשי</p>
-                                <p className="font-black text-text-main text-lg">{job.salary}</p>
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-tight mb-0.5">שכר חודשי</p>
+                                <p className="font-black text-text-main text-sm leading-tight">{job.salary}</p>
                             </div>
                         </div>
                     )}
 
-                    <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                        <div className="w-14 h-14 rounded-2xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
-                            <Clock size={28} />
+                    <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-bg-light/50 border border-slate-50">
+                        <div className="w-8 h-8 rounded-xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
+                            <Clock size={16} />
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">סוג המשרה</p>
-                            <p className="font-black text-text-main text-lg">{getJobTypeLabel(job.type)}</p>
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-tight mb-0.5">סוג המשרה</p>
+                            <p className="font-black text-text-main text-sm leading-tight">{getJobTypeLabel(job.type)}</p>
                         </div>
                     </div>
 
                     {job.workMode && (
-                        <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                            <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
-                                <Home size={28} />
+                        <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-bg-light/50 border border-slate-50">
+                            <div className="w-8 h-8 rounded-xl bg-white text-primary flex items-center justify-center shrink-0 shadow-soft">
+                                <Home size={16} />
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">מודל עבודה</p>
-                                <p className="font-black text-text-main text-lg">{getWorkModeLabel(job.workMode)}</p>
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-tight mb-0.5">מודל עבודה</p>
+                                <p className="font-black text-text-main text-sm leading-tight">{getWorkModeLabel(job.workMode)}</p>
                             </div>
                         </div>
                     )}
 
                     {job.experienceLevel && (
-                        <div className="flex items-center gap-5 p-4 rounded-3xl bg-bg-light/50 border border-slate-50">
-                            <div className="w-14 h-14 rounded-2xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
-                                <Award size={28} />
+                        <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-bg-light/50 border border-slate-50">
+                            <div className="w-8 h-8 rounded-xl bg-white text-highlight flex items-center justify-center shrink-0 shadow-soft">
+                                <Award size={16} />
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">ניסיון נדרש</p>
-                                <p className="font-black text-text-main text-lg">{getExperienceLabel(job.experienceLevel)}</p>
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-tight mb-0.5">ניסיון נדרש</p>
+                                <p className="font-black text-text-main text-sm leading-tight">{getExperienceLabel(job.experienceLevel)}</p>
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="mt-8 pt-8 border-t border-bg-light space-y-4">
+                <div className="mt-4 pt-4 border-t border-bg-light space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-black text-text-muted uppercase tracking-widest">
                         <span className="flex items-center gap-2"><Calendar size={14} className="text-primary" /> תאריך פרסום </span>
                         <span className="text-text-main">{new Date(job.createdAt).toLocaleDateString('he-IL')}</span>
@@ -631,57 +644,33 @@ const JobDetails: React.FC = () => {
                     </div>
                 </div>
             </div>
-
-            {/* AI Assistant Promo */}
-            <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl shadow-primary/20 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                <div className="relative z-10">
-                    <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mb-6 border border-white/10">
-                        <Bot size={28} className="text-highlight" />
-                    </div>
-                    <h4 className="text-xl font-black mb-3">זקוקים לעזרה בניסוח? ✨</h4>
-                    <p className="text-white/60 text-sm font-bold leading-relaxed mb-8">
-                        העוזר החכם שלנו יכול לעזור לכם לכתוב מכתב מקדים מותאם אישית שפשוט אי אפשר להתעלם ממנו!
-                    </p>
-                    <button 
-                        onClick={() => {
-                            window.dispatchEvent(new CustomEvent('open-ai-assistant', { 
-                                detail: { message: `היי, אני רוצה להגיש מועמדות למשרה "${job.title}" ב"${job.companyName}". תוכל לעזור לי לנסח מכתב מקדים מנצח?`, autoSend: true } 
-                            }));
-                        }}
-                        className="w-full bg-primary text-white py-4 rounded-[1.25rem] font-black text-sm hover:translate-y-[-4px] transition-all active:scale-95 shadow-xl shadow-primary/20 border border-white/10"
-                    >
-                        כתוב לי מכתב מקדים ב-AI
-                    </button>
-                </div>
-            </div>
           </div>
 
           {/* Job Description & Details */}
-          <div className="lg:col-span-8 lg:order-1 space-y-8 relative z-20">
-            <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] p-6 sm:p-10 md:p-14 shadow-2xl shadow-slate-200/60 border border-slate-100">
+          <div className="lg:col-span-8 lg:order-1 space-y-4 md:space-y-6 relative z-20">
+            <div className="bg-white rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-xl shadow-slate-200/60 border border-slate-100">
               {job.description && (
-                <div className="mb-14">
-                  <h3 className="text-3xl font-black text-text-main mb-8 flex items-center gap-4">
-                      <div className="w-2 h-10 bg-primary rounded-full" />
+                <div className="mb-6 md:mb-8">
+                  <h3 className="text-xl md:text-2xl font-black text-text-main mb-4 md:mb-5 flex items-center gap-3">
+                      <div className="w-2 h-6 md:h-8 bg-primary rounded-full" />
                       תיאור התפקיד
                   </h3>
-                  <div className="text-text-main text-lg leading-relaxed whitespace-pre-wrap font-medium md:pr-6">
+                  <div className="text-text-main text-sm md:text-base leading-relaxed whitespace-pre-wrap font-medium md:pr-4">
                     {job.description}
                   </div>
                 </div>
               )}
 
               {job.tags && job.tags.length > 0 && (
-                <div className="pt-12 border-t border-bg-light">
-                  <h3 className="text-xl font-black text-text-main mb-8 flex items-center gap-4">
-                     <div className="w-2 h-8 bg-highlight rounded-full" />
+                <div className="pt-6 md:pt-8 border-t border-bg-light">
+                  <h3 className="text-lg md:text-xl font-black text-text-main mb-4 md:mb-5 flex items-center gap-3">
+                     <div className="w-2 h-5 md:h-6 bg-highlight rounded-full" />
                      מיומנויות ודרישות חובה
                   </h3>
-                  <div className="flex flex-wrap gap-4 md:pr-6">
+                  <div className="flex flex-wrap gap-2 md:gap-3 md:pr-4">
                     {job.tags.map(tag => (
-                      <span key={tag} className="bg-bg-light text-text-main px-6 py-3 rounded-2xl text-sm font-black border border-slate-200 flex items-center gap-3 hover:bg-white hover:border-primary transition-all cursor-default hover:shadow-soft">
-                        <div className="w-2 h-2 bg-primary rounded-full" />
+                      <span key={tag} className="bg-bg-light text-text-main px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-sm font-black border border-slate-200 flex items-center gap-2 hover:bg-white hover:border-primary transition-all cursor-default hover:shadow-soft">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full" />
                         {tag}
                       </span>
                     ))}
@@ -691,17 +680,17 @@ const JobDetails: React.FC = () => {
             </div>
 
             {job.companyDescription && (
-              <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 sm:p-10 md:p-14 shadow-2xl shadow-slate-200/60 border border-slate-100">
-                <h3 className="text-xl font-black text-text-main mb-6 flex items-center gap-3">
-                    <div className="w-2 h-10 bg-highlight rounded-full" />
+              <div className="bg-white rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-xl shadow-slate-200/60 border border-slate-100">
+                <h3 className="text-lg md:text-xl font-black text-text-main mb-4 md:mb-5 flex items-center gap-3">
+                    <div className="w-2 h-5 md:h-6 bg-highlight rounded-full" />
                     על המעסיק
                 </h3>
-                <div className="md:pr-8">
-                  <p className="text-text-main font-bold leading-relaxed text-lg italic opacity-80 mb-6">
+                <div className="md:pr-4">
+                  <p className="text-text-main font-bold leading-relaxed text-sm md:text-base italic opacity-80 mb-4 md:mb-5">
                     {job.companyDescription}
                   </p>
                   <div className="flex items-center gap-2 text-primary font-black text-sm">
-                      <CheckCircle size={18} />
+                      <CheckCircle size={16} />
                       <span>מעסיק פעיל המגיב למועמדים במהירות</span>
                   </div>
                 </div>
@@ -887,80 +876,87 @@ const JobDetails: React.FC = () => {
                 </motion.div>
             )}
 
-            {/* Report Modal */}
-            {showReportModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md"
-                        onClick={() => setShowReportModal(false)}
-                    />
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        className="bg-white rounded-[2rem] md:rounded-[3rem] p-8 md:p-12 shadow-2xl max-w-xl w-full relative z-10 border-2 border-red-100"
-                    >
-                        <div className="flex items-center justify-between mb-6 md:mb-8">
-                            <h3 className="text-3xl font-black text-text-main tracking-tight">דיווח על המראה</h3>
-                            <button onClick={() => setShowReportModal(false)} className="w-12 h-12 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-slate-200 transition-all">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleReportSubmit} className="space-y-8">
-                            <div className="space-y-3 text-right">
-                                <label className="text-sm font-black text-text-main pr-3">מה הבעיה במשרה?</label>
-                                <select 
-                                    required
-                                    className="w-full px-6 py-5 bg-bg-light border-none rounded-[1.25rem] focus:ring-4 focus:ring-primary/10 outline-none text-text-main font-black appearance-none cursor-pointer"
-                                    value={reportReason}
-                                    onChange={(e) => setReportReason(e.target.value)}
-                                >
-                                    <option value="">משהו לא תקין? ספר לנו...</option>
-                                    <option value="inappropriate">תוכן פוגעני או לא הולם</option>
-                                    <option value="spam">ספאם / משרה כפולה / הונאה</option>
-                                    <option value="misleading">מידע לא מדויק או מטעה</option>
-                                    <option value="expired">המשרה כבר לא רלוונטית</option>
-                                    <option value="other">אחר</option>
-                                </select>
-                            </div>
-
-                            <div className="space-y-3 text-right">
-                                <label className="text-sm font-black text-text-main pr-3">פירוט (אופציונלי)</label>
-                                <textarea 
-                                    rows={5}
-                                    className="w-full px-6 py-6 bg-bg-light border-none rounded-[1.25rem] focus:ring-4 focus:ring-primary/10 outline-none text-text-main font-bold resize-none shadow-inner"
-                                    placeholder="נשמח לפירוט קצר שיעזור לנו לטפל בדיווח במהירות..."
-                                    value={reportDetails}
-                                    onChange={(e) => setReportDetails(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowReportModal(false)}
-                                    className="sm:flex-1 px-8 py-5 bg-bg-light text-text-muted rounded-[1.25rem] font-black hover:bg-slate-200 transition-all"
-                                >
-                                    ביטול
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={reporting || !reportReason}
-                                    className="sm:flex-[2] bg-red-500 text-white px-8 py-5 rounded-[1.25rem] font-black hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3"
-                                >
-                                    {reporting && <LoadingSpinner size="sm" />}
-                                    {reporting ? 'שולח דיווח...' : 'דווח על המשרה'}
-                                </button>
-                            </div>
-                        </form>
-                    </motion.div>
-                </div>
-            )}
+            {/* Modal removed from here */}
           </div>
         </div>
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+              <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute inset-0 bg-slate-900/80 backdrop-blur-md"
+                  onClick={() => setShowReportModal(false)}
+              />
+              <motion.div 
+                  initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className="bg-white rounded-[2rem] md:rounded-[3rem] p-8 md:p-12 shadow-2xl max-w-xl w-full relative z-10 border-2 border-red-100"
+              >
+                  <div className="flex items-center justify-between mb-6 md:mb-8">
+                      <h3 className="text-3xl font-black text-text-main tracking-tight">דיווח על המשרה</h3>
+                      <button onClick={() => setShowReportModal(false)} className="w-12 h-12 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-slate-200 transition-all">
+                          <X size={24} />
+                      </button>
+                  </div>
+
+                  <form onSubmit={handleReportSubmit} className="space-y-8">
+                      <div className="space-y-3 text-right">
+                          <label className="text-sm font-black text-text-main pr-3">מה הבעיה במשרה? <span className="text-red-500">*</span></label>
+                          <div className="relative">
+                              <select 
+                                  required
+                                  className="w-full px-6 py-5 bg-bg-light border-2 border-transparent focus:border-primary/30 rounded-[1.25rem] focus:ring-4 focus:ring-primary/10 outline-none text-text-main font-black appearance-none cursor-pointer"
+                                  value={reportReason}
+                                  onChange={(e) => setReportReason(e.target.value)}
+                              >
+                                  <option value="" disabled>בחר סיבת דיווח מתוך הרשימה (חובה)...</option>
+                                  <option value="inappropriate">תוכן פוגעני או לא הולם</option>
+                                  <option value="spam">ספאם / משרה כפולה / הונאה</option>
+                                  <option value="misleading">מידע לא מדויק או מטעה</option>
+                                  <option value="expired">המשרה כבר לא רלוונטית</option>
+                                  <option value="other">אחר</option>
+                              </select>
+                              <div className="absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                  <ChevronDown size={20} />
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="space-y-3 text-right">
+                          <label className="text-sm font-black text-text-main pr-3">פירוט (אופציונלי)</label>
+                          <textarea 
+                              rows={5}
+                              className="w-full px-6 py-6 bg-bg-light border-none rounded-[1.25rem] focus:ring-4 focus:ring-primary/10 outline-none text-text-main font-bold resize-none shadow-inner"
+                              placeholder="נשמח לפירוט קצר שיעזור לנו לטפל בדיווח במהירות..."
+                              value={reportDetails}
+                              onChange={(e) => setReportDetails(e.target.value)}
+                          />
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                          <button
+                              type="button"
+                              onClick={() => setShowReportModal(false)}
+                              className="sm:flex-1 px-8 py-5 bg-bg-light text-text-muted rounded-[1.25rem] font-black hover:bg-slate-200 transition-all"
+                          >
+                              ביטול
+                          </button>
+                          <button
+                              type="submit"
+                              disabled={reporting || !reportReason}
+                              className="sm:flex-[2] bg-red-500 text-white px-8 py-5 rounded-[1.25rem] font-black hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3"
+                          >
+                              {reporting && <LoadingSpinner size="sm" />}
+                              {reporting ? 'שולח דיווח...' : 'דווח על המשרה'}
+                          </button>
+                      </div>
+                  </form>
+              </motion.div>
+          </div>
+      )}
     </div>
   );
 };

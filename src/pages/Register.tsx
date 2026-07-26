@@ -19,6 +19,8 @@ import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 
+let googleLoginInProgress = false;
+
 const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -131,12 +133,14 @@ const Register: React.FC = () => {
   const isMobile = isIPad || /Mobi|Android|iPhone|iPod|Windows Phone|webOS|BlackBerry/i.test(navigator.userAgent);
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError('');
+    if (loading || googleLoginInProgress) return;
+    googleLoginInProgress = true;
     const provider = new GoogleAuthProvider();
     
     try {
       const { user } = await signInWithPopup(auth, provider);
+      setLoading(true);
+      setError('');
       
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
@@ -201,6 +205,8 @@ const Register: React.FC = () => {
         setError(`שגיאה בהתחברות דרך גוגל (${err.code || 'לא ידוע'}): ${err.message}`);
       }
       setLoading(false);
+    } finally {
+      googleLoginInProgress = false;
     }
   };
 

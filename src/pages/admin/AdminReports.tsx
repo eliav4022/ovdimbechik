@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, doc, where } from 'firebase/firestore';
-import { updateDoc, addDoc, setDoc } from '../../lib/firestore-audit';;
+import { updateDoc, addDoc, setDoc, deleteDoc } from '../../lib/firestore-audit';
 import { db } from '../../lib/firebase';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
-import { ShieldAlert, AlertTriangle, CheckCircle, Plus, LayoutDashboard, ListTodo } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, CheckCircle, Plus, LayoutDashboard, ListTodo, Trash2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { JobReport, Report } from '../../types';
@@ -25,6 +25,10 @@ export const AdminReports: React.FC = () => {
     // New Task Modal state
     const [showNewTaskModal, setShowNewTaskModal] = useState(false);
     const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'Low', assigneeId: '' });
+    
+    // Job Report Details Modal state
+    const [showJobReportModal, setShowJobReportModal] = useState(false);
+    const [selectedJobReport, setSelectedJobReport] = useState<JobReport | null>(null);
 
     useEffect(() => {
         // Fetch Job Reports
@@ -116,6 +120,45 @@ export const AdminReports: React.FC = () => {
         } catch (error) {
             toast('שגיאה ביצירת משימה', 'error');
         }
+    };
+
+    const handleDeleteJobReport = async (report: JobReport) => {
+        if (report.status !== 'resolved') {
+            toast('ניתן למחוק דיווחים רק לאחר שהם בסטטוס "טופל".', 'error');
+            return;
+        }
+        try {
+            await deleteDoc(doc(db, 'jobReports', report.id));
+            toast('הדיווח נמחק בהצלחה', 'success');
+        } catch (error) {
+            toast('שגיאה במחיקת הדיווח', 'error');
+        }
+    };
+
+    const handleExportJobReports = () => {
+        const headers = ['מזהה דיווח', 'תאריך דיווח', 'מזהה מדווח', 'שם מדווח', 'סוג מדווח', 'מזהה מטרה', 'סיבה', 'פירוט', 'סטטוס'];
+        const csvContent = [
+            headers.join(','),
+            ...jobReports.map(r => [
+                r.id,
+                new Date(r.createdAt).toLocaleString('he-IL'),
+                r.reporterId || '',
+                `"${(r.reporterName || '').replace(/"/g, '""')}"`,
+                r.targetType === 'job' ? 'משרה' : 'משתמש',
+                r.targetId || '',
+                `"${(r.reason || '').replace(/"/g, '""')}"`,
+                `"${(r.details || '').replace(/"/g, '""')}"`,
+                r.status === 'resolved' ? 'טופל' : r.status === 'dismissed' ? 'נדחה' : 'ממתין'
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `job-reports-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     const jobColumns = [
@@ -284,6 +327,45 @@ export const AdminReports: React.FC = () => {
                     description="טיפול בדיווחים על משרות חשודות, פגיעה בתנאי שימוש ושמירה על טוהר הלוח."
                     data={jobReports}
                     columns={jobColumns}
+                    onView={(item) => {
+                        setSelectedJobReport(item as JobReport);
+                        setShowJobReportModal(true);
+                    }}
+                    onDelete={(item) => handleDeleteJobReport(item as JobReport)}
+                    onExport={handleExportJobReports}
+                    filters={[
+                        {
+                            key: 'status',
+                            label: 'סנן לפי סטטוס',
+                            options: [
+                                { label: 'ממתין', value: 'pending' },
+                                { label: 'טופל', value: 'resolved' },
+                                { label: 'נדחה', value: 'dismissed' }
+                            ]
+                        }
+                    ]}
+                    bulkActions={[
+                        {
+                            label: 'מחיקה מרובה',
+                            icon: Trash2,
+                            action: async (items) => {
+                                const jobReportsToWait = items as JobReport[];
+                                const invalidItems = jobReportsToWait.filter(i => i.status !== 'resolved');
+                                if (invalidItems.length > 0) {
+                                    toast('ניתן למחוק רק דיווחים בסטטוס "טופל". לחלק מהנבחרים יש סטטוס אחר.', 'error');
+                                    return;
+                                }
+                                try {
+                                    for (const item of items) {
+                                        await deleteDoc(doc(db, 'jobReports', item.id));
+                                    }
+                                    toast('הדיווחים נמחקו בהצלחה', 'success');
+                                } catch (error) {
+                                    toast('שגיאה במחיקת הדיווחים', 'error');
+                                }
+                            }
+                        }
+                    ]}
                 />
             )}
 
@@ -343,6 +425,73 @@ export const AdminReports: React.FC = () => {
                                 <button type="submit" className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">שמור משימה</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* Job Report Details Modal */}
+            {showJobReportModal && selectedJobReport && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={() => setShowJobReportModal(false)}>
+                    <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-2xl font-black text-slate-800 mb-6">פרטי דיווח על {selectedJobReport.targetType === 'job' ? 'משרה' : 'משתמש'}</h2>
+                        
+                        <div className="space-y-4 mb-8">
+                            <div>
+                                <p className="text-sm font-bold text-slate-500 mb-1">דווח ע"י</p>
+                                <p className="text-sm text-slate-800 font-medium">{selectedJobReport.reporterName} ({selectedJobReport.reporterId})</p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-500 mb-1">מספר זיהוי {selectedJobReport.targetType === 'job' ? 'משרה' : 'משתמש'}</p>
+                                <p className="text-sm text-slate-800 font-mono bg-slate-50 p-2 rounded-lg break-all">
+                                    {selectedJobReport.targetId}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-500 mb-1">סיבת הדיווח</p>
+                                <p className="text-sm text-slate-800 font-medium">{selectedJobReport.reason}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-500 mb-1">פירוט נרחב</p>
+                                <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                    {selectedJobReport.details || 'לא הוזן פירוט'}
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-500 mb-1">תאריך הדיווח</p>
+                                <p className="text-sm text-slate-800">{new Date(selectedJobReport.createdAt).toLocaleString('he-IL')}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-500 mb-1">סטטוס נוכחי</p>
+                                <p className="text-sm text-slate-800 font-bold">
+                                    {selectedJobReport.status === 'resolved' ? 'טופל' : selectedJobReport.status === 'dismissed' ? 'נדחה' : 'ממתין'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <button 
+                                onClick={() => setShowJobReportModal(false)}
+                                className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                סגור
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setNewTask({
+                                        title: `בדיקת דיווח: ${selectedJobReport.reason}`,
+                                        description: `דיווח על ${selectedJobReport.targetType === 'job' ? 'משרה' : 'משתמש'} (${selectedJobReport.targetId})\nדווח ע"י: ${selectedJobReport.reporterName}\n\nפירוט:\n${selectedJobReport.details || 'ללא פירוט'}\n\nנא לבדוק ולטפל בהתאם.`,
+                                        priority: 'High',
+                                        assigneeId: ''
+                                    });
+                                    setShowJobReportModal(false);
+                                    setActiveTab('tasks');
+                                    setSearchParams({ tab: 'tasks' });
+                                    setShowNewTaskModal(true);
+                                }}
+                                className="flex-1 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-colors"
+                            >
+                                המר למשימה / תקלה
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
