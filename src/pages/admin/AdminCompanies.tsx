@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, onSnapshot, query, where, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, serverTimestamp, writeBatch, getDocs } from 'firebase/firestore';
 import { setDoc, addDoc } from '../../lib/firestore-audit';;
 import { db, storage } from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -64,15 +64,22 @@ export const AdminCompanies: React.FC = () => {
         e.preventDefault();
         try {
             const companyId = 'comp_' + Date.now();
+            const employerIdToSet = newCompany.employerId || currentUser?.uid || 'system';
             
             await setDoc(doc(db, 'companies', companyId), {
                 name: newCompany.name,
-                employerId: newCompany.employerId || currentUser?.uid || 'system',
+                employerId: employerIdToSet,
                 industry: newCompany.industry,
                 location: newCompany.location,
                 isVerified: true,
                 createdAt: new Date().toISOString()
             });
+
+            // Update user to link company
+            if (employerIdToSet !== 'system') {
+                const userRef = doc(db, 'users', employerIdToSet);
+                await setDoc(userRef, { companyId: companyId, companyName: newCompany.name }, { merge: true });
+            }
             
             toast('חברה חדשה התווספה בהצלחה', 'success');
             setIsAddModalOpen(false);
@@ -108,6 +115,21 @@ export const AdminCompanies: React.FC = () => {
                 location: companyToEdit.location,
                 updatedAt: new Date().toISOString()
             }, { merge: true });
+            
+            // Also update jobs and user
+            if (companyToEdit.employerId) {
+                const userRef = doc(db, 'users', companyToEdit.employerId);
+                await setDoc(userRef, { companyName: companyToEdit.name }, { merge: true });
+                
+                // Update jobs
+                const jobsQuery = query(collection(db, 'jobs'), where('companyId', '==', companyToEdit.id));
+                const jobsSnap = await getDocs(jobsQuery);
+                const batch = writeBatch(db);
+                jobsSnap.forEach(jobDoc => {
+                    batch.update(jobDoc.ref, { companyName: companyToEdit.name });
+                });
+                await batch.commit();
+            }
             
             toast('החברה עודכנה בהצלחה', 'success');
             setIsEditModalOpen(false);

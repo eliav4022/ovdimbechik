@@ -299,7 +299,7 @@ export const AdminEmployers: React.FC = () => {
                     </div>
                     <div>
                         <Link to={`/admin/employers/${u.id || u.uid}`} className="font-black text-slate-900 leading-tight hover:text-indigo-600 hover:underline">{u.displayName}</Link>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{u.employerProfile?.companyName || 'חברה לא רשומה'}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{u.companyName || u.employerProfile?.companyName || 'חברה לא רשומה'}</p>
                     </div>
                 </div>
             )

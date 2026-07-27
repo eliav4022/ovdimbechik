@@ -48,28 +48,53 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ theme = 'light' }) => {
                         <span>ראשי</span>
                     </Link>
                 </li>
-                {pathnames.map((value, index) => {
-                    const last = index === pathnames.length - 1;
-                    const to = `/${pathnames.slice(0, index + 1).join('/')}`;
-                    const name = routeNames[value] || value;
+                {(() => {
+                    const crumbs = [];
+                    let currentPath = '';
 
-                    // Skip structural URLs and numeric IDs
-                    if (['seeker', 'employer', 'admin'].includes(value)) return null;
-                    if (!routeNames[value] && value.length > 15) return null;
+                    for (let i = 0; i < pathnames.length; i++) {
+                        const value = pathnames[i];
+                        const last = i === pathnames.length - 1;
+                        currentPath += `/${value}`;
 
-                    return (
-                        <li key={to} className="flex items-center gap-2">
+                        // Skip structural URLs
+                        if (['seeker', 'employer', 'admin'].includes(value)) continue;
+
+                        // Special case for Job Details: merge "job" and "jobId" into one breadcrumb
+                        if (value === 'job' && !last) {
+                            const jobId = pathnames[i + 1];
+                            const shortId = jobId.length > 15 ? jobId.slice(-6).toUpperCase() : jobId;
+                            crumbs.push({
+                                to: `/${value}/${jobId}`,
+                                name: `משרה ${shortId}`,
+                                last: true // It's the last part of the path anyway for job pages
+                            });
+                            i++; // skip the id
+                            continue;
+                        }
+
+                        if (!routeNames[value] && value.length > 15) continue;
+
+                        crumbs.push({
+                            to: currentPath,
+                            name: routeNames[value] || value,
+                            last: last
+                        });
+                    }
+
+                    return crumbs.map((crumb, index) => (
+                        <li key={crumb.to} className="flex items-center gap-2">
                             <ChevronLeft size={14} />
-                            {last ? (
-                                <span className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{name}</span>
+                            {crumb.last ? (
+                                <span className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{crumb.name}</span>
                             ) : (
-                                <Link to={to} className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-brand-teal'}`}>
-                                    {name}
+                                <Link to={crumb.to} className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-brand-teal'}`}>
+                                    {crumb.name}
                                 </Link>
                             )}
                         </li>
-                    );
-                })}
+                    ));
+                })()}
             </ol>
         </nav>
     );

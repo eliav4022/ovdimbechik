@@ -9,7 +9,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { JobReport, Report } from '../../types';
 import { cn } from '../../lib/utils';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 
 export const AdminReports: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -230,7 +230,9 @@ export const AdminReports: React.FC = () => {
             key: 'title',
             header: 'משימה/תקלה',
             render: (r: Report) => (
-                <div className={cn("font-bold text-sm", r.isResolved ? "text-slate-400 line-through" : "text-slate-800")}>{r.title || 'משימה ללא כותרת'}</div>
+                <Link to={`/admin/tasks/${r.id}`} className={cn("font-bold text-sm hover:text-indigo-600 hover:underline", r.isResolved ? "text-slate-400 line-through" : "text-slate-800")}>
+                    {r.title || 'משימה ללא כותרת'}
+                </Link>
             )
         },
         {
@@ -477,8 +479,8 @@ export const AdminReports: React.FC = () => {
                             <button 
                                 onClick={() => {
                                     setNewTask({
-                                        title: `בדיקת דיווח: ${selectedJobReport.reason}`,
-                                        description: `דיווח על ${selectedJobReport.targetType === 'job' ? 'משרה' : 'משתמש'} (${selectedJobReport.targetId})\nדווח ע"י: ${selectedJobReport.reporterName}\n\nפירוט:\n${selectedJobReport.details || 'ללא פירוט'}\n\nנא לבדוק ולטפל בהתאם.`,
+                                        title: selectedJobReport.reason,
+                                        description: selectedJobReport.details || 'אין תיאור למשימה.',
                                         priority: 'High',
                                         assigneeId: ''
                                     });

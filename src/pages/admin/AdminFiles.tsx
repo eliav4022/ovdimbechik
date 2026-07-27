@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
@@ -196,10 +197,10 @@ export const AdminFiles: React.FC = () => {
         }
     };
 
+    const navigate = useNavigate();
+
     const handleEdit = (file: SiteFile) => {
-        setFileToEdit(file);
-        setEditFileName(file.name);
-        setIsEditModalOpen(true);
+        navigate(`/admin/files/${file.id}`);
     };
 
     const saveEdit = async () => {
@@ -237,15 +238,15 @@ export const AdminFiles: React.FC = () => {
                 const downloadUrl = `${cleanUrl}?downloadName=${encodeURIComponent(file.name)}`;
                 if (file.type.startsWith('image/')) {
                     return (
-                        <a href={cleanUrl} target="_blank" rel="noopener noreferrer" title="לצפייה" className="block w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity">
+                        <button onClick={() => navigate(`/admin/files/${file.id}`)} title="לפרטי קובץ" className="block w-12 h-12 rounded-lg bg-slate-100 border overflow-hidden flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer">
                             <img src={cleanUrl} alt={file.name} className="w-full h-full object-cover" />
-                        </a>
+                        </button>
                     );
                 }
                 return (
-                    <a href={downloadUrl} target="_blank" rel="noopener noreferrer" title="להורדה" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity">
+                    <button onClick={() => navigate(`/admin/files/${file.id}`)} title="לפרטי קובץ" className="block w-12 h-12 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500 hover:opacity-80 transition-opacity cursor-pointer">
                         <File size={24} />
-                    </a>
+                    </button>
                 );
             }
         },
@@ -258,7 +259,7 @@ export const AdminFiles: React.FC = () => {
                 const downloadUrl = `${cleanUrl}?downloadName=${encodeURIComponent(file.name)}`;
                 return (
                 <div className="flex flex-col">
-                    <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</a>
+                    <button onClick={() => navigate(`/admin/files/${file.id}`)} className="text-right font-bold text-slate-900 max-w-[200px] truncate hover:text-indigo-600 transition-colors" title={file.name}>{file.name}</button>
                     <span className="text-xs text-slate-500">{formatBytes(file.size)}</span>
                 </div>
                 );
@@ -347,128 +348,6 @@ export const AdminFiles: React.FC = () => {
                 variant="danger"
             />
 
-            <Modal 
-                isOpen={isUploadModalOpen} 
-                onClose={() => !uploading && setIsUploadModalOpen(false)}
-                title="העלאת קובץ חדש"
-            >
-                <div className="space-y-6 text-right" dir="rtl">
-                    {systemPassword && (
-                        <div className="mb-4">
-                            <label className="block text-sm font-bold text-slate-700 mb-2">סיסמת מערכת להעלאה</label>
-                            <input 
-                                type="password" 
-                                value={uploadPassword}
-                                onChange={(e) => setUploadPassword(e.target.value)}
-                                placeholder="הזן סיסמה..."
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700" 
-                            />
-                        </div>
-                    )}
-                    {!selectedFile ? (
-                        <div 
-                            className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
-                                isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                            }`}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-4 pointer-events-none">
-                                <UploadCloud size={40} />
-                            </div>
-                            <h3 className="text-lg font-black text-slate-900 mb-2 pointer-events-none">לחץ לבחירת קובץ או גרור לכאן</h3>
-                            <p className="text-slate-500 font-medium pointer-events-none">קבצי תמונה, PDF ו-Word נתמכים. עד {maxFileSizeMB}MB.</p>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef}
-                                className="hidden" 
-                                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                onChange={handleFileChange}
-                                disabled={uploading}
-                            />
-                        </div>
-                    ) : (
-                        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600">
-                                    {selectedFile.type.includes('pdf') ? <File size={32} /> : <ImageIcon size={32} />}
-                                </div>
-                                <div className="flex-1 overflow-hidden">
-                                    <p className="text-slate-800 font-bold truncate">{selectedFile.name}</p>
-                                    <p className="text-slate-500 text-sm">{formatBytes(selectedFile.size)}</p>
-                                </div>
-                                <button 
-                                    onClick={() => setSelectedFile(null)}
-                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                    disabled={uploading}
-                                >
-                                    החלף
-                                </button>
-                            </div>
-
-                            <div className="mb-6">
-                                <label className="block text-sm font-bold text-slate-700 mb-2">שם לקובץ (אופציונלי - יופיע בניהול)</label>
-                                <input 
-                                    type="text" 
-                                    value={customFileName}
-                                    onChange={(e) => setCustomFileName(e.target.value)}
-                                    placeholder="הזן שם לקובץ..."
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700"
-                                    disabled={uploading}
-                                />
-                            </div>
-
-                            <button
-                                onClick={handleUpload}
-                                disabled={uploading || (!!systemPassword && !uploadPassword)}
-                                className={`w-full py-3 rounded-xl font-bold transition-all ${
-                                    uploading ? 'bg-indigo-400 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg hover:shadow-xl'
-                                }`}
-                            >
-                                {uploading ? 'מעלה קובץ, אנא המתן...' : 'העלה קובץ'}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </Modal>
-            <Modal 
-                isOpen={isEditModalOpen} 
-                onClose={() => setIsEditModalOpen(false)}
-                title="עריכת שם קובץ"
-            >
-                <div className="space-y-6 text-right" dir="rtl">
-                    <div className="mb-6">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">שם קובץ חדש</label>
-                        <input 
-                            type="text" 
-                            value={editFileName}
-                            onChange={(e) => setEditFileName(e.target.value)}
-                            placeholder="הזן שם לקובץ..."
-                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700"
-                        />
-                    </div>
-
-                    <div className="flex gap-4">
-                        <button
-                            onClick={saveEdit}
-                            disabled={!editFileName.trim() || editFileName === fileToEdit?.name}
-                            className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                                !editFileName.trim() || editFileName === fileToEdit?.name ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg hover:shadow-xl'
-                            }`}
-                        >
-                            שמור שינויים
-                        </button>
-                        <button
-                            onClick={() => setIsEditModalOpen(false)}
-                            className="px-6 py-3 rounded-xl font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-                        >
-                            ביטול
-                        </button>
-                    </div>
-                </div>
-            </Modal>
         </div>
     );
 };

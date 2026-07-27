@@ -22,9 +22,9 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.get('email', '') == 'eliav4022@gmail.com') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (
+        (("email" in request.auth.token) && (request.auth.token.email == 'eliav4022@gmail.com')) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN', 'SUPPORT_AGENT', 'CONTENT_MANAGER', 'FINANCE_MANAGER'] ||
            ('_custom_' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []))
          )
@@ -35,7 +35,7 @@ service cloud.firestore {
     function isEmployerWithSeekerAccess() {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'EMPLOYER' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'EMPLOYER' &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('canViewRelevantSeekers', false) == true &&
         exists(/databases/$(database)/documents/settings/system) &&
         get(/databases/$(database)/documents/settings/system).data.get('enableEmployersToViewRelevantSeekers', false) == true;

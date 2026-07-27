@@ -348,8 +348,8 @@ export const AdminDashboard: React.FC = () => {
                           <div className="text-center text-slate-500 font-medium py-8">אין משימות פתוחות המיועדות לך כרגע.</div>
                       ) : (
                           <div className="space-y-4">
-                              {myTasks.map(task => (
-                                  <Link to="/admin/reports" key={task.id} className="block p-4 border border-slate-200 rounded-xl hover:border-indigo-500 transition-colors bg-slate-50 cursor-pointer text-right">
+                               {myTasks.map(task => (
+                                  <Link to={`/admin/tasks/${task.id}`} key={task.id} className="block p-4 border border-slate-200 rounded-xl hover:border-indigo-500 transition-colors bg-slate-50 cursor-pointer text-right">
                                       <div className="flex items-start justify-between">
                                           <div>
                                               <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-1 rounded font-bold mb-2 inline-block">

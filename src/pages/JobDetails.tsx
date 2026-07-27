@@ -550,7 +550,7 @@ const JobDetails: React.FC = () => {
                        <CheckCircle size={20} className="md:w-6 md:h-6" />
                        מועמדות הוגשה
                    </div>
-               ) : user?.uid === job.employerId || user?.companyId === job.employerId || user?.role === 'EMPLOYER' ? (
+               ) : user?.uid === job.ownerId || user?.uid === job.employerId || (user?.companyId && user?.companyId === job.companyId) || user?.role === 'EMPLOYER' ? (
                    <div className="flex-[2] sm:flex-none bg-slate-200 text-slate-500 px-6 md:px-10 py-4 md:py-5 rounded-[1.25rem] md:rounded-[1.5rem] font-black flex items-center justify-center gap-2 md:gap-3 whitespace-nowrap">
                        <Briefcase size={20} className="md:w-6 md:h-6" />
                        תצוגת מעסיק

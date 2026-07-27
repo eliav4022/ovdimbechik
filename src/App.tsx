@@ -50,6 +50,7 @@ const AdminUsers = React.lazy(() => import('./pages/admin/AdminUsers').then(m =>
 const AdminUserDetail = React.lazy(() => import('./pages/admin/AdminUserDetail').then(m => ({ default: m.AdminUserDetail })));
 const AdminJobs = React.lazy(() => import('./pages/admin/AdminJobs').then(m => ({ default: m.AdminJobs })));
 const AdminJobDetail = React.lazy(() => import('./pages/admin/AdminJobDetail').then(m => ({ default: m.AdminJobDetail })));
+const AdminTaskDetail = React.lazy(() => import('./pages/admin/AdminTaskDetail').then(m => ({ default: m.AdminTaskDetail })));
 const AdminSeekers = React.lazy(() => import('./pages/admin/AdminSeekers').then(m => ({ default: m.AdminSeekers })));
 const AdminEmployers = React.lazy(() => import('./pages/admin/AdminEmployers').then(m => ({ default: m.AdminEmployers })));
 const AdminEmployerDetail = React.lazy(() => import('./pages/admin/AdminEmployerDetail').then(m => ({ default: m.AdminEmployerDetail })));
@@ -64,6 +65,7 @@ const AdminSettings = React.lazy(() => import('./pages/admin/AdminSettings').the
 const AdminPopups = React.lazy(() => import('./pages/admin/AdminPopups').then(m => ({ default: m.AdminPopups })));
 const AdminTags = React.lazy(() => import('./pages/admin/AdminTags').then(m => ({ default: m.AdminTags })));
 const AdminFiles = React.lazy(() => import('./pages/admin/AdminFiles').then(m => ({ default: m.AdminFiles })));
+const AdminFileDetail = React.lazy(() => import('./pages/admin/AdminFileDetail').then(m => ({ default: m.AdminFileDetail })));
 
 import { ToastProvider, useToast } from './context/ToastContext';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
@@ -181,6 +183,7 @@ const AppContent = () => {
                 <Route path="jobs/:id" element={<AdminJobDetail />} />
                 <Route path="jobs-casual" element={<AdminJobs key="jobs-casual" isCasual={true} />} />
                 <Route path="jobs-casual/:id" element={<AdminJobDetail />} />
+                <Route path="tasks/:id" element={<AdminTaskDetail />} />
                 <Route path="seekers" element={<AdminSeekers />} />
                 <Route path="employers" element={<AdminEmployers />} />
                 <Route path="employers/:id" element={<AdminEmployerDetail />} />
@@ -195,6 +198,7 @@ const AppContent = () => {
                 <Route path="popups" element={<AdminPopups />} />
                 <Route path="tags" element={<AdminTags />} />
                 <Route path="files" element={<AdminFiles />} />
+                <Route path="files/:id" element={<AdminFileDetail />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

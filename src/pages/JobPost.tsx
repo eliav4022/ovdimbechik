@@ -50,7 +50,7 @@ const JobPost: React.FC = () => {
   const [globalTags, setGlobalTags] = useState<string[]>([]);
   const [globalLocations, setGlobalLocations] = useState<string[]>([]);
   const [enableCVUploads, setEnableCVUploads] = useState(true);
-  const [employers, setEmployers] = useState<{ id: string, name: string, company: string }[]>([]);
+  const [employers, setEmployers] = useState<{ id: string, name: string, company: string, companyId?: string }[]>([]);
 
   useEffect(() => {
     const fetchEmployers = async () => {
@@ -61,7 +61,8 @@ const JobPost: React.FC = () => {
           const emps = snap.docs.map(d => ({
             id: d.id,
             name: d.data().fullName || d.data().displayName || 'ללא שם',
-            company: d.data().companyName || 'ללא חברה'
+            company: d.data().companyName || 'ללא חברה',
+            companyId: d.data().companyId || ''
           }));
           setEmployers(emps);
         } catch(error) { console.error("Failed to fetch employers", error); }
@@ -198,7 +199,7 @@ const JobPost: React.FC = () => {
       const now = new Date().toISOString();
       if (isEditing) {
         // Prevent overwriting dynamic fields that might have changed while editing (race condition)
-        const { id: _, views, applicationsCount, createdAt, employerId, ownerId, tags: rawTags, pendingTags: _pTags, hasPendingTags: _hPTags, ...editableFields } = formData as Record<string, any>;
+        const { id: _, views, applicationsCount, createdAt, tags: rawTags, pendingTags: _pTags, hasPendingTags: _hPTags, ...editableFields } = formData as Record<string, any>;
         
         const knownTags = new Set([...globalTags, ...globalCategories]);
         const isTagApproved = (t: string) => knownTags.has(t);
@@ -209,8 +210,12 @@ const JobPost: React.FC = () => {
         const unapprovedTags = isAdmin ? [] : allTags.filter((t: string) => !isTagApproved(t));
 
         if (isAdmin) {
+            const selectedEmp = employers.find(e => e.id === formData.ownerId);
+            const companyIdToSet = formData.companyId || (selectedEmp?.companyId || user.companyId || '');
             await updateDoc(doc(db, 'jobs', id), {
                 ...editableFields,
+                ownerId: formData.ownerId,
+                companyId: companyIdToSet,
                 tags: approvedTags,
                 pendingTags: unapprovedTags,
                 hasPendingTags: unapprovedTags.length > 0,
@@ -250,6 +255,7 @@ const JobPost: React.FC = () => {
         const ownerToSet = formData.ownerId || user.uid;
         const nameToSet = selectedEmp ? selectedEmp.name : (user.displayName || user.fullName || '');
         const compToSet = selectedEmp ? selectedEmp.company : (user.companyName || user.companyDescription || user.bio || '');
+        const companyIdToSet = selectedEmp?.companyId || user.companyId || '';
 
         const knownTags = new Set([...globalTags, ...globalCategories]);
         const isTagApproved = (t: string) => knownTags.has(t);
@@ -260,6 +266,7 @@ const JobPost: React.FC = () => {
           id: newJobRef.id,
           employerId: ownerToSet, // deprecated
           ownerId: ownerToSet,
+          companyId: formData.companyId || companyIdToSet,
           employerName: nameToSet,
           title: formData.title || '',
           companyName: formData.companyName || compToSet || '',
@@ -931,7 +938,8 @@ const JobPost: React.FC = () => {
                                 setFormData(prev => ({ 
                                     ...prev, 
                                     ownerId: newId, 
-                                    companyName: selectedEmp ? selectedEmp.company : prev.companyName 
+                                    companyName: selectedEmp ? selectedEmp.company : prev.companyName,
+                                    companyId: selectedEmp?.companyId || prev.companyId
                                 }));
                             }}
                         >

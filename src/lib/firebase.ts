@@ -18,27 +18,6 @@ export const storage = getStorage(app);
 storage.maxUploadRetryTime = 10000; // 10 seconds max retry for uploads so it doesn't hang infinitely
 storage.maxOperationRetryTime = 10000;
 
-// Test Connection as per guidelines
-async function testConnection(retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      // Use getDoc instead of getDocFromServer for the first check to see if it even initializes
-      await getDocFromServer(doc(db, 'test', 'connection'));
-      return;
-    } catch (error) {
-      if (i < retries - 1) {
-        const delay = Math.pow(2, i) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
-          console.error("Firestore is unavailable. Please check your network or Firebase configuration.");
-        }
-      }
-    }
-  }
-}
-testConnection();
-
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',

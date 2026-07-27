@@ -214,12 +214,14 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
           let resolvedCompanyName = newJob.companyName;
           const selectedEmp = employers.find(e => e.uid === employerId || (e as any).id === employerId);
           const employerName = selectedEmp ? selectedEmp.displayName || selectedEmp.fullName : (currentUser?.displayName || 'מנהל משרות');
+          const companyIdToSet = (selectedEmp as any)?.companyId || '';
           
           const finalTags = newJob.tags ? newJob.tags.split(',').map(t => t.trim()).filter(t => t) : [];
 
           await setDoc(doc(db, 'jobs', jobId), {
               employerId,
               ownerId: employerId,
+              companyId: companyIdToSet,
               employerName: employerName || 'ללא שם מעסיק',
               title: newJob.title || '',
               description: newJob.description || '',
@@ -409,18 +411,21 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
               </span>
             )}
           </span>
-          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{j.companyName} | {j.location} | {j.type}</span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+            {j.companyName} {j.companyId ? `(ID: ${j.companyId})` : ''} | {j.location} | {j.type}
+          </span>
         </div>
       )
     },
     {
       key: 'employer',
-      header: 'מעסיק מפרסם',
+      header: 'חברה ומעסיק',
       render: (j: Job) => {
         const emp = employers.find(e => (e as any).id === j.employerId || e.uid === j.employerId);
         return (
           <div className="flex flex-col">
-            <span className="font-bold text-slate-800 text-xs">{emp ? emp.displayName : 'לא ידוע'}</span>
+            <span className="font-bold text-slate-800 text-xs">🏢 {j.companyName || 'ללא חברה'}</span>
+            <span className="text-[10px] text-slate-500 font-medium">👤 {emp ? emp.displayName : 'לא ידוע'}</span>
             <span className="text-[10px] text-slate-400 font-mono">{emp ? emp.email : j.employerId}</span>
           </div>
         );

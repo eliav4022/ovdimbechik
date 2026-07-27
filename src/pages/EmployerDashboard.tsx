@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, query, where, onSnapshot, doc, getDocs, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDocs, writeBatch, getDoc, setDoc } from 'firebase/firestore';
 import { deleteDoc, updateDoc, addDoc } from '../lib/firestore-audit';;
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -150,9 +150,30 @@ const EmployerDashboard: React.FC = () => {
         if (!user) return;
         setIsSavingProfile(true);
         try {
+            let userCompanyId = user.companyId;
+
+            if (!userCompanyId) {
+                // Create a new company if the user doesn't have one
+                userCompanyId = 'comp_' + Date.now();
+                await setDoc(doc(db, 'companies', userCompanyId), {
+                    name: employerProfile.companyName,
+                    description: employerProfile.companyDescription,
+                    employerId: user.uid,
+                    isVerified: false,
+                    createdAt: new Date().toISOString()
+                });
+            } else {
+                await updateDoc(doc(db, 'companies', userCompanyId), {
+                    name: employerProfile.companyName,
+                    description: employerProfile.companyDescription,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+
             await updateDoc(doc(db, 'users', user.uid), {
                 companyName: employerProfile.companyName,
                 companyDescription: employerProfile.companyDescription,
+                companyId: userCompanyId,
                 updatedAt: new Date().toISOString()
             });
 

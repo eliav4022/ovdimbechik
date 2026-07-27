@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { Save, Settings, Shield, CreditCard, RotateCcw, Bell, Lock, Globe, Share2, Briefcase, Webhook, LayoutTemplate, Bot, Activity, Database, Trash2, Download, Upload, FileText } from 'lucide-react';
+import { Save, Settings, Shield, CreditCard, RotateCcw, Bell, Lock, Globe, Share2, Briefcase, Webhook, LayoutTemplate, Bot, Activity, Database, Trash2, Download, Upload, FileText, Copy } from 'lucide-react';
 import { doc, getDoc, collection, query, where, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore';
 import { setDoc, deleteDoc } from '../../lib/firestore-audit';;
 import { db } from '../../lib/firebase';
@@ -16,6 +16,7 @@ import { AdminTable } from '../../components/admin/AdminTable';
 import { RecycleBinTab } from '../../components/admin/RecycleBinTab';
 import { AdminObjectManager } from '../../components/admin/AdminObjectManager';
 import { AdminPagesManager } from '../../components/admin/AdminPagesManager';
+import { CsvBulkImporter } from '../../components/admin/CsvBulkImporter';
 
 interface SystemSettings {
     contactEmail: string;
@@ -142,6 +143,8 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
     const [loading, setLoading] = useState(true);
     const [allDocs, setAllDocs] = useState<any[]>([]);
     const [fields, setFields] = useState<{name: string, selected: boolean, type: string, options: string[]}[]>([]);
+    const [viewMode, setViewMode] = useState<'config' | 'table'>('config');
+    const [filteredData, setFilteredData] = useState<any[]>([]);
     
     type FilterRule = {
         field: string;
@@ -151,7 +154,10 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
     const [filters, setFilters] = useState<FilterRule[]>([]);
 
     useEffect(() => {
-        if (!isOpen || !collectionName) return;
+        if (!isOpen || !collectionName) {
+            setViewMode('config');
+            return;
+        }
         
         const fetchDocs = async () => {
             setLoading(true);
@@ -212,6 +218,7 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
                 
                 setFields(fieldInfos);
                 setFilters([]);
+                setViewMode('config');
             } catch (error) {
                 console.error(`Export fetch failed for ${collectionName}:`, error);
                 toast(`שגיאה בייצוא האוסף ${collectionName}`, 'error');
@@ -223,15 +230,7 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
         fetchDocs();
     }, [isOpen, collectionName]);
 
-    const handleExport = () => {
-        if (!collectionName) return;
-        const selectedFieldNames = fields.filter(f => f.selected).map(f => f.name);
-        if (selectedFieldNames.length === 0) {
-            toast('חובה לבחור לפחות שדה אחד לייצוא', 'error');
-            return;
-        }
-
-        // Apply complex filters
+    const getFilteredDocs = () => {
         let filteredDocs = allDocs;
         
         if (filters.length > 0) {
@@ -280,16 +279,34 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
                 });
             });
         }
+        return filteredDocs;
+    };
+
+    const handleShowTable = () => {
+        if (!collectionName) return;
+        const selectedFieldNames = fields.filter(f => f.selected).map(f => f.name);
+        if (selectedFieldNames.length === 0) {
+            toast('חובה לבחור לפחות שדה אחד לייצוא', 'error');
+            return;
+        }
+
+        const filtered = getFilteredDocs();
         
-        if (filteredDocs.length === 0) {
+        if (filtered.length === 0) {
             toast('אין נתונים התואמים את הסינון הנוכחי', 'info');
             return;
         }
 
+        setFilteredData(filtered);
+        setViewMode('table');
+    };
+
+    const handleDownloadCsv = () => {
+        const selectedFieldNames = fields.filter(f => f.selected).map(f => f.name);
         const csvRows = [];
         csvRows.push(selectedFieldNames.join(',')); // Header row
         
-        filteredDocs.forEach(d => {
+        filteredData.forEach(d => {
             const row = selectedFieldNames.map(header => {
                 const val = (d as any)[header];
                 if (val === null || val === undefined) return '';
@@ -309,16 +326,126 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast(`ייצוא הושלם: ${collectionName} (${filteredDocs.length} מתוך ${allDocs.length} רשומות)`, 'success');
+        toast(`ייצוא הושלם: ${collectionName} (${filteredData.length} מתוך ${allDocs.length} רשומות)`, 'success');
         onClose();
     };
 
+    const handleCopyData = async () => {
+        const selectedFieldNames = fields.filter(f => f.selected).map(f => f.name);
+        const tsvRows = [];
+        tsvRows.push(selectedFieldNames.join('\t')); // Header row
+        
+        filteredData.forEach(d => {
+            const row = selectedFieldNames.map(header => {
+                let val = (d as any)[header];
+                if (val === null || val === undefined) val = '';
+                else if (typeof val === 'object') {
+                    if (val.toDate && typeof val.toDate === 'function') val = val.toDate().toLocaleString('he-IL');
+                    else val = JSON.stringify(val);
+                }
+                else if (typeof val === 'boolean') val = val ? 'כן' : 'לא';
+                else val = String(val);
+                
+                return `"${String(val).replace(/"/g, '""')}"`;
+            });
+            tsvRows.push(row.join('\t'));
+        });
+        
+        try {
+            await navigator.clipboard.writeText(tsvRows.join('\n'));
+            toast('הנתונים הועתקו ללוח בהצלחה', 'success');
+        } catch (error) {
+            console.error('Failed to copy', error);
+            toast('שגיאה בהעתקת הנתונים', 'error');
+        }
+    };
+
+    const handleCopyCsvData = async () => {
+        const selectedFieldNames = fields.filter(f => f.selected).map(f => f.name);
+        const csvRows = [];
+        csvRows.push(selectedFieldNames.join(',')); // Header row
+        
+        filteredData.forEach(d => {
+            const row = selectedFieldNames.map(header => {
+                let val = (d as any)[header];
+                if (val === null || val === undefined) val = '';
+                else if (typeof val === 'object') {
+                    if (val.toDate && typeof val.toDate === 'function') val = val.toDate().toLocaleString('he-IL');
+                    else val = JSON.stringify(val);
+                }
+                else if (typeof val === 'boolean') val = val ? 'כן' : 'לא';
+                else val = String(val);
+                
+                return `"${String(val).replace(/"/g, '""')}"`;
+            });
+            csvRows.push(row.join(','));
+        });
+        
+        try {
+            await navigator.clipboard.writeText(csvRows.join('\n'));
+            toast('הנתונים הועתקו ללוח בהצלחה', 'success');
+        } catch (error) {
+            console.error('Failed to copy', error);
+            toast('שגיאה בהעתקת הנתונים', 'error');
+        }
+    };
+
+    const renderVal = (val: any) => {
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'object') {
+            if (val.toDate && typeof val.toDate === 'function') return val.toDate().toLocaleString('he-IL');
+            return JSON.stringify(val);
+        }
+        if (typeof val === 'boolean') return val ? 'כן' : 'לא';
+        return String(val);
+    };
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`ייצוא נתונים מותאם אישית: ${collectionName}`} className="max-w-3xl">
+        <Modal isOpen={isOpen} onClose={onClose} title={`ייצוא נתונים מותאם אישית: ${collectionName}`} className={viewMode === 'table' ? "max-w-[90vw]" : "max-w-3xl"}>
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
                     <div className="animate-spin w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full" />
                     <p className="text-slate-500 font-medium">מושך נתונים, אנא המתן...</p>
+                </div>
+            ) : viewMode === 'table' ? (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-800 text-lg">תצוגה מקדימה ({filteredData.length} רשומות)</h4>
+                        <div className="flex gap-3">
+                            <Button variant="outline" onClick={() => setViewMode('config')}>חזור לסינון</Button>
+                            <Button variant="outline" onClick={handleCopyData} leftIcon={<Copy size={18} />}>העתק נתונים לאקסל</Button>
+                            <Button variant="outline" onClick={handleCopyCsvData} leftIcon={<Copy size={18} />}>העתק כ-CSV</Button>
+                            <Button onClick={handleDownloadCsv} leftIcon={<Download size={18} />}>הורד CSV</Button>
+                        </div>
+                    </div>
+                    
+                    <div className="overflow-auto border border-slate-200 rounded-xl max-h-[60vh] bg-white">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    {fields.filter(f => f.selected).map(f => (
+                                        <th key={f.name} className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{f.name}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredData.slice(0, 100).map((row, i) => (
+                                    <tr key={i} className="hover:bg-slate-50">
+                                        {fields.filter(f => f.selected).map(f => (
+                                            <td key={f.name} className="px-4 py-3 text-slate-600 truncate max-w-xs" title={renderVal((row as any)[f.name])}>
+                                                {renderVal((row as any)[f.name])}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {filteredData.length > 100 && (
+                            <div className="text-center p-4 text-slate-500 bg-slate-50 border-t border-slate-200">
+                                מוצגות 100 שורות ראשונות מתוך {filteredData.length}. להצגת כל הנתונים יש להוריד CSV.
+                            </div>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-6">
@@ -473,11 +600,11 @@ const ExportModal = ({ isOpen, onClose, collectionName, toast }: { isOpen: boole
                     <div className="flex justify-end gap-3 pt-6 border-t font-bold border-slate-100">
                         <Button variant="outline" onClick={onClose}>ביטול</Button>
                         <Button 
-                            onClick={handleExport}
-                            leftIcon={<Download size={18} />}
+                            onClick={handleShowTable}
+                            leftIcon={<Database size={18} />}
                             disabled={fields.filter(f => f.selected).length === 0}
                         >
-                            ייצא CSV ({allDocs.length} רשומות במקור)
+                            הצג נתונים בטבלה ({allDocs.length} רשומות במקור)
                         </Button>
                     </div>
                 </div>
@@ -1919,8 +2046,8 @@ for (const jobData of previewJobs) {
                                                 className="w-full bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-100"
                                                 leftIcon={<Download size={16} />}
                                                 onClick={() => {
-                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,requireCV\n';
-                                                    const exampleRows = '"","false","מנהל מכירות","ניהול צוות טכני בשילוב של מיומנויות מכירה וקידום מוצרים","Tech Corp","חברת הייטק וותיקה במרכז תל אביב","תל אביב","משרה מלאה","היברידי","שנתיים - 3 שנים","20K-25K","מכירות","אגייל, מכירות, צוות מעולה","jobs@techcorp.co.il","true"';
+                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,requireCV,_ownerId,companyId\n';
+                                                    const exampleRows = '"","false","מנהל מכירות","ניהול צוות טכני בשילוב של מיומנויות מכירה וקידום מוצרים","Tech Corp","חברת הייטק וותיקה במרכז תל אביב","תל אביב","משרה מלאה","היברידי","שנתיים - 3 שנים","20K-25K","מכירות","אגייל, מכירות, צוות מעולה","jobs@techcorp.co.il","true","",""';
                                                     
                                                     const blob = new Blob(['\uFEFF' + headers + exampleRows], { type: 'text/csv;charset=utf-8;' });
                                                     const link = document.createElement('a');
@@ -1947,8 +2074,8 @@ for (const jobData of previewJobs) {
                                                 className="w-full bg-white border-purple-200 text-purple-600 hover:bg-purple-100"
                                                 leftIcon={<Download size={16} />}
                                                 onClick={() => {
-                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,isImmediate,requireCV\n';
-                                                    const exampleRows = '"","true","דרושים מלצרים לעבודה מיידית באולם אירועים","עבודה באולם אירועים במרכז. צוות צעיר ואווירה טובה! לא נדרש ניסיון קודם!","אולמי השרון","אולם שמחות ואירועים מוביל בישראל","ראשון לציון","משמרות","משרדי","ללא ניסיון","45-50","מלצרות","ערב, בוקר","https://wa.me/972556867356","true","false"';
+                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,isImmediate,requireCV,_ownerId,companyId\n';
+                                                    const exampleRows = '"","true","דרושים מלצרים לעבודה מיידית באולם אירועים","עבודה באולם אירועים במרכז. צוות צעיר ואווירה טובה! לא נדרש ניסיון קודם!","אולמי השרון","אולם שמחות ואירועים מוביל בישראל","ראשון לציון","משמרות","משרדי","ללא ניסיון","45-50","מלצרות","ערב, בוקר","https://wa.me/972556867356","true","false","",""';
                                                     
                                                     const blob = new Blob(['\uFEFF' + headers + exampleRows], { type: 'text/csv;charset=utf-8;' });
                                                     const link = document.createElement('a');
@@ -1966,48 +2093,8 @@ for (const jobData of previewJobs) {
                                         </div>
                                     </div>
                                     
-                                    <div className="bg-white border rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-brand-teal mt-4 shadow-sm">
-                                        <textarea 
-                                            placeholder="או הדבק נתוני CSV לכאן..." 
-                                            className="w-full h-32 p-4 text-xs font-mono text-slate-700 outline-none resize-y border-b border-slate-100 placeholder:font-sans placeholder:text-sm"
-                                            onPaste={(e) => {
-                                                const text = e.clipboardData.getData('text');
-                                                if (text) {
-                                                    Papa.parse(text, {
-                                                        header: true,
-                                                        skipEmptyLines: true,
-                                                        complete: (results) => {
-                                                            processCSVResults(results, 'שגיאה בפענוח הנתונים המודבקים');
-                                                        }
-                                                    });
-                                                    // setTimeout(() => { if(e.target instanceof HTMLTextAreaElement) e.target.value = '' }, 100);
-                                                }
-                                            }}
-                                        ></textarea>
-                                        <div className="p-4 bg-slate-50 flex items-center justify-between">
-                                            <div>
-                                                <p className="font-bold text-slate-800 mb-0.5">פעולות בצובר על משרות (יבוא מ-CSV)</p>
-                                                <p className="text-sm text-slate-600">בחר קובץ עם העמודות הרלוונטיות. עמודת id משמשת לזיהוי משרות עבור עדכון או מחיקה.</p>
-                                            </div>
-                                            <label className="cursor-pointer shrink-0">
-                                                <input type="file" accept=".csv" className="hidden" onChange={(e) => {
-                                                    if (!e.target.files?.[0]) return;
-                                                    const file = e.target.files[0];
-                                                    
-                                                    Papa.parse(file, {
-                                                    header: true,
-                                                    skipEmptyLines: true,
-                                                    complete: (results) => {
-                                                        processCSVResults(results, 'שגיאה בפענוח הקובץ');
-                                                        e.target.value = '';
-                                                    }
-                                                });
-                                            }} />
-                                            <Button variant="primary" className="pointer-events-none w-full shadow-lg hover:-translate-y-0.5 transition-all" leftIcon={<Upload size={16} />}>
-                                                העלה קובץ
-                                            </Button>
-                                        </label>
-                                        </div>
+                                    <div className="mt-8">
+                                        <CsvBulkImporter />
                                     </div>
                                 </div>
                             </Card>
