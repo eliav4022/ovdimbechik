@@ -7,6 +7,7 @@ import { AIAssistant } from './components/AIAssistant';
 import { AccessibilityMenu } from './components/AccessibilityMenu';
 import { CookieConsent } from './components/CookieConsent';
 import { PopupsManager } from './components/PopupsManager';
+import { SEOHelmet } from './components/SEOHelmet';
 import { LoadingSpinner, FullPageLoading } from './components/ui/Loading';
 import { UserRole } from './types';
 import { Phone, Facebook, Mail, Send as TelegramIcon } from 'lucide-react';
@@ -105,10 +106,7 @@ const AppContent = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-brand-teal selection:text-white" dir="rtl">
-      <Helmet>
-        <title>עובדים בצ'יק | לוח הדרושים המהיר בישראל</title>
-        <meta name="description" content="מצא עבודה תוך דקות או גייס עובדים מוכשרים בצ'יק. לוח הדרושים המתקדם ביותר בישראל עם בינה מלאכותית." />
-      </Helmet>
+      <SEOHelmet />
       {!isAdminRoute && <Navbar />}
       {!isAdminRoute && location.pathname !== '/jobs' && <Breadcrumbs />}
       {!isAdminRoute && <AIAssistant />}

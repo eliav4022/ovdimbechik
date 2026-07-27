@@ -333,7 +333,7 @@ export const AdminFiles: React.FC = () => {
                 description="העלאה וניהול של תמונות ומסמכי PDF ו-Word לשימוש כללי באתר (באנרים לחברות, מסמכים נלווים, וכד')"
                 data={files}
                 columns={columns}
-                onAdd={() => setIsUploadModalOpen(true)}
+                onAdd={() => { console.log("onAdd clicked"); setIsUploadModalOpen(true); }}
                 onDelete={promptDelete}
                 onEdit={handleEdit}
                 searchFields={['name']}
@@ -348,6 +348,98 @@ export const AdminFiles: React.FC = () => {
                 variant="danger"
             />
 
+            <Modal 
+                isOpen={isUploadModalOpen} 
+                onClose={() => !uploading && setIsUploadModalOpen(false)}
+                title="העלאת קובץ חדש"
+            >
+                <div className="space-y-6 text-right" dir="rtl">
+                    {systemPassword && (
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">סיסמת מערכת להעלאה</label>
+                            <input 
+                                type="password" 
+                                value={uploadPassword}
+                                onChange={(e) => setUploadPassword(e.target.value)}
+                                placeholder="הזן סיסמה..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700" 
+                            />
+                        </div>
+                    )}
+                    {!selectedFile ? (
+                        <div 
+                            className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
+                                isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-4 pointer-events-none">
+                                <UploadCloud size={40} />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900 mb-2 pointer-events-none">לחץ לבחירת קובץ או גרור לכאן</h3>
+                            <p className="text-slate-500 font-medium pointer-events-none">קבצי תמונה, PDF ו-Word נתמכים. עד {maxFileSizeMB}MB.</p>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef}
+                                className="hidden" 
+                                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                onChange={handleFileChange}
+                                disabled={uploading}
+                            />
+                        </div>
+                    ) : (
+                        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600">
+                                    {selectedFile.type.includes('pdf') ? <File size={32} /> : <ImageIcon size={32} />}
+                                </div>
+                                <div className="flex-1 overflow-hidden">
+                                    <p className="text-slate-800 font-bold truncate">{selectedFile.name}</p>
+                                    <p className="text-slate-500 text-sm">{formatBytes(selectedFile.size)}</p>
+                                </div>
+                                <button 
+                                    onClick={() => setSelectedFile(null)}
+                                    className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                >
+                                    החלף קובץ
+                                </button>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">שם קובץ לתצוגה</label>
+                                <input 
+                                    type="text" 
+                                    value={customFileName}
+                                    onChange={(e) => setCustomFileName(e.target.value)}
+                                    placeholder="הזן שם לקובץ..."
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-700"
+                                />
+                            </div>
+
+                            <div className="flex gap-4">
+                                <Button 
+                                    onClick={handleUpload}
+                                    loading={uploading}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200"
+                                >
+                                    העלה קובץ
+                                </Button>
+                                <Button 
+                                    variant="outline"
+                                    onClick={() => setSelectedFile(null)}
+                                    disabled={uploading}
+                                    className="px-6 py-3 rounded-xl font-bold"
+                                >
+                                    ביטול
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 };

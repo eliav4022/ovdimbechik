@@ -22,6 +22,7 @@ interface SystemSettings {
     contactEmail: string;
     systemSenderEmail?: string;
     siteLogoUrl?: string;
+    siteFaviconUrl?: string;
     maintenanceMode: boolean;
     enableCVUploads: boolean;
     fileUploadPassword?: string;
@@ -76,6 +77,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
     contactEmail: 'Ovdimbechik@gmail.com',
     systemSenderEmail: 'noreply@ovdimbechik.com',
     siteLogoUrl: '',
+    siteFaviconUrl: '',
     maintenanceMode: false,
     enableCVUploads: true,
     fileUploadPassword: '',
@@ -1302,6 +1304,16 @@ for (const jobData of previewJobs) {
                                         className="text-left"
                                         value={settings.siteLogoUrl || ''}
                                         onChange={(e) => handleChange('siteLogoUrl', e.target.value)}
+                                    />
+                                    <Input
+                                        id="siteFaviconUrl"
+                                        label="כתובת Favicon (אייקון לשורת הכתובת - URL)"
+                                        type="url"
+                                        placeholder="https://..."
+                                        dir="ltr"
+                                        className="text-left"
+                                        value={settings.siteFaviconUrl || ''}
+                                        onChange={(e) => handleChange('siteFaviconUrl', e.target.value)}
                                     />
                                     <ToggleSwitch
                                         label="מצב תחזוקה"

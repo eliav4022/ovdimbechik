@@ -27,7 +27,8 @@ const COLLECTION_FIELDS: Record<TargetCollection, { id: string; label: string }[
         { id: 'isImmediate', label: 'מיידית? (TRUE/FALSE)' },
         { id: 'requireCV', label: 'דורש קו"ח? (TRUE/FALSE)' },
         { id: 'isCasual', label: 'מזדמנת? (TRUE/FALSE)' },
-        { id: '_ownerId', label: 'ID משתמש מפרסם (מעסיק)' },
+        { id: 'employerId', label: 'ID משתמש מפרסם (מעסיק)' },
+        { id: '_ownerId', label: 'ID משתמש מפרסם (חלופה ל-employerId)' },
         { id: 'companyId', label: 'ID חברה מקושרת (Company ID)' }
     ],
     companies: [
@@ -149,6 +150,52 @@ export const CsvBulkImporter: React.FC = () => {
             const docId = row.id;
             const cleanData = { ...row };
             delete cleanData.id;
+            
+            if (targetCollection === 'jobs' && (bulkOperation === 'create' || bulkOperation === 'update')) {
+                // Determine the correct employerId field
+                const empId = cleanData.employerId || cleanData._ownerId;
+                if (empId) {
+                    cleanData.employerId = empId;
+                    cleanData.ownerId = empId; // Also set ownerId for consistency
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', empId));
+                        if (userDoc.exists()) {
+                            const uData = userDoc.data();
+                            cleanData.employerName = uData.companyName || uData.fullName || uData.name || 'ללא שם מעסיק';
+                            // If the CSV didn't provide a companyName but we found one in user profile
+                            if (!cleanData.companyName && uData.companyName) {
+                                cleanData.companyName = uData.companyName;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to lookup employer:', e);
+                    }
+                }
+                
+                // Lookup company details if companyId is provided
+                if (cleanData.companyId) {
+                    try {
+                        const compDoc = await getDoc(doc(db, 'companies', cleanData.companyId));
+                        if (compDoc.exists()) {
+                            const cData = compDoc.data();
+                            cleanData.companyName = cData.companyName || cData.name || cleanData.companyName;
+                            if (cData.description && !cleanData.companyDescription) {
+                                cleanData.companyDescription = cData.description;
+                            }
+                            if (cData.logoUrl && !cleanData.companyLogo) {
+                                cleanData.companyLogo = cData.logoUrl;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to lookup company:', e);
+                    }
+                }
+                
+                // Default status if not provided
+                if (bulkOperation === 'create' && !cleanData.status) {
+                    cleanData.status = 'Published'; // Or JobStatus.ACTIVE depending on how string maps
+                }
+            }
 
             try {
                 if (bulkOperation === 'delete') {
