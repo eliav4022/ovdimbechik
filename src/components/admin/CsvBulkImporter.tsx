@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
-import { collection, doc, getDocs, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, getDoc, query, where } from 'firebase/firestore';
 import { setDoc, deleteDoc } from '../../lib/firestore-audit';
 import { db } from '../../lib/firebase';
 import { Button } from '../ui/Button';
@@ -71,6 +71,26 @@ export const CsvBulkImporter: React.FC = () => {
     const [previewData, setPreviewData] = useState<any[] | null>(null);
     const [bulkOperation, setBulkOperation] = useState<'create' | 'update' | 'delete'>('create');
     const [isUploading, setIsUploading] = useState(false);
+    const [employers, setEmployers] = useState<any[]>([]);
+    const [companies, setCompanies] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchEmployersAndCompanies = async () => {
+            if (targetCollection !== 'jobs') return;
+            try {
+                const qE = query(collection(db, 'users'), where('role', '==', 'EMPLOYER'));
+                const snapE = await getDocs(qE);
+                setEmployers(snapE.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                
+                const qC = query(collection(db, 'companies'));
+                const snapC = await getDocs(qC);
+                setCompanies(snapC.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            } catch (error) {
+                console.error("Failed to load employers and companies for mapping", error);
+            }
+        };
+        fetchEmployersAndCompanies();
+    }, [targetCollection]);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.[0]) return;
@@ -116,6 +136,16 @@ export const CsvBulkImporter: React.FC = () => {
     };
 
     const generatePreview = () => {
+        let generalEmployerId = '';
+        let generalCompanyId = '';
+        
+        if (targetCollection === 'jobs') {
+            const ge = employers.find(e => e.fullName === 'מעסיק כללי' || e.displayName === 'מעסיק כללי' || e.companyName?.includes('עובדים בציק') || e.email?.includes('eliav'));
+            if (ge) generalEmployerId = ge.id;
+            const gc = companies.find(c => (c.name || c.companyName) === 'עובדים בציק כללי' || (c.name || c.companyName)?.includes('עובדים בציק'));
+            if (gc) generalCompanyId = gc.id;
+        }
+
         const mappedData = csvData.map(row => {
             const newRow: any = {};
             Object.entries(fieldMapping).forEach(([csvHeader, targetField]) => {
@@ -135,10 +165,41 @@ export const CsvBulkImporter: React.FC = () => {
                     }
                 }
             });
+            
+            if (targetCollection === 'jobs') {
+                if (!newRow.employerId && !newRow._ownerId && generalEmployerId) {
+                    newRow.employerId = generalEmployerId;
+                }
+                if (!newRow.companyId && generalCompanyId) {
+                    newRow.companyId = generalCompanyId;
+                }
+            }
+            
             return newRow;
         });
         setPreviewData(mappedData);
         setStep(3);
+    };
+
+    const updatePreviewRow = (index: number, field: string, value: string) => {
+        setPreviewData(prev => {
+            if (!prev) return prev;
+            const newData = [...prev];
+            const updatedRow = { ...newData[index], [field]: value };
+            
+            // Auto-update company if employer is changed and no company is set or we want to override
+            if (targetCollection === 'jobs' && (field === 'employerId' || field === '_ownerId')) {
+                if (value) {
+                    const employerCompanies = companies.filter(c => c.employerId === value || c.ownerId === value);
+                    if (employerCompanies.length > 0) {
+                        updatedRow.companyId = employerCompanies[0].id;
+                    }
+                }
+            }
+            
+            newData[index] = updatedRow;
+            return newData;
+        });
     };
 
     const executeBulk = async () => {
@@ -164,6 +225,11 @@ export const CsvBulkImporter: React.FC = () => {
                         if (userDoc.exists()) {
                             const uData = userDoc.data();
                             cleanData.employerName = uData.companyName || uData.fullName || uData.name || 'ללא שם מעסיק';
+                            
+                            if (uData.companyId && !cleanData.companyId) {
+                                cleanData.companyId = uData.companyId;
+                            }
+
                             // If the CSV didn't provide a companyName but we found one in user profile
                             if (!cleanData.companyName && uData.companyName) {
                                 cleanData.companyName = uData.companyName;
@@ -371,8 +437,8 @@ export const CsvBulkImporter: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-[400px]">
-                            <table className="w-full text-sm text-right whitespace-nowrap">
+                        <div className="border border-slate-200 rounded-xl overflow-x-auto w-full max-h-[400px]">
+                            <table className="w-full text-sm text-right whitespace-nowrap min-w-max">
                                 <thead className="bg-slate-50 text-slate-600 font-bold sticky top-0 shadow-sm">
                                     <tr>
                                         <th className="p-3 border-b border-slate-200 w-12 text-center">#</th>
@@ -385,11 +451,47 @@ export const CsvBulkImporter: React.FC = () => {
                                     {previewData.slice(0, 50).map((row, rowIdx) => (
                                         <tr key={rowIdx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                                             <td className="p-3 text-center text-slate-400 font-mono">{rowIdx + 1}</td>
-                                            {Object.values(fieldMapping).filter(Boolean).map((field, idx) => (
+                                            {Object.values(fieldMapping).filter(Boolean).map((field, idx) => {
+                                                const val = row[field];
+                                                const isEmployerField = targetCollection === 'jobs' && (field === 'employerId' || field === '_ownerId');
+                                                const isCompanyField = targetCollection === 'jobs' && field === 'companyId';
+                                                
+                                                return (
                                                 <td key={idx} className="p-3 text-slate-700 max-w-[200px] truncate">
-                                                    {Array.isArray(row[field]) ? row[field].join(', ') : String(row[field] || '')}
+                                                    {isEmployerField ? (
+                                                        <select 
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-md p-1 text-sm outline-none min-w-[150px]"
+                                                            value={val || ''}
+                                                            onChange={(e) => updatePreviewRow(rowIdx, field, e.target.value)}
+                                                        >
+                                                            <option value="">-- בחר מעסיק --</option>
+                                                            {employers.map(emp => {
+                                                                const empName = emp.fullName || emp.displayName || emp.name || emp.companyName || emp.email;
+                                                                return (
+                                                                <option key={emp.id} value={emp.id}>{empName}</option>
+                                                                );
+                                                            })}
+                                                        </select>
+                                                    ) : isCompanyField ? (
+                                                        <select 
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-md p-1 text-sm outline-none min-w-[150px]"
+                                                            value={val || ''}
+                                                            onChange={(e) => updatePreviewRow(rowIdx, field, e.target.value)}
+                                                        >
+                                                            <option value="">-- בחר חברה --</option>
+                                                            {companies.map(comp => {
+                                                                const compName = comp.name || comp.companyName || 'חברה ללא שם';
+                                                                return (
+                                                                <option key={comp.id} value={comp.id}>{compName}</option>
+                                                                );
+                                                            })}
+                                                        </select>
+                                                    ) : (
+                                                        Array.isArray(val) ? val.join(', ') : String(val || '')
+                                                    )}
                                                 </td>
-                                            ))}
+                                                );
+                                            })}
                                         </tr>
                                     ))}
                                 </tbody>

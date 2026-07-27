@@ -2058,7 +2058,7 @@ for (const jobData of previewJobs) {
                                                 className="w-full bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-100"
                                                 leftIcon={<Download size={16} />}
                                                 onClick={() => {
-                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,requireCV,_ownerId,companyId\n';
+                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,requireCV,employerId,companyId\n';
                                                     const exampleRows = '"","false","מנהל מכירות","ניהול צוות טכני בשילוב של מיומנויות מכירה וקידום מוצרים","Tech Corp","חברת הייטק וותיקה במרכז תל אביב","תל אביב","משרה מלאה","היברידי","שנתיים - 3 שנים","20K-25K","מכירות","אגייל, מכירות, צוות מעולה","jobs@techcorp.co.il","true","",""';
                                                     
                                                     const blob = new Blob(['\uFEFF' + headers + exampleRows], { type: 'text/csv;charset=utf-8;' });
@@ -2086,7 +2086,7 @@ for (const jobData of previewJobs) {
                                                 className="w-full bg-white border-purple-200 text-purple-600 hover:bg-purple-100"
                                                 leftIcon={<Download size={16} />}
                                                 onClick={() => {
-                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,isImmediate,requireCV,_ownerId,companyId\n';
+                                                    const headers = 'id,isCasual,title,description,companyName,companyDescription,location,type,workMode,experienceLevel,salary,category,tags,directContact,isImmediate,requireCV,employerId,companyId\n';
                                                     const exampleRows = '"","true","דרושים מלצרים לעבודה מיידית באולם אירועים","עבודה באולם אירועים במרכז. צוות צעיר ואווירה טובה! לא נדרש ניסיון קודם!","אולמי השרון","אולם שמחות ואירועים מוביל בישראל","ראשון לציון","משמרות","משרדי","ללא ניסיון","45-50","מלצרות","ערב, בוקר","https://wa.me/972556867356","true","false","",""';
                                                     
                                                     const blob = new Blob(['\uFEFF' + headers + exampleRows], { type: 'text/csv;charset=utf-8;' });
