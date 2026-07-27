@@ -8,6 +8,7 @@ import { Upload, ArrowRight, Settings, Database, Trash2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { softDelete } from '../../lib/adminUtils';
+import { JobStatus } from '../../types';
 
 type TargetCollection = 'jobs' | 'companies' | 'users';
 
@@ -24,6 +25,7 @@ const COLLECTION_FIELDS: Record<TargetCollection, { id: string; label: string }[
         { id: 'category', label: 'קטגוריה' },
         { id: 'tags', label: 'תגיות (מופרדות בפסיק)' },
         { id: 'salary', label: 'שכר' },
+        { id: 'status', label: 'סטטוס (active, pending_review, draft, closed, rejected, expired)' },
         { id: 'isImmediate', label: 'מיידית? (TRUE/FALSE)' },
         { id: 'requireCV', label: 'דורש קו"ח? (TRUE/FALSE)' },
         { id: 'isCasual', label: 'מזדמנת? (TRUE/FALSE)' },
@@ -191,9 +193,9 @@ export const CsvBulkImporter: React.FC = () => {
                     }
                 }
                 
-                // Default status if not provided
-                if (bulkOperation === 'create' && !cleanData.status) {
-                    cleanData.status = 'Published'; // Or JobStatus.ACTIVE depending on how string maps
+                // Force pending_review status on create, no matter what
+                if (bulkOperation === 'create') {
+                    cleanData.status = JobStatus.PENDING_REVIEW;
                 }
             }
 

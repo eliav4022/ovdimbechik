@@ -282,7 +282,7 @@ const JobPost: React.FC = () => {
           tags: isAdmin ? allTags : allTags.filter(isTagApproved),
           pendingTags: isAdmin ? [] : allTags.filter(t => !isTagApproved(t)),
           hasPendingTags: isAdmin ? false : allTags.some(t => !isTagApproved(t)),
-          status: formData.status || (isAdmin ? 'Published' : JobStatus.PENDING_REVIEW),
+          status: formData.status || (JobStatus.PENDING_REVIEW),
           isCasual: formData.isCasual || false,
           isImmediate: formData.isImmediate || false,
           isUrgent: formData.isUrgent || false,

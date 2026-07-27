@@ -43,7 +43,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
       category: '',
       tags: '',
       salary: '',
-      status: JobStatus.ACTIVE,
+      status: JobStatus.PENDING_REVIEW,
       scheduledPublishDate: '',
       scheduledRemovalDate: '',
       isImmediate: false,
@@ -145,7 +145,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
           category: job.category || '',
           tags: Array.isArray(job.tags) ? job.tags.join(', ') : (job.tags || ''),
           salary: job.salary || '',
-          status: JobStatus.ACTIVE,
+          status: JobStatus.PENDING_REVIEW,
           scheduledPublishDate: job.scheduledPublishDate || '',
           scheduledRemovalDate: job.scheduledRemovalDate || '',
           isImmediate: job.isImmediate || false,
@@ -260,7 +260,7 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
           
           toast('משרה חדשה התווספה בהצלחה', 'success');
           setIsAddModalOpen(false);
-          setNewJob({ title: '', description: '', employerId: '', companyName: '', companyDescription: '', location: '', type: JobType.FULL_TIME, workMode: WorkMode.HYBRID, experienceLevel: ExperienceLevel.MIDDLE, category: '', tags: '', salary: '', status: JobStatus.ACTIVE, scheduledPublishDate: '', scheduledRemovalDate: '', isImmediate: false, isUrgent: false, requireCV: true, isCasual: isCasual, promotionLevel: PromotionLevel.REGULAR });
+          setNewJob({ title: '', description: '', employerId: '', companyName: '', companyDescription: '', location: '', type: JobType.FULL_TIME, workMode: WorkMode.HYBRID, experienceLevel: ExperienceLevel.MIDDLE, category: '', tags: '', salary: '', status: JobStatus.PENDING_REVIEW, scheduledPublishDate: '', scheduledRemovalDate: '', isImmediate: false, isUrgent: false, requireCV: true, isCasual: isCasual, promotionLevel: PromotionLevel.REGULAR });
       } catch (error) {
           console.error("Error adding job:", error);
           toast('שגיאה בהוספת משרה', 'error');
