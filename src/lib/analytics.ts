@@ -1,7 +1,7 @@
 import { collection, addDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
-export type AnalyticsEventType = 'search' | 'view_job' | 'apply_job' | 'post_job' | 'contact_click';
+export type AnalyticsEventType = 'search' | 'view_job' | 'apply_job' | 'post_job' | 'contact_click' | 'page_view' | 'site_visit';
 
 interface TrackEventParams {
     type: AnalyticsEventType;

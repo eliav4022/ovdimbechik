@@ -100,9 +100,33 @@ const ProtectedRoute: React.FC<{
   return <>{children}</>;
 };
 
+import { trackEvent } from './lib/analytics';
+
 const AppContent = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const isAdminRoute = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    // Only track actual pages, ignore admin backend
+    if (!isAdminRoute) {
+      trackEvent({ 
+        type: 'page_view', 
+        metadata: { 
+          path: location.pathname,
+          role: user?.role || 'guest'
+        } 
+      });
+      // also log it as a site visit to aggregate visits easily
+      trackEvent({ 
+        type: 'site_visit', 
+        metadata: { 
+          path: location.pathname,
+          role: user?.role || 'guest'
+        } 
+      });
+    }
+  }, [location.pathname, user, isAdminRoute]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-brand-teal selection:text-white" dir="rtl">

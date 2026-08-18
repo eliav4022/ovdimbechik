@@ -67,6 +67,10 @@ export const AdminDashboard: React.FC = () => {
     revenue: 0
   });
 
+  const [liveVisitsData, setLiveVisitsData] = useState<any[]>([]);
+  const [liveJobViewsData, setLiveJobViewsData] = useState<any[]>([]);
+  const [livePageViewsData, setLivePageViewsData] = useState<any[]>([]);
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       let unsubscribeJobReports: (() => void) | undefined;
@@ -90,6 +94,22 @@ export const AdminDashboard: React.FC = () => {
             setPendingJobsList(pendingList);
             setPendingJobsCount(pendingList.length);
             setStats(prev => ({ ...prev, jobsCount: jobsSnap.size }));
+
+            let permViews = 0;
+            let tempViews = 0;
+            jobsSnap.forEach(doc => {
+              const job = doc.data() as Job;
+              const views = job.views || 0;
+              if (job.jobType === JobType.CONTRACT || job.jobType === JobType.FREELANCE || job.jobType === JobType.INTERNSHIP || job.jobType === JobType.SHIFTS) {
+                tempViews += views;
+              } else {
+                permViews += views;
+              }
+            });
+            setLiveJobViewsData([
+              { name: 'משרה קבועה', value: permViews, color: '#4f46e5' },
+              { name: 'משרה זמנית', value: tempViews, color: '#10b981' },
+            ]);
         } catch (error) {
             console.error("Error fetching jobs: ", error);
         }
@@ -110,6 +130,45 @@ export const AdminDashboard: React.FC = () => {
             });
         } catch (error) {
             console.error("Error setting up jobReports snapshot", error);
+        }
+
+        try {
+            const analyticsSnap = await getDocs(query(collection(db, 'analytics_events'), limit(5000)));
+            const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+            const visitsMap: Record<string, any> = {};
+            dayNames.forEach(d => visitsMap[d] = { name: d, guests: 0, jobSeekers: 0, employers: 0 });
+            
+            const pathsMap: Record<string, number> = {};
+
+            analyticsSnap.forEach(doc => {
+               const data = doc.data();
+               if (data.type === 'site_visit') {
+                 const role = data.metadata?.role || 'guest';
+                 const date = new Date(data.timestamp || Date.now());
+                 const day = dayNames[date.getDay()];
+                 if (role === UserRole.SEEKER) visitsMap[day].jobSeekers++;
+                 else if (role === UserRole.EMPLOYER) visitsMap[day].employers++;
+                 else visitsMap[day].guests++;
+               }
+               if (data.type === 'page_view') {
+                 let path = data.metadata?.path || '/';
+                 if (path === '/') path = 'דף הבית';
+                 else if (path.startsWith('/jobs')) path = 'חיפוש משרות';
+                 else if (path.startsWith('/login') || path.startsWith('/register')) path = 'התחברות והרשמה';
+                 else if (path.startsWith('/employer')) path = 'אזור מעסיק';
+                 else if (path.startsWith('/seeker')) path = 'אזור מחפש עבודה';
+                 
+                 pathsMap[path] = (pathsMap[path] || 0) + 1;
+               }
+            });
+
+            setLiveVisitsData(dayNames.map(d => visitsMap[d]));
+            
+            const sortedPages = Object.keys(pathsMap).map(name => ({ name, views: pathsMap[name] })).sort((a, b) => b.views - a.views).slice(0, 6);
+            if (sortedPages.length === 0) sortedPages.push({ name: 'אין נתונים', views: 0 });
+            setLivePageViewsData(sortedPages);
+        } catch (error) {
+            console.error("Error fetching analytics: ", error);
         }
 
         if (user) {
@@ -181,7 +240,7 @@ export const AdminDashboard: React.FC = () => {
     { name: 'ש', jobs: 0, applications: 0 },
   ];
 
-  const visitsData = [
+  const visitsData = liveVisitsData.length > 0 ? liveVisitsData : [
     { name: 'א', guests: 0, jobSeekers: 0, employers: 0 },
     { name: 'ב', guests: 0, jobSeekers: 0, employers: 0 },
     { name: 'ג', guests: 0, jobSeekers: 0, employers: 0 },
@@ -191,12 +250,12 @@ export const AdminDashboard: React.FC = () => {
     { name: 'ש', guests: 0, jobSeekers: 0, employers: 0 },
   ];
 
-  const jobViewsData = [
+  const jobViewsData = liveJobViewsData.length > 0 ? liveJobViewsData : [
     { name: 'משרה קבועה', value: 0, color: '#4f46e5' },
     { name: 'משרה זמנית', value: 0, color: '#10b981' },
   ];
 
-  const pageViewsData = [
+  const pageViewsData = livePageViewsData.length > 0 ? livePageViewsData : [
     { name: 'דף הבית', views: 0 },
     { name: 'חיפוש משרות', views: 0 },
     { name: 'פרופיל מעסיק', views: 0 },
