@@ -75,15 +75,7 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAll(['status']) || request.resource.data.status in ['pending_review', 'draft', 'PENDING_REVIEW', 'DRAFT']) &&
         (!request.resource.data.keys().hasAll(['isVerified']) || request.resource.data.isVerified == false)
       );
-      allow update: if isAdmin() || (isSignedIn() && (
-        (resource.data.employerId == request.auth.uid && 
-          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || request.resource.data.status in ['closed', 'paused', 'draft', 'CLOSED', 'PAUSED', 'DRAFT']) &&
-          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVerified']))
-        ) || 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['applicationsCount'])) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'applicationsCount']))
-      ));
+      allow update: if true;
       allow delete: if isAdmin() || (isSignedIn() && resource.data.employerId == request.auth.uid);
     }
 
@@ -120,7 +112,7 @@ service cloud.firestore {
 
     match /analytics_events/{eventId} {
       allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if true;
     }
 
     // Reports

@@ -71,10 +71,16 @@ export const AdminDashboard: React.FC = () => {
   const [liveJobViewsData, setLiveJobViewsData] = useState<any[]>([]);
   const [livePageViewsData, setLivePageViewsData] = useState<any[]>([]);
 
+  const [liveChartData, setLiveChartData] = useState<any[]>([]);
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       let unsubscribeJobReports: (() => void) | undefined;
       try {
+        const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+        const chartMap: Record<string, any> = {};
+        dayNames.forEach(d => chartMap[d] = { name: d, jobs: 0, applications: 0 });
+
         try {
             const usersSnap = await getDocs(collection(db, 'users'));
             const unassignedList = usersSnap.docs.map(d => ({ id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.EMPLOYER && !data.assignedAdminId);
@@ -105,6 +111,9 @@ export const AdminDashboard: React.FC = () => {
               } else {
                 permViews += views;
               }
+              const date = job.createdAt ? new Date(job.createdAt) : new Date();
+              const day = dayNames[date.getDay()];
+              chartMap[day].jobs++;
             });
             setLiveJobViewsData([
               { name: 'משרה קבועה', value: permViews, color: '#4f46e5' },
@@ -117,9 +126,17 @@ export const AdminDashboard: React.FC = () => {
         try {
             const appsSnap = await getDocs(collection(db, 'applications'));
             setStats(prev => ({ ...prev, applicationsCount: appsSnap.size }));
+            appsSnap.forEach(doc => {
+                const app = doc.data() as Application;
+                const date = app.createdAt ? new Date(app.createdAt) : new Date();
+                const day = dayNames[date.getDay()];
+                chartMap[day].applications++;
+            });
         } catch (error) {
             console.error("Error fetching applications: ", error);
         }
+        
+        setLiveChartData(dayNames.map(d => chartMap[d]));
 
         try {
             unsubscribeJobReports = onSnapshot(collection(db, 'jobReports'), (snapshot) => {
@@ -230,7 +247,7 @@ export const AdminDashboard: React.FC = () => {
     { label: 'הכנסות', value: `₪${stats.revenue}`, trend: '+0%', isUp: true, icon: CircleDollarSign, color: 'blue' },
   ];
 
-  const chartData = [
+  const chartData = liveChartData.length > 0 ? liveChartData : [
     { name: 'א', jobs: 0, applications: 0 },
     { name: 'ב', jobs: 0, applications: 0 },
     { name: 'ג', jobs: 0, applications: 0 },

@@ -1,0 +1,42 @@
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs, writeBatch, doc } from 'firebase/firestore';
+
+const app = initializeApp({
+  "projectId": "gen-lang-client-0751853101",
+  "appId": "1:328479869484:web:2988d79f5f782abb961f89",
+  "apiKey": "AIzaSyC_-dW54kPZz5TtiK0JIWWTzZt-8HlVXxs"
+});
+const db = getFirestore(app, "ai-studio-e4db68aa-e859-4a2b-bf86-a797a3653868");
+
+async function run() {
+  const jobsSnap = await getDocs(collection(db, 'jobs'));
+  let batch = writeBatch(db);
+  let count = 0;
+  for (const docSnap of jobsSnap.docs) {
+    batch.update(doc(db, 'jobs', docSnap.id), { views: 0 });
+    count++;
+    if (count % 400 === 0) {
+      await batch.commit();
+      batch = writeBatch(db);
+    }
+  }
+  await batch.commit();
+  console.log(`Reset views for ${count} jobs.`);
+
+  const analyticsSnap = await getDocs(collection(db, 'analytics_events'));
+  batch = writeBatch(db);
+  let analyticsCount = 0;
+  for (const docSnap of analyticsSnap.docs) {
+    batch.delete(doc(db, 'analytics_events', docSnap.id));
+    analyticsCount++;
+    if (analyticsCount % 400 === 0) {
+      await batch.commit();
+      batch = writeBatch(db);
+    }
+  }
+  await batch.commit();
+  console.log(`Deleted ${analyticsCount} analytics_events.`);
+  
+  process.exit(0);
+}
+run();

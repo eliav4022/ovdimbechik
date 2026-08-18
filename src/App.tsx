@@ -117,14 +117,17 @@ const AppContent = () => {
           role: user?.role || 'guest'
         } 
       });
-      // also log it as a site visit to aggregate visits easily
-      trackEvent({ 
-        type: 'site_visit', 
-        metadata: { 
-          path: location.pathname,
-          role: user?.role || 'guest'
-        } 
-      });
+      // also log it as a site visit, but only once per session
+      if (!sessionStorage.getItem('has_tracked_visit')) {
+        sessionStorage.setItem('has_tracked_visit', 'true');
+        trackEvent({ 
+          type: 'site_visit', 
+          metadata: { 
+            path: location.pathname,
+            role: user?.role || 'guest'
+          } 
+        });
+      }
     }
   }, [location.pathname, user, isAdminRoute]);
 
