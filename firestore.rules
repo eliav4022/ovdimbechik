@@ -112,7 +112,7 @@ service cloud.firestore {
 
     match /analytics_events/{eventId} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read, update, delete: if isAdmin();
     }
 
     // Reports

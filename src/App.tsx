@@ -104,12 +104,12 @@ import { trackEvent } from './lib/analytics';
 
 const AppContent = () => {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   useEffect(() => {
-    // Only track actual pages, ignore admin backend
-    if (!isAdminRoute) {
+    // Only track actual pages, ignore admin backend. Wait for auth to load.
+    if (!isAdminRoute && !loading) {
       trackEvent({ 
         type: 'page_view', 
         metadata: { 
@@ -129,7 +129,7 @@ const AppContent = () => {
         });
       }
     }
-  }, [location.pathname, user, isAdminRoute]);
+  }, [location.pathname, user, loading, isAdminRoute]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-brand-teal selection:text-white" dir="rtl">

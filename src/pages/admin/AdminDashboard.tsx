@@ -70,7 +70,8 @@ export const AdminDashboard: React.FC = () => {
   const [liveVisitsData, setLiveVisitsData] = useState<any[]>([]);
   const [liveJobViewsData, setLiveJobViewsData] = useState<any[]>([]);
   const [livePageViewsData, setLivePageViewsData] = useState<any[]>([]);
-
+  const [allPageViews, setAllPageViews] = useState<Record<string, number>>({});
+  const [selectedFooterPage, setSelectedFooterPage] = useState<string>('אודות');
   const [liveChartData, setLiveChartData] = useState<any[]>([]);
 
   useEffect(() => {
@@ -169,21 +170,33 @@ export const AdminDashboard: React.FC = () => {
                }
                if (data.type === 'page_view') {
                  let path = data.metadata?.path || '/';
+                 
+                 // Ignore specific job views (e.g. /jobs/1234) as they are tracked in Job Views
+                 if (path.match(/^\/jobs\/./)) return;
+
                  if (path === '/') path = 'דף הבית';
-                 else if (path.startsWith('/jobs')) path = 'חיפוש משרות';
+                 else if (path === '/jobs') path = 'חיפוש משרות';
                  else if (path.startsWith('/login') || path.startsWith('/register')) path = 'התחברות והרשמה';
                  else if (path.startsWith('/employer')) path = 'אזור מעסיק';
                  else if (path.startsWith('/seeker')) path = 'אזור מחפש עבודה';
+                 
+                 // Footer pages
+                 else if (path === '/about') path = 'אודות';
+                 else if (path === '/pricing') path = 'מחירון';
+                 else if (path === '/faq') path = 'שאלות ותשובות';
+                 else if (path === '/contact') path = 'צור קשר';
+                 else if (path === '/terms') path = 'תנאי שימוש';
+                 else if (path === '/privacy') path = 'פרטיות';
+                 else if (path === '/security') path = 'אבטחה';
+                 else if (path === '/accessibility') path = 'הצהרת נגישות';
+                 else return; // Ignore any other paths
                  
                  pathsMap[path] = (pathsMap[path] || 0) + 1;
                }
             });
 
             setLiveVisitsData(dayNames.map(d => visitsMap[d]));
-            
-            const sortedPages = Object.keys(pathsMap).map(name => ({ name, views: pathsMap[name] })).sort((a, b) => b.views - a.views).slice(0, 6);
-            if (sortedPages.length === 0) sortedPages.push({ name: 'אין נתונים', views: 0 });
-            setLivePageViewsData(sortedPages);
+            setAllPageViews(pathsMap);
         } catch (error) {
             console.error("Error fetching analytics: ", error);
         }
@@ -272,13 +285,17 @@ export const AdminDashboard: React.FC = () => {
     { name: 'משרה זמנית', value: 0, color: '#10b981' },
   ];
 
-  const pageViewsData = livePageViewsData.length > 0 ? livePageViewsData : [
+  const mainPages = ['דף הבית', 'חיפוש משרות', 'אזור מעסיק', 'אזור מחפש עבודה', 'התחברות והרשמה'];
+  const pageViewsData = Object.keys(allPageViews).length > 0 ? [
+    ...mainPages.map(page => ({ name: page, views: allPageViews[page] || 0 })),
+    { name: selectedFooterPage, views: allPageViews[selectedFooterPage] || 0 }
+  ] : [
     { name: 'דף הבית', views: 0 },
     { name: 'חיפוש משרות', views: 0 },
-    { name: 'פרופיל מעסיק', views: 0 },
-    { name: 'אזור אישי', views: 0 },
-    { name: 'התחברות', views: 0 },
-    { name: 'בלוג', views: 0 },
+    { name: 'אזור מעסיק', views: 0 },
+    { name: 'אזור מחפש עבודה', views: 0 },
+    { name: 'התחברות והרשמה', views: 0 },
+    { name: selectedFooterPage, views: 0 },
   ];
 
   const totalVisits = visitsData.reduce((acc, curr) => acc + curr.guests + curr.jobSeekers + curr.employers, 0);
@@ -287,7 +304,7 @@ export const AdminDashboard: React.FC = () => {
   const totalEmployers = visitsData.reduce((acc, curr) => acc + curr.employers, 0);
   
   const totalJobViews = jobViewsData.reduce((acc, curr) => acc + curr.value, 0);
-  const totalPageViews = pageViewsData.reduce((acc, curr) => acc + curr.views, 0);
+  const totalPageViews = Object.values(allPageViews).reduce((acc, curr) => acc + curr, 0);
 
   if (loading) {
       return (
@@ -564,11 +581,26 @@ export const AdminDashboard: React.FC = () => {
                 <p className="text-sm text-slate-500 mt-2">העמודים הנצפים ביותר באתר</p>
               </div>
             </div>
-            <select className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-auto">
-              <option>7 ימים אחרונים</option>
-              <option>30 ימים אחרונים</option>
-              <option>כל הזמנים</option>
-            </select>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select 
+                value={selectedFooterPage}
+                onChange={(e) => setSelectedFooterPage(e.target.value)}
+                className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none flex-1 sm:flex-none">
+                <option value="אודות">אודות</option>
+                <option value="מחירון">מחירון</option>
+                <option value="שאלות ותשובות">שאלות ותשובות</option>
+                <option value="צור קשר">צור קשר</option>
+                <option value="תנאי שימוש">תנאי שימוש</option>
+                <option value="פרטיות">פרטיות</option>
+                <option value="אבטחה">אבטחה</option>
+                <option value="הצהרת נגישות">הצהרת נגישות</option>
+              </select>
+              <select className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none flex-1 sm:flex-none">
+                <option>7 ימים אחרונים</option>
+                <option>30 ימים אחרונים</option>
+                <option>כל הזמנים</option>
+              </select>
+            </div>
           </div>
           <div className="mb-6 flex flex-col gap-2">
             <div className="flex items-baseline gap-2">

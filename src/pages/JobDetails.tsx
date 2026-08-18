@@ -154,19 +154,32 @@ const JobDetails: React.FC = () => {
 
           setJob(jobData);
 
-          // Track job view
-          try {
-              trackEvent({
-                  type: 'view_job',
-                  metadata: {
-                      jobId: jobData.id,
-                      title: jobData.title,
-                      companyName: jobData.companyName,
-                      category: jobData.category
-                  }
-              });
-          } catch (e) {
-              console.warn("Could not track event", e);
+          // Track job view & Increment views (only once per session)
+          const viewedKey = `viewed_job_${id}`;
+          if (!sessionStorage.getItem(viewedKey)) {
+              sessionStorage.setItem(viewedKey, 'true');
+              
+              try {
+                  trackEvent({
+                      type: 'view_job',
+                      metadata: {
+                          jobId: jobData.id,
+                          title: jobData.title,
+                          companyName: jobData.companyName,
+                          category: jobData.category
+                      }
+                  });
+              } catch (e) {
+                  console.warn("Could not track event", e);
+              }
+
+              try {
+                  await updateDoc(jobDocRef, {
+                    views: increment(1)
+                  });
+              } catch (e) {
+                  console.warn("Could not increment views", e);
+              }
           }
 
           // Fetch Employer for verification badge (do this silently)
@@ -177,15 +190,6 @@ const JobDetails: React.FC = () => {
               }
           } catch (e) {
               console.warn("Could not fetch employer details", e);
-          }
-          
-          // Increment views (do this silently)
-          try {
-              await updateDoc(jobDocRef, {
-                views: increment(1)
-              });
-          } catch (e) {
-              console.warn("Could not increment views", e);
           }
 
           // Check if applied
