@@ -71,9 +71,44 @@ const Home: React.FC = () => {
       
       {/* Dynamic Hero Section */}
       <section className="relative bg-primary-dark pt-16 pb-32 overflow-hidden">
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
-            <div className="absolute top-10 right-10 w-[400px] h-[400px] bg-primary rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-10 left-10 w-[300px] h-[300px] bg-highlight rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
+        {/* Futuristic Grid Background */}
+        <div 
+          className="absolute inset-0 z-0 opacity-[0.07] pointer-events-none"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, #ffffff 1px, transparent 1px),
+              linear-gradient(to bottom, #ffffff 1px, transparent 1px)
+            `,
+            backgroundSize: '4rem 4rem',
+            maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+          }}
+        />
+
+        {/* Floating Futuristic Orbs & Glows */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            {/* Top Right Nebula */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary rounded-full blur-[120px] opacity-20 -translate-y-1/2 translate-x-1/3 mix-blend-screen" />
+            
+            {/* Bottom Left Flare */}
+            <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-highlight rounded-full blur-[100px] opacity-10 translate-y-1/2 -translate-x-1/3 mix-blend-screen" />
+            
+            {/* Animated Floating Nodes */}
+            <motion.div 
+              className="absolute top-[20%] right-[15%] w-2 h-2 bg-highlight rounded-full shadow-[0_0_15px_3px_#06b6d4]"
+              animate={{ y: [0, -20, 0], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div 
+              className="absolute top-[40%] left-[20%] w-3 h-3 bg-white rounded-full shadow-[0_0_20px_4px_#ffffff]"
+              animate={{ y: [0, 30, 0], opacity: [0.3, 0.8, 0.3] }}
+              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            />
+            <motion.div 
+              className="absolute bottom-[30%] right-[25%] w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_10px_2px_#3b82f6]"
+              animate={{ y: [0, -15, 0], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+            />
         </div>
         
         <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
@@ -96,16 +131,16 @@ const Home: React.FC = () => {
             מהיר יותר, חכם יותר, פשוט יותר.
           </p>
 
-          <div className="max-w-xl mx-auto">
-            <form onSubmit={handleQuickSearch} className="flex flex-col sm:flex-row p-1.5 bg-white sm:rounded-full rounded-2xl shadow-xl gap-2">
+          <div className="max-w-xl mx-auto relative group mt-8">
+            <form onSubmit={handleQuickSearch} className="flex flex-col sm:flex-row p-1.5 bg-white sm:rounded-full rounded-2xl gap-2 relative z-20 shadow-xl border border-slate-100">
               <input 
                 type="text" 
                 placeholder="מה אתם מחפשים? (תפקיד, תחום...)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-grow bg-transparent px-4 py-3 text-slate-800 font-bold focus:outline-none text-sm text-center sm:text-right"
+                className="flex-grow bg-transparent px-5 py-3 text-slate-800 font-bold focus:outline-none text-base text-center sm:text-right relative z-20 placeholder:text-slate-400"
               />
-              <Button type="submit" className="rounded-xl sm:rounded-full w-full sm:w-auto px-6 py-3 font-bold flex items-center justify-center gap-2 text-sm">
+              <Button type="submit" className="rounded-xl sm:rounded-full w-full sm:w-auto px-8 py-3 font-bold flex items-center justify-center gap-2 text-base relative z-20 shadow-md">
                 <Search size={18} />
                 חפש עבודה
               </Button>

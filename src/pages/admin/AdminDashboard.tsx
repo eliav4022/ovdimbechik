@@ -9,11 +9,18 @@ import { AdminAudit } from './AdminAudit';
 import { 
   AreaChart, 
   Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  Label
 } from 'recharts';
 import { 
   Users, 
@@ -26,7 +33,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   UserPlus,
-  X
+  X,
+  Eye,
+  MousePointerClick,
+  LayoutDashboard
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -162,14 +172,46 @@ export const AdminDashboard: React.FC = () => {
   ];
 
   const chartData = [
-    { name: 'א', jobs: 40, applications: 24 },
-    { name: 'ב', jobs: 30, applications: 13 },
-    { name: 'ג', jobs: 20, applications: 98 },
-    { name: 'ד', jobs: 27, applications: 39 },
-    { name: 'ה', jobs: 18, applications: 48 },
-    { name: 'ו', jobs: 23, applications: 38 },
-    { name: 'ש', jobs: 34, applications: 43 },
+    { name: 'א', jobs: 0, applications: 0 },
+    { name: 'ב', jobs: 0, applications: 0 },
+    { name: 'ג', jobs: 0, applications: 0 },
+    { name: 'ד', jobs: 0, applications: 0 },
+    { name: 'ה', jobs: 0, applications: 0 },
+    { name: 'ו', jobs: 0, applications: 0 },
+    { name: 'ש', jobs: 0, applications: 0 },
   ];
+
+  const visitsData = [
+    { name: 'א', guests: 0, jobSeekers: 0, employers: 0 },
+    { name: 'ב', guests: 0, jobSeekers: 0, employers: 0 },
+    { name: 'ג', guests: 0, jobSeekers: 0, employers: 0 },
+    { name: 'ד', guests: 0, jobSeekers: 0, employers: 0 },
+    { name: 'ה', guests: 0, jobSeekers: 0, employers: 0 },
+    { name: 'ו', guests: 0, jobSeekers: 0, employers: 0 },
+    { name: 'ש', guests: 0, jobSeekers: 0, employers: 0 },
+  ];
+
+  const jobViewsData = [
+    { name: 'משרה קבועה', value: 0, color: '#4f46e5' },
+    { name: 'משרה זמנית', value: 0, color: '#10b981' },
+  ];
+
+  const pageViewsData = [
+    { name: 'דף הבית', views: 0 },
+    { name: 'חיפוש משרות', views: 0 },
+    { name: 'פרופיל מעסיק', views: 0 },
+    { name: 'אזור אישי', views: 0 },
+    { name: 'התחברות', views: 0 },
+    { name: 'בלוג', views: 0 },
+  ];
+
+  const totalVisits = visitsData.reduce((acc, curr) => acc + curr.guests + curr.jobSeekers + curr.employers, 0);
+  const totalGuests = visitsData.reduce((acc, curr) => acc + curr.guests, 0);
+  const totalJobSeekers = visitsData.reduce((acc, curr) => acc + curr.jobSeekers, 0);
+  const totalEmployers = visitsData.reduce((acc, curr) => acc + curr.employers, 0);
+  
+  const totalJobViews = jobViewsData.reduce((acc, curr) => acc + curr.value, 0);
+  const totalPageViews = pageViewsData.reduce((acc, curr) => acc + curr.views, 0);
 
   if (loading) {
       return (
@@ -304,6 +346,7 @@ export const AdminDashboard: React.FC = () => {
             <select className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-auto">
               <option>7 ימים אחרונים</option>
               <option>30 ימים אחרונים</option>
+              <option>כל הזמנים</option>
             </select>
           </div>
           <div className="h-[200px] md:h-[350px] w-full" dir="ltr">
@@ -325,6 +368,152 @@ export const AdminDashboard: React.FC = () => {
                 <Area type="monotone" dataKey="jobs" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorJobs)" />
                 <Area type="monotone" dataKey="applications" stroke="#10b981" strokeWidth={3} fillOpacity={0} />
               </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* Analytics Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-8">
+        {/* Site Visits Chart */}
+        <Card className="p-4 md:p-8 border-none shadow-xl shadow-slate-200/50 w-full overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
+                <MousePointerClick size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 leading-none">כניסות לאתר</h3>
+                <p className="text-sm text-slate-500 mt-2">פילוח לפי סוגי מבקרים</p>
+              </div>
+            </div>
+            <select className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-auto">
+              <option>7 ימים אחרונים</option>
+              <option>30 ימים אחרונים</option>
+              <option>כל הזמנים</option>
+            </select>
+          </div>
+          <div className="mb-6 flex flex-col gap-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-slate-900">{totalVisits.toLocaleString()}</span>
+              <span className="text-slate-500 font-medium text-sm">סה״כ כניסות לאתר</span>
+            </div>
+            <div className="flex items-center gap-4 text-sm font-bold mt-2">
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span><span className="text-slate-600">{totalGuests.toLocaleString()} אורחים</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span className="text-slate-600">{totalJobSeekers.toLocaleString()} מחפשי עבודה</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span className="text-slate-600">{totalEmployers.toLocaleString()} מעסיקים</span></div>
+            </div>
+          </div>
+          <div className="h-[250px] w-full" dir="ltr">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={visitsData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dx={-10} width={40} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', direction: 'rtl' }}
+                  itemStyle={{ fontSize: '12px', fontWeight: '800' }}
+                  cursor={{fill: '#f8fafc'}}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                <Bar dataKey="guests" name="אורחים" stackId="a" fill="#94a3b8" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="jobSeekers" name="מחפשי עבודה" stackId="a" fill="#3b82f6" />
+                <Bar dataKey="employers" name="מעסיקים" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* Job Views Chart */}
+        <Card className="p-4 md:p-8 border-none shadow-xl shadow-slate-200/50 w-full overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
+                <Eye size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 leading-none">צפיות במשרות</h3>
+                <p className="text-sm text-slate-500 mt-2">פילוח לפי סוג משרה</p>
+              </div>
+            </div>
+          </div>
+          <div className="h-[250px] w-full flex items-center justify-center" dir="ltr">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={jobViewsData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={95}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {jobViewsData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                  <Label 
+                    value={totalJobViews.toLocaleString()} 
+                    position="center" 
+                    fill="#0f172a" 
+                    style={{ fontSize: '28px', fontWeight: '900', fontFamily: 'inherit' }}
+                  />
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', direction: 'rtl' }}
+                  itemStyle={{ fontSize: '12px', fontWeight: '800' }}
+                  formatter={(value: number) => [value.toLocaleString(), 'צפיות']}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36} 
+                  wrapperStyle={{ fontSize: '13px', fontWeight: 'bold' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* Page Views Chart */}
+      <div className="mb-8">
+        <Card className="p-4 md:p-8 border-none shadow-xl shadow-slate-200/50 w-full overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600">
+                <LayoutDashboard size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 leading-none">צפיות לפי עמודים</h3>
+                <p className="text-sm text-slate-500 mt-2">העמודים הנצפים ביותר באתר</p>
+              </div>
+            </div>
+            <select className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-auto">
+              <option>7 ימים אחרונים</option>
+              <option>30 ימים אחרונים</option>
+              <option>כל הזמנים</option>
+            </select>
+          </div>
+          <div className="mb-6 flex flex-col gap-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-slate-900">{totalPageViews.toLocaleString()}</span>
+              <span className="text-slate-500 font-medium text-sm">סה״כ צפיות בעמודים</span>
+            </div>
+          </div>
+          <div className="h-[300px] w-full" dir="ltr">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={pageViewsData} layout="vertical" margin={{ top: 10, right: 30, left: 40, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 13, fontWeight: 'bold'}} width={100} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', direction: 'rtl' }}
+                  itemStyle={{ fontSize: '14px', fontWeight: '800' }}
+                  cursor={{fill: '#f1f5f9'}}
+                  formatter={(value: number) => [value.toLocaleString(), 'צפיות']}
+                />
+                <Bar dataKey="views" name="צפיות" fill="#f97316" radius={[0, 4, 4, 0]} barSize={24} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
