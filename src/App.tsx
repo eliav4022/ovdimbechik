@@ -100,7 +100,7 @@ const ProtectedRoute: React.FC<{
   return <>{children}</>;
 };
 
-import { trackEvent } from './lib/analytics';
+import { trackEvent, updateTrackedEvent } from './lib/analytics';
 
 const AppContent = () => {
   const location = useLocation();
@@ -117,16 +117,33 @@ const AppContent = () => {
           role: user?.role || 'guest'
         } 
       });
-      // also log it as a site visit, but only once per session
+      
+      const currentRole = user?.role || 'guest';
+
+      // Log site visit once per session, but upgrade the role if user logs in
       if (!sessionStorage.getItem('has_tracked_visit')) {
         sessionStorage.setItem('has_tracked_visit', 'true');
+        sessionStorage.setItem('tracked_visit_role', currentRole);
+        
         trackEvent({ 
           type: 'site_visit', 
           metadata: { 
             path: location.pathname,
-            role: user?.role || 'guest'
+            role: currentRole
           } 
+        }).then(docId => {
+          if (docId) sessionStorage.setItem('site_visit_doc_id', docId);
         });
+      } else {
+        // Visit was already tracked this session. Check if role upgraded from guest to user.
+        const trackedRole = sessionStorage.getItem('tracked_visit_role');
+        const visitDocId = sessionStorage.getItem('site_visit_doc_id');
+        
+        if (trackedRole === 'guest' && currentRole !== 'guest' && visitDocId) {
+            // User just logged in during this session! Update the existing site_visit event.
+            sessionStorage.setItem('tracked_visit_role', currentRole);
+            updateTrackedEvent(visitDocId, { role: currentRole });
+        }
       }
     }
   }, [location.pathname, user, loading, isAdminRoute]);

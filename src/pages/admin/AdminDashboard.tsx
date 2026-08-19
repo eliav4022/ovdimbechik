@@ -107,7 +107,7 @@ export const AdminDashboard: React.FC = () => {
             jobsSnap.forEach(doc => {
               const job = doc.data() as Job;
               const views = job.views || 0;
-              if (job.jobType === JobType.CONTRACT || job.jobType === JobType.FREELANCE || job.jobType === JobType.INTERNSHIP || job.jobType === JobType.SHIFTS) {
+              if (job.type === JobType.CONTRACT || job.type === JobType.FREELANCE || job.type === JobType.INTERNSHIP || job.type === JobType.SHIFTS || job.isCasual || job.jobCategoryType === 'casual') {
                 tempViews += views;
               } else {
                 permViews += views;
