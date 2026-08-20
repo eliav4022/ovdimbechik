@@ -122,17 +122,18 @@ const AppContent = () => {
 
       // Log site visit once per session, but upgrade the role if user logs in
       if (!sessionStorage.getItem('has_tracked_visit')) {
+        const newVisitId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
         sessionStorage.setItem('has_tracked_visit', 'true');
         sessionStorage.setItem('tracked_visit_role', currentRole);
+        sessionStorage.setItem('site_visit_doc_id', newVisitId);
         
         trackEvent({ 
-          type: 'site_visit', 
+          type: 'site_visit',
+          eventId: newVisitId,
           metadata: { 
             path: location.pathname,
             role: currentRole
           } 
-        }).then(docId => {
-          if (docId) sessionStorage.setItem('site_visit_doc_id', docId);
         });
       } else {
         // Visit was already tracked this session. Check if role upgraded from guest to user.

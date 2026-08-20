@@ -1,4 +1,4 @@
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, setDoc, addDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
 export type AnalyticsEventType = 'search' | 'view_job' | 'apply_job' | 'post_job' | 'contact_click' | 'page_view' | 'site_visit';
@@ -6,9 +6,10 @@ export type AnalyticsEventType = 'search' | 'view_job' | 'apply_job' | 'post_job
 interface TrackEventParams {
     type: AnalyticsEventType;
     metadata?: Record<string, any>;
+    eventId?: string;
 }
 
-export const trackEvent = async ({ type, metadata = {} }: TrackEventParams) => {
+export const trackEvent = async ({ type, metadata = {}, eventId }: TrackEventParams) => {
     try {
         const eventData = {
             type,
@@ -21,8 +22,13 @@ export const trackEvent = async ({ type, metadata = {} }: TrackEventParams) => {
         console.log(`[Analytics] ${type}`, eventData);
 
         // Record in Firestore
-        const docRef = await addDoc(collection(db, 'analytics_events'), eventData);
-        return docRef.id;
+        if (eventId) {
+            await setDoc(doc(db, 'analytics_events', eventId), eventData);
+            return eventId;
+        } else {
+            const docRef = await addDoc(collection(db, 'analytics_events'), eventData);
+            return docRef.id;
+        }
     } catch (error) {
         // Silently fail analytics so it doesn't break the UI
         console.error('Failed to track event:', error);
@@ -32,10 +38,12 @@ export const trackEvent = async ({ type, metadata = {} }: TrackEventParams) => {
 
 export const updateTrackedEvent = async (docId: string, metadataUpdates: Record<string, any>) => {
     try {
-        await updateDoc(doc(db, 'analytics_events', docId), {
-            'metadata.role': metadataUpdates.role,
+        await setDoc(doc(db, 'analytics_events', docId), {
+            metadata: {
+                role: metadataUpdates.role
+            },
             userId: auth.currentUser?.uid || null
-        });
+        }, { merge: true });
     } catch (error) {
         console.error('Failed to update event:', error);
     }

@@ -154,7 +154,7 @@ export const AdminDashboard: React.FC = () => {
             const analyticsSnap = await getDocs(query(collection(db, 'analytics_events'), limit(5000)));
             const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
             const visitsMap: Record<string, any> = {};
-            dayNames.forEach(d => visitsMap[d] = { name: d, guests: 0, jobSeekers: 0, employers: 0 });
+            dayNames.forEach(d => visitsMap[d] = { name: d, guests: 0, jobSeekers: 0, employers: 0, admins: 0 });
             
             const pathsMap: Record<string, number> = {};
 
@@ -166,6 +166,7 @@ export const AdminDashboard: React.FC = () => {
                  const day = dayNames[date.getDay()];
                  if (role === UserRole.SEEKER) visitsMap[day].jobSeekers++;
                  else if (role === UserRole.EMPLOYER) visitsMap[day].employers++;
+                 else if (role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN || role === UserRole.SUPPORT_AGENT) visitsMap[day].admins++;
                  else visitsMap[day].guests++;
                }
                if (data.type === 'page_view') {
@@ -298,10 +299,11 @@ export const AdminDashboard: React.FC = () => {
     { name: selectedFooterPage, views: 0 },
   ];
 
-  const totalVisits = visitsData.reduce((acc, curr) => acc + curr.guests + curr.jobSeekers + curr.employers, 0);
+  const totalVisits = visitsData.reduce((acc, curr) => acc + curr.guests + curr.jobSeekers + curr.employers + (curr.admins || 0), 0);
   const totalGuests = visitsData.reduce((acc, curr) => acc + curr.guests, 0);
   const totalJobSeekers = visitsData.reduce((acc, curr) => acc + curr.jobSeekers, 0);
   const totalEmployers = visitsData.reduce((acc, curr) => acc + curr.employers, 0);
+  const totalAdmins = visitsData.reduce((acc, curr) => acc + (curr.admins || 0), 0);
   
   const totalJobViews = jobViewsData.reduce((acc, curr) => acc + curr.value, 0);
   const totalPageViews = Object.values(allPageViews).reduce((acc, curr) => acc + curr, 0);
@@ -491,10 +493,11 @@ export const AdminDashboard: React.FC = () => {
               <span className="text-4xl font-black text-slate-900">{totalVisits.toLocaleString()}</span>
               <span className="text-slate-500 font-medium text-sm">סה״כ כניסות לאתר</span>
             </div>
-            <div className="flex items-center gap-4 text-sm font-bold mt-2">
+            <div className="flex flex-wrap items-center gap-4 text-sm font-bold mt-2">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span><span className="text-slate-600">{totalGuests.toLocaleString()} אורחים</span></div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span><span className="text-slate-600">{totalJobSeekers.toLocaleString()} מחפשי עבודה</span></div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span className="text-slate-600">{totalEmployers.toLocaleString()} מעסיקים</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span><span className="text-slate-600">{totalAdmins.toLocaleString()} מנהלים/צוות</span></div>
             </div>
           </div>
           <div className="h-[250px] w-full" dir="ltr">
@@ -511,7 +514,8 @@ export const AdminDashboard: React.FC = () => {
                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                 <Bar dataKey="guests" name="אורחים" stackId="a" fill="#94a3b8" radius={[0, 0, 4, 4]} />
                 <Bar dataKey="jobSeekers" name="מחפשי עבודה" stackId="a" fill="#3b82f6" />
-                <Bar dataKey="employers" name="מעסיקים" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="employers" name="מעסיקים" stackId="a" fill="#10b981" />
+                <Bar dataKey="admins" name="מנהלים/צוות" stackId="a" fill="#a855f7" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

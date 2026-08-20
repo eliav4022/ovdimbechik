@@ -56,7 +56,7 @@ if (!admin.apps.length) {
 async function startServer() {
   const app = express();
   app.set("trust proxy", 1);
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
   // Minimal middleware for production stability
   app.use(helmet({ contentSecurityPolicy: false })); // allow Vite's inline scripts
