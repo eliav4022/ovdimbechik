@@ -279,7 +279,7 @@ export const AdminSeekers: React.FC = () => {
             key: 'status',
             header: 'סטטוס פרופיל',
             render: (u: any) => {
-                const isComplete = u.seekerProfile?.resumeUrl && u.seekerProfile?.bio;
+                const isComplete = u.cvUrl && (u.bio || u.seekerProfile?.bio);
                 return (
                     <Badge variant={isComplete ? 'success' : 'warning'} className="font-bold text-[10px]">
                         {isComplete ? 'פרופיל מלא' : 'חסר נתונים'}

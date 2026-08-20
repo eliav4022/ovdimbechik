@@ -73,7 +73,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
             
         <div className="flex flex-col h-full z-10 relative">
           <div className="flex justify-between items-start mb-4 md:mb-5">
-            <div className="flex gap-4 md:gap-5 pl-10">
+            <div className="flex gap-4 md:gap-5 pl-10 w-full">
               <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-primary shadow-sm border border-slate-100 flex-shrink-0 overflow-hidden group-hover:scale-105 transition-transform duration-300">
                 {job.companyLogo ? (
                     <img src={job.companyLogo} alt={job.companyName} className="w-full h-full object-cover" />
@@ -81,8 +81,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
                     <Building2 className="w-7 h-7 md:w-8 md:h-8 opacity-70" />
                 )}
               </div>
-              <div className="text-right pt-0.5">
-                <h3 className="font-black text-lg md:text-xl text-slate-800 group-hover:text-primary transition-colors line-clamp-1 mb-1">
+              <div className="text-right pt-0.5 flex-1 min-w-0">
+                <h3 className="font-black text-lg md:text-xl text-slate-800 group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-1.5" title={job.title}>
                   {job.title}
                 </h3>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -117,8 +117,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
                     <button
                         onClick={toggleSave}
                         className={cn(
-                            "p-2.5 rounded-full transition-all duration-300 flex items-center justify-center",
-                            isSaved ? "bg-red-50 text-red-500" : "bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                            "p-2.5 rounded-full transition-all duration-300 flex items-center justify-center hover:scale-110 active:scale-95",
+                            isSaved ? "bg-red-50 text-red-500 shadow-sm" : "bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:shadow-sm"
                         )}
                     >
                         <Heart className="w-5 h-5 md:w-5 md:h-5" fill={isSaved ? "currentColor" : "none"} />
@@ -127,46 +127,49 @@ export const JobCard: React.FC<JobCardProps> = ({ job, isSaved = false }) => {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-4 md:mb-6 mt-auto">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3 mt-auto">
             {job.location && (
-              <div className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-medium border border-slate-100/50">
-                <MapPin size={14} className="text-primary/70" />
+              <div className="flex items-center gap-1.5 text-slate-700 text-xs md:text-sm font-bold">
+                <MapPin size={16} className="text-slate-500" />
                 {job.location}
               </div>
             )}
-            <div className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-medium border border-slate-100/50">
-              <Clock size={14} className="text-primary/70" />
+            <div className="flex items-center gap-1.5 text-slate-700 text-xs md:text-sm font-bold">
+              <Clock size={16} className="text-slate-500" />
               {getJobTypeLabel(job.type)}
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mb-4 md:mb-6">
             {job.salary && (
-            <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-bold border border-emerald-100/50">
+            <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-bold border border-emerald-100 hover:bg-emerald-100 transition-colors">
               <Zap size={14} className="text-emerald-500" />
               {job.salary}
             </div>
             )}
             {job.workMode && (
-              <div className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-medium border border-slate-100/50">
-                <Home size={14} className="text-primary/70" />
+              <div className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-bold border border-indigo-100 hover:bg-indigo-100 transition-colors">
+                <Home size={14} className="text-indigo-500" />
                 {job.workMode}
               </div>
             )}
             {job.experienceLevel && (
-              <div className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-medium border border-slate-100/50">
-                <Award size={14} className="text-primary/70" />
+              <div className="flex items-center gap-1.5 text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl text-[11px] md:text-xs font-bold border border-purple-100 hover:bg-purple-100 transition-colors">
+                <Award size={14} className="text-purple-500" />
                 {job.experienceLevel}
               </div>
             )}
           </div>
              
           {job.tags && job.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-5">
+            <div className="flex flex-wrap gap-1.5 mb-5">
               {job.tags.slice(0, 3).map((tag, idx) => (
-                <span key={idx} className="text-[10px] md:text-xs text-slate-500 font-medium bg-white border border-slate-200 px-3 py-1 rounded-full">
+                <span key={idx} className="text-[10px] md:text-[11px] text-slate-500 font-medium bg-white border border-slate-200 px-1.5 py-0.5 rounded-md shadow-sm hover:bg-slate-50 hover:text-slate-700 transition-colors">
                     {tag}
                 </span>
               ))}
               {job.tags.length > 3 && (
-                <span className="text-[10px] md:text-xs text-slate-500 font-medium bg-slate-50 border border-slate-100 px-3 py-1 rounded-full">
+                <span className="text-[10px] md:text-[11px] text-slate-500 font-medium bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-sm">
                   +{job.tags.length - 3}
                 </span>
               )}

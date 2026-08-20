@@ -36,7 +36,8 @@ import {
   X,
   Eye,
   MousePointerClick,
-  LayoutDashboard
+  LayoutDashboard,
+  RefreshCw
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -54,6 +55,8 @@ export const AdminDashboard: React.FC = () => {
   const [adminsList, setAdminsList] = useState<User[]>([]);
   
   const [showTasksModal, setShowTasksModal] = useState(false);
+  const [showReportsModal, setShowReportsModal] = useState(false);
+  const [pendingJobReportsList, setPendingJobReportsList] = useState<any[]>([]);
   const [showPendingJobsModal, setShowPendingJobsModal] = useState(false);
   const [showUnassignedModal, setShowUnassignedModal] = useState(false);
   const [unassignedEmployers, setUnassignedEmployers] = useState(0);
@@ -73,6 +76,7 @@ export const AdminDashboard: React.FC = () => {
   const [allPageViews, setAllPageViews] = useState<Record<string, number>>({});
   const [selectedFooterPage, setSelectedFooterPage] = useState<string>('אודות');
   const [liveChartData, setLiveChartData] = useState<any[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -141,7 +145,10 @@ export const AdminDashboard: React.FC = () => {
 
         try {
             unsubscribeJobReports = onSnapshot(collection(db, 'jobReports'), (snapshot) => {
-                const pendingReportsList = snapshot.docs.filter(doc => !doc.data().status || doc.data().status === 'pending');
+                const pendingReportsList = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter((data: any) => !data.status || data.status === 'pending');
+                setPendingJobReportsList(pendingReportsList);
                 setPendingJobReportsCount(pendingReportsList.length);
             }, (error) => {
                 console.error("Error subscribing to jobReports: ", error);
@@ -222,12 +229,13 @@ export const AdminDashboard: React.FC = () => {
 
     let unsub: (() => void) | undefined;
     if (user) {
-        fetchDashboardData().then(fn => { unsub = fn; });
+        setLoading(true);
+        fetchDashboardData().then(fn => { unsub = fn; setLoading(false); });
     }
     return () => {
         if (unsub) unsub();
     }
-  }, [toast, user]);
+  }, [toast, user, refreshKey]);
 
   const handleAssignAdmin = async (employerId: string, adminId: string) => {
       try {
@@ -319,9 +327,19 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div>
-          <h1 className="text-3xl font-black text-slate-900 mb-2 font-sans tracking-tight">סקירה כללית</h1>
-          <p className="text-slate-500 font-medium">ברוך הבא למרכז הבקרה של עובדים בצ׳יק.</p>
+      <div className="flex items-center justify-between">
+        <div>
+            <h1 className="text-3xl font-black text-slate-900 mb-2 font-sans tracking-tight">סקירה כללית</h1>
+            <p className="text-slate-500 font-medium">ברוך הבא למרכז הבקרה של עובדים בצ׳יק.</p>
+        </div>
+        <button 
+          onClick={() => setRefreshKey(prev => prev + 1)}
+          disabled={loading}
+          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors disabled:opacity-50 flex items-center justify-center group"
+          title="רענן נתונים"
+        >
+          <RefreshCw size={20} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'} />
+        </button>
       </div>
 
       {/* General Stats Grid */}
@@ -370,7 +388,7 @@ export const AdminDashboard: React.FC = () => {
         </Card>
 
         {/* Pending Job Reports Card */}
-        <div onClick={() => navigate('/admin/reports?tab=users')} className="block outline-none">
+        <div onClick={() => setShowReportsModal(true)} className="block outline-none">
             <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-red-500 bg-red-50/10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
                 <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-red-50 flex items-center justify-center text-red-600 shrink-0`}>
@@ -650,17 +668,86 @@ export const AdminDashboard: React.FC = () => {
                       ) : (
                           <div className="space-y-4">
                                {myTasks.map(task => (
-                                  <Link to={`/admin/tasks/${task.id}`} key={task.id} className="block p-4 border border-slate-200 rounded-xl hover:border-indigo-500 transition-colors bg-slate-50 cursor-pointer text-right">
-                                      <div className="flex items-start justify-between">
-                                          <div>
-                                              <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-1 rounded font-bold mb-2 inline-block">
-                                                  עדיפות: {task.priority || 'רגילה'}
+                                  <Link to={`/admin/tasks/${task.id}`} key={task.id} className="block p-4 border border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-md transition-all bg-slate-50 cursor-pointer text-right group">
+                                      <div className="flex flex-col gap-3">
+                                          <div className="flex items-start justify-between">
+                                              <div>
+                                                  <h4 className="font-bold text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors text-lg">{task.title || 'משימה ללא כותרת'}</h4>
+                                                  <p className="text-sm text-slate-600 line-clamp-2">{task.description || 'אין תיאור מפורט למשימה זו.'}</p>
+                                              </div>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                                              <span className={`text-[11px] px-2.5 py-1 rounded-md font-bold flex items-center gap-1 ${
+                                                  task.priority === 'Urgent' ? 'bg-red-100 text-red-700' : 
+                                                  task.priority === 'High' ? 'bg-orange-100 text-orange-700' : 
+                                                  'bg-slate-200 text-slate-700'
+                                              }`}>
+                                                  עדיפות: {task.priority === 'Urgent' ? 'דחופה' : task.priority === 'High' ? 'גבוהה' : 'רגילה'}
                                               </span>
-                                              <h4 className="font-bold text-slate-800 mb-1">{task.title || 'משימה ללא כותרת'}</h4>
-                                              <p className="text-sm text-slate-600 line-clamp-2">{task.description || 'אין תיאור מפורט למשימה זו.'}</p>
+                                              <span className={`text-[11px] px-2.5 py-1 rounded-md font-bold flex items-center gap-1 ${
+                                                  task.isResolved ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                              }`}>
+                                                  סטטוס: {task.isResolved ? 'טופל' : 'פתוח'}
+                                              </span>
+                                              {task.createdAt && (
+                                                  <span className="text-[11px] bg-white border border-slate-200 text-slate-500 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 shadow-sm">
+                                                      <Clock size={12} className="text-slate-400" />
+                                                      נוצר: {new Date(task.createdAt).toLocaleDateString('he-IL')}
+                                                  </span>
+                                              )}
                                           </div>
                                       </div>
                                   </Link>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {showReportsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                      <h2 className="text-xl font-black text-slate-800 flex items-center gap-2"><AlertTriangle className="text-red-500" /> דיווחים דחופים בטיפול</h2>
+                      <button onClick={() => setShowReportsModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  <div className="p-6 overflow-y-auto">
+                      {pendingJobReportsList.length === 0 ? (
+                          <div className="text-center text-slate-500 font-medium py-8">אין דיווחים דחופים שממתינים לטיפול כרגע.</div>
+                      ) : (
+                          <div className="space-y-4">
+                               {pendingJobReportsList.map(report => (
+                                  <div key={report.id} onClick={() => { setShowReportsModal(false); navigate('/admin/reports?tab=users'); }} className="block p-4 border border-slate-200 rounded-xl hover:border-red-500 hover:shadow-md transition-all bg-slate-50 cursor-pointer text-right group">
+                                      <div className="flex flex-col gap-3">
+                                          <div className="flex items-start justify-between">
+                                              <div>
+                                                  <h4 className="font-bold text-slate-800 mb-1 group-hover:text-red-600 transition-colors text-lg">
+                                                    דיווח על {report.targetType === 'job' ? 'משרה' : 'משתמש'}
+                                                  </h4>
+                                                  <p className="text-sm text-slate-600 line-clamp-2"><span className="font-bold">סיבה:</span> {report.reason}</p>
+                                                  {report.details && <p className="text-xs text-slate-500 line-clamp-1 mt-1">{report.details}</p>}
+                                              </div>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                                              <span className={`text-[11px] px-2.5 py-1 rounded-md font-bold flex items-center gap-1 bg-red-100 text-red-700`}>
+                                                  סטטוס: ממתין לטיפול
+                                              </span>
+                                              <span className={`text-[11px] px-2.5 py-1 rounded-md font-bold flex items-center gap-1 bg-slate-200 text-slate-700`}>
+                                                  דווח ע"י: {report.reporterName || 'אנונימי'}
+                                              </span>
+                                              {report.createdAt && (
+                                                  <span className="text-[11px] bg-white border border-slate-200 text-slate-500 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 shadow-sm">
+                                                      <Clock size={12} className="text-slate-400" />
+                                                      נוצר: {new Date(report.createdAt).toLocaleDateString('he-IL')}
+                                                  </span>
+                                              )}
+                                          </div>
+                                      </div>
+                                  </div>
                               ))}
                           </div>
                       )}

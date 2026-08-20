@@ -135,7 +135,6 @@ const DEFAULT_SCHEMA: ObjectDef[] = [
       { name: 'applicantName', label: 'Applicant Name', type: 'String', required: true },
       { name: 'applicantEmail', label: 'Applicant Email', type: 'String', required: true },
       { name: 'applicantPhone', label: 'Applicant Phone', type: 'String', required: true },
-      { name: 'resumeUrl', label: 'CV/Resume URL', type: 'String' },
       { name: 'cvUrl', label: 'CV/Resume URL (Deprecated)', type: 'String' },
       { name: 'coverLetter', label: 'Cover Letter text', type: 'String' },
       { name: 'status', label: 'Status', type: 'Picklist (ApplicationStatus)', required: true },

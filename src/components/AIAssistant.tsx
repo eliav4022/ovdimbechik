@@ -355,7 +355,7 @@ export const AIAssistant: React.FC = () => {
                             } else {
                                 const myJobsSnap = await getDocs(query(collection(db, 'jobs'), where('employerId', '==', user.uid)));
                                 const myJobIds = myJobsSnap.docs.map(d => d.id);
-                                const appsSnap = await getDocs(query(collection(db, 'applications'), where('employerId', '==', user.uid)));
+                                const appsSnap = await getDocs(query(collection(db, 'applications'), where('ownerId', '==', user.uid)));
                                 const myApplicants = appsSnap.docs.map(a => a.data());
                                 const newApplicants = myApplicants.filter((a: any) => a.status === 'New').length;
                                 

@@ -220,13 +220,11 @@ export interface Application {
   id: string;
   jobId: string;
   seekerId: string;
-  employerId: string; // Deprecated
-  ownerId?: string;
+  ownerId: string;
   applicantName: string;
   applicantEmail: string;
   applicantPhone: string;
-  cvUrl: string; // Kept for backward compatibility
-  resumeUrl?: string; // Replaces cvUrl
+  cvUrl: string; 
   coverLetter?: string;
   status: ApplicationStatus;
   createdAt: string;

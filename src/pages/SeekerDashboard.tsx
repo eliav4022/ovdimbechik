@@ -40,7 +40,8 @@ import {
     ShieldCheck,
     AlertTriangle,
     Sliders,
-    Search
+    Search,
+    RefreshCw
 } from 'lucide-react';
 import { cn, validateFile } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,6 +54,7 @@ const SeekerDashboard: React.FC = () => {
     const [savedJobs, setSavedJobs] = useState<Job[]>([]);
     const [matchedJobs, setMatchedJobs] = useState<Job[]>([]);
     const [allJobs, setAllJobs] = useState<Job[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
     const [activeTab, setActiveTab] = useState<'applications' | 'saved' | 'profile' | 'matches'>('applications');
     const [loading, setLoading] = useState(true);
 
@@ -142,6 +144,20 @@ const SeekerDashboard: React.FC = () => {
     const [enableCVUploads, setEnableCVUploads] = useState(true);
     const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
 
+    const handleWithdraw = async (appId: string) => {
+        if (!window.confirm('האם אתה בטוח שברצונך למשוך את המועמדות? פעולה זו תעדכן את המעסיק.')) return;
+        try {
+            await updateDoc(doc(db, 'applications', appId), {
+                status: ApplicationStatus.WITHDRAWN
+            });
+            setAppliedJobs(prev => prev.map(item => item.app.id === appId ? { ...item, app: { ...item.app, status: ApplicationStatus.WITHDRAWN } } : item));
+            toast('המועמדות בוטלה בהצלחה', 'success');
+        } catch(err) {
+            console.error(err);
+            toast('שגיאה בביטול מועמדות', 'error');
+        }
+    };
+
     // Initial setup from user
     useEffect(() => {
         if (!user) return;
@@ -188,7 +204,7 @@ const SeekerDashboard: React.FC = () => {
             }
         };
         fetchSettings();
-    }, []);
+    }, [refreshKey]);
 
     const handleLinkGoogle = async () => {
         if (!auth.currentUser) return;
@@ -265,7 +281,7 @@ const SeekerDashboard: React.FC = () => {
                 }
             }
 
-            // 2. Delete all applications
+            // 2. Anonymize all applications instead of deleting them
             const appsQuery = query(collection(db, 'applications'), where('seekerId', '==', user.uid));
             const appsSnap = await getDocs(appsQuery);
             
@@ -279,7 +295,13 @@ const SeekerDashboard: React.FC = () => {
                     currentBatch = writeBatch(db);
                     count = 0;
                 }
-                currentBatch.delete(appDoc.ref);
+                currentBatch.update(appDoc.ref, {
+                    applicantName: 'משתמש נמחק',
+                    applicantEmail: 'deleted@user.com',
+                    applicantPhone: '',
+                    cvUrl: '',
+                    status: ApplicationStatus.WITHDRAWN
+                });
                 count++;
             });
             batches.push(currentBatch);
@@ -356,7 +378,7 @@ const SeekerDashboard: React.FC = () => {
             setAllJobs(allApproved);
         });
         return () => unsubJobs();
-    }, []);
+    }, [refreshKey]);
 
     // 3. Derived state for saved jobs and matched jobs
     useEffect(() => {
@@ -478,9 +500,9 @@ const SeekerDashboard: React.FC = () => {
             <div className="bg-brand-dark text-white pt-24 pb-40 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-96 h-96 bg-brand-teal/10 rounded-full blur-[100px] -translate-y-1/2 -translate-x-1/2" />
                 <div className="max-w-7xl mx-auto px-4 relative z-10">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
                         <div className="flex items-center gap-6">
-                            <div className="w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl relative group">
+                            <div className="w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl relative group shrink-0">
                                 {user?.photoURL ? (
                                     <img src={user.photoURL} alt="" className="w-full h-full object-cover rounded-3xl" />
                                 ) : (
@@ -536,6 +558,13 @@ const SeekerDashboard: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex gap-4">
+                            <button 
+                                onClick={() => setRefreshKey(prev => prev + 1)}
+                                className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-4 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center justify-center group"
+                                title="רענן נתונים"
+                            >
+                                <RefreshCw size={20} className="group-hover:rotate-180 transition-transform duration-500" />
+                            </button>
                             <button 
                                 onClick={signOut}
                                 className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-6 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center gap-2"
@@ -714,11 +743,16 @@ const SeekerDashboard: React.FC = () => {
                                                                 {new Date(app.createdAt).toLocaleDateString('he-IL')}
                                                             </span>
                                                         </div>
+                                                        {(job.status === JobStatus.CLOSED || job.title === 'המשרה הוסרה מהמערכת') && (
+                                                            <div className="mt-2 text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-md inline-block">
+                                                                לתשומת ליבך: המשרה נסגרה או הוסרה על ידי המעסיק
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-4 md:gap-6 justify-between md:justify-end w-full md:w-auto border-t md:border-t-0 md:border-r border-slate-50 pt-4 md:pt-0 md:pr-6">
-                                                    <div className="text-right">
+                                                    <div className="text-right flex flex-col items-end gap-2">
                                                         <div className={cn(
                                                             "px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider flex items-center gap-2",
                                                             app.status === ApplicationStatus.NEW ? "bg-blue-50 text-blue-600" :
@@ -726,6 +760,7 @@ const SeekerDashboard: React.FC = () => {
                                                             app.status === ApplicationStatus.INTERVIEW ? "bg-purple-50 text-purple-600" :
                                                             app.status === ApplicationStatus.HIRED ? "bg-green-50 text-green-600" :
                                                             app.status === ApplicationStatus.REJECTED ? "bg-red-50 text-red-600" :
+                                                            app.status === ApplicationStatus.WITHDRAWN ? "bg-slate-100 text-slate-500" :
                                                             "bg-slate-50 text-slate-400"
                                                         )}>
                                                             {app.status === ApplicationStatus.NEW && <Send size={12} className="md:w-3.5 md:h-3.5" />}
@@ -733,13 +768,23 @@ const SeekerDashboard: React.FC = () => {
                                                             {app.status === ApplicationStatus.INTERVIEW && <Eye size={12} className="md:w-3.5 md:h-3.5" />}
                                                             {app.status === ApplicationStatus.HIRED && <CheckCircle size={12} className="md:w-3.5 md:h-3.5" />}
                                                             {app.status === ApplicationStatus.REJECTED && <XCircle size={12} className="md:w-3.5 md:h-3.5" />}
+                                                            {app.status === ApplicationStatus.WITHDRAWN && <X size={12} className="md:w-3.5 md:h-3.5" />}
                                                             
                                                             {app.status === ApplicationStatus.NEW ? 'חדש' :
                                                              app.status === ApplicationStatus.REVIEWING ? 'בבחינה' :
                                                              app.status === ApplicationStatus.INTERVIEW ? 'ראיון' :
                                                              app.status === ApplicationStatus.HIRED ? 'התקבל!' :
-                                                             app.status === ApplicationStatus.REJECTED ? 'נדחה' : 'סטטוס'}
+                                                             app.status === ApplicationStatus.REJECTED ? 'נדחה' :
+                                                             app.status === ApplicationStatus.WITHDRAWN ? 'בוטל' : 'סטטוס'}
                                                         </div>
+                                                        {app.status !== ApplicationStatus.WITHDRAWN && app.status !== ApplicationStatus.REJECTED && app.status !== ApplicationStatus.HIRED && (
+                                                            <button 
+                                                                onClick={() => handleWithdraw(app.id)}
+                                                                className="text-[10px] text-slate-400 hover:text-red-500 font-bold underline decoration-slate-300 hover:decoration-red-500 transition-colors"
+                                                            >
+                                                                משוך מועמדות
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     <button 
                                                         onClick={() => navigate(`/job/${job.id}`)}
@@ -1040,7 +1085,10 @@ const SeekerDashboard: React.FC = () => {
                                                 <div className="bg-rose-50 rounded-3xl p-8 border border-rose-200 mt-6 max-w-lg w-full text-center shadow-inner">
                                                     <AlertTriangle className="text-rose-500 w-12 h-12 mx-auto mb-4" />
                                                     <h4 className="text-xl font-black text-rose-900 mb-2">אזור מסוכן - אישור מחיקה</h4>
-                                                    <p className="text-rose-800 font-medium mb-8">האם אתה בטוח? מחיקת החשבון הינה פעולה בלתי הפיכה.</p>
+                                                    <p className="text-rose-800 font-medium mb-4">האם אתה בטוח? מחיקת החשבון הינה פעולה בלתי הפיכה.</p>
+                                                    <p className="text-rose-900 font-bold text-xs mb-8 bg-white/60 p-4 rounded-xl text-right">
+                                                        שימו לב: מחיקת החשבון תסיר את פרטיכם האישיים. עם זאת, קורות חיים שכבר הורדו על ידי מעסיקים, או מועמדויות שכבר טופלו ונמצאות במאגרי המעסיקים, כפופות למדיניות הפרטיות שלהם.
+                                                    </p>
                                                     {linkedProviders.includes('password') && (
                                                         <div className="mb-6 relative max-w-sm mx-auto">
                                                             <label className="block text-right text-sm font-bold text-rose-900 mb-2">הזן סיסמה לאימות</label>

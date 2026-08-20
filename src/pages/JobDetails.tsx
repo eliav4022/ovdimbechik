@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, limit, updateDoc, increment, arrayRemove, arrayUnion, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, limit, updateDoc, increment, arrayRemove, arrayUnion, writeBatch, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType, db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -20,6 +20,7 @@ import {
     Send, 
     CheckCircle, 
     ChevronRight, 
+    ChevronLeft,
     Tag, 
     Zap, 
     Home, 
@@ -103,6 +104,18 @@ const JobDetails: React.FC = () => {
   const [reporting, setReporting] = useState(false);
   const [enableCVUploads, setEnableCVUploads] = useState(true);
   const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollSimilarJobs = (direction: 'left' | 'right') => {
+      if (scrollContainerRef.current) {
+          const scrollAmount = 300;
+          scrollContainerRef.current.scrollBy({
+              left: direction === 'left' ? -scrollAmount : scrollAmount,
+              behavior: 'smooth'
+          });
+      }
+  };
 
   const isSaved = user?.savedJobs?.includes(job?.id || '');
 
@@ -221,17 +234,55 @@ const JobDetails: React.FC = () => {
               }
           }
 
-          // Fetch similar jobs
-          const similarQuery = query(
-            collection(db, 'jobs'),
-            where('category', '==', jobData.category),
-            where('id', '!=', jobData.id),
-            where('status', '==', 'approved'),
-            limit(3)
-          );
-          const similarSnap = await getDocs(similarQuery);
-          const fetchedSimilar = similarSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
-          setSimilarJobs(fetchedSimilar);
+          // Fetch similar jobs with advanced matching
+          try {
+              const similarQuery = query(
+                  collection(db, 'jobs'),
+                  where('status', 'in', [JobStatus.ACTIVE, 'Published']),
+                  orderBy('createdAt', 'desc'),
+                  limit(100) // Fetch pool for better matching
+              );
+              const similarSnap = await getDocs(similarQuery);
+              const activeJobs = similarSnap.docs
+                  .map(doc => ({ id: doc.id, ...doc.data() } as Job))
+                  .filter(j => j.id !== jobData.id);
+
+              const scoredJobs = activeJobs.map(j => {
+                  let score = 0;
+                  
+                  // 1. Category match (Highest weight: 40 points)
+                  if (j.category === jobData.category) score += 40;
+                  
+                  // 2. Location match (30 points for exact, 15 for partial)
+                  if (j.location && jobData.location) {
+                      if (j.location === jobData.location) score += 30;
+                      else if (j.location.includes(jobData.location) || jobData.location.includes(j.location)) score += 15;
+                  }
+                  
+                  // 3. Tags match (up to ~20-30 points)
+                  if (j.tags && jobData.tags) {
+                      const commonTags = j.tags.filter(t => jobData.tags?.includes(t));
+                      score += (commonTags.length * 5); // 5 points per shared tag
+                  }
+
+                  // 4. Salary match (10 points)
+                  if (j.salary === jobData.salary && j.salary) score += 10;
+                  else if (j.salary && jobData.salary) score += 5; // both have salary
+
+                  return { job: j, score };
+              });
+
+              const fetchedSimilar = scoredJobs
+                  .filter(sj => sj.score > 0) // Keep only jobs with at least *some* relevance
+                  .sort((a, b) => b.score - a.score)
+                  .slice(0, 5) // Take top 5
+                  .map(sj => sj.job);
+
+              setSimilarJobs(fetchedSimilar);
+          } catch (e) {
+              console.warn("Could not fetch similar jobs", e);
+              setSimilarJobs([]);
+          }
         }
         
         if (user && user.role === UserRole.SEEKER) {
@@ -317,13 +368,11 @@ const JobDetails: React.FC = () => {
         id: appRef.id,
         jobId: job.id,
         seekerId: user.uid,
-        employerId: job.employerId,
-        ownerId: job.ownerId || job.employerId,
+        ownerId: job.ownerId || job.employerId || '',
         applicantName,
         applicantPhone,
         applicantEmail,
         cvUrl: finalCvUrl,
-        resumeUrl: finalCvUrl,
         coverLetter,
         status: ApplicationStatus.NEW,
         createdAt: new Date().toISOString(),
@@ -701,21 +750,6 @@ const JobDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Similar Jobs Section */}
-            {similarJobs.length > 0 && (
-                <div className="space-y-8 pt-8">
-                    <div className="flex items-center justify-between px-4">
-                        <h3 className="text-3xl font-black text-text-main tracking-tight">משרות דומות שיעניינו אותך</h3>
-                        <Link to="/" className="text-primary font-black text-sm hover:underline">כל המשרות ←</Link>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {similarJobs.map(similarJob => (
-                            <JobCard key={similarJob.id} job={similarJob} />
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {showApplyForm && (
                 <motion.div 
                     id="apply-form-section"
@@ -884,6 +918,74 @@ const JobDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Similar Jobs Section - Full Width */}
+      {similarJobs.length > 0 && (
+          <div className="w-full bg-slate-50/80 border-t border-slate-100 py-16 md:py-24 mt-8">
+              <div className="max-w-7xl mx-auto px-6 relative mb-8 md:mb-10">
+                  <div className="flex items-center justify-between">
+                      <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">משרות דומות שיעניינו אותך</h3>
+                      <div className="flex items-center gap-4">
+                          <div className="hidden md:flex items-center gap-2" dir="ltr">
+                              <button 
+                                  onClick={() => scrollSimilarJobs('left')}
+                                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-slate-200 hover:border-primary/50 text-slate-600 hover:text-primary transition-all shadow-sm"
+                              >
+                                  <ChevronLeft size={20} />
+                              </button>
+                              <button 
+                                  onClick={() => scrollSimilarJobs('right')}
+                                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-slate-200 hover:border-primary/50 text-slate-600 hover:text-primary transition-all shadow-sm"
+                              >
+                                  <ChevronRight size={20} />
+                              </button>
+                          </div>
+                          <Link to="/" className="text-primary font-bold text-sm md:text-base hover:underline flex items-center gap-1">כל המשרות <ChevronLeft size={16}/></Link>
+                      </div>
+                  </div>
+              </div>
+              <div 
+                  ref={scrollContainerRef}
+                  className="flex overflow-x-auto gap-5 pb-8 px-6 xl:px-[calc((100vw-1280px)/2+24px)] snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] scroll-smooth w-full"
+              >
+                      {similarJobs.map(similarJob => (
+                          <Link 
+                              to={`/job/${similarJob.id}`} 
+                              key={similarJob.id} 
+                              className="bg-white border border-slate-200 hover:border-primary/40 rounded-3xl p-6 md:p-8 min-w-[280px] max-w-[280px] md:min-w-[320px] md:max-w-[320px] snap-center transition-all hover:-translate-y-2 hover:shadow-xl hover:shadow-primary/10 flex-shrink-0 flex flex-col min-h-[180px] md:min-h-[200px] h-auto"
+                          >
+                              <h4 className="font-black text-slate-800 text-lg md:text-xl mb-3 line-clamp-2 leading-tight" title={similarJob.title}>
+                                  {similarJob.title}
+                              </h4>
+                              <div className="flex items-center gap-2 text-slate-500 text-sm md:text-base font-medium mb-4">
+                                  <MapPin size={18} className="text-slate-400 shrink-0" />
+                                  <span className="truncate">{similarJob.location || 'לא צוין מיקום'}</span>
+                              </div>
+                              
+                              {similarJob.tags && similarJob.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mb-4 mt-auto">
+                                      {similarJob.tags.slice(0, 3).map((tag, idx) => (
+                                          <span key={idx} className="text-[10px] md:text-[11px] text-slate-500 font-medium bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-sm">
+                                              {tag}
+                                          </span>
+                                      ))}
+                                      {similarJob.tags.length > 3 && (
+                                          <span className="text-[10px] md:text-[11px] text-slate-500 font-medium bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-sm">
+                                              +{similarJob.tags.length - 3}
+                                          </span>
+                                      )}
+                                  </div>
+                              )}
+
+                              <div className="flex items-center gap-1 text-primary font-bold text-sm md:text-base mt-auto mr-auto transition-transform hover:-translate-x-1">
+                                  צפייה במשרה
+                                  <ChevronLeft size={18} />
+                              </div>
+                          </Link>
+                      ))}
+                  </div>
+          </div>
+      )}
 
       {/* Report Modal */}
       {showReportModal && (

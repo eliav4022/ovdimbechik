@@ -42,7 +42,8 @@ import {
     BarChart3,
     ArrowUpRight,
     LogOut,
-    Building2
+    Building2,
+    RefreshCw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,6 +53,7 @@ const EmployerDashboard: React.FC = () => {
     const { toast } = useToast();
     const navigate = useNavigate();
     const [jobs, setJobs] = useState<Job[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
     const [applications, setApplications] = useState<Application[]>([]);
     const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
     const [systemSettings, setSystemSettings] = useState<any>(null);
@@ -144,7 +146,7 @@ const EmployerDashboard: React.FC = () => {
                 companyDescription: user.companyDescription || user.bio || '',
             });
         }
-    }, [user]);
+    }, [user, refreshKey]);
 
     const handleSaveProfile = async () => {
         if (!user) return;
@@ -219,7 +221,7 @@ const EmployerDashboard: React.FC = () => {
         if (!user) return;
 
         const jobsQuery = query(collection(db, 'jobs'), where('employerId', '==', user.uid));
-        const appsQuery = query(collection(db, 'applications'), where('employerId', '==', user.uid));
+        const appsQuery = query(collection(db, 'applications'), where('ownerId', '==', user.uid));
         const txQuery = query(collection(db, 'credit_transactions'), where('employerId', '==', user.uid));
 
         const unsubJobs = onSnapshot(jobsQuery, (snapshot) => {
@@ -267,7 +269,7 @@ const EmployerDashboard: React.FC = () => {
             unsubApps();
             unsubTx();
         };
-    }, [user]);
+    }, [user, refreshKey]);
 
     const promptDeleteJob = (jobId: string) => {
         setJobToDelete(jobId);
@@ -407,8 +409,8 @@ const EmployerDashboard: React.FC = () => {
             <div className="bg-brand-dark text-white pt-24 pb-48 relative overflow-hidden">
                 <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-brand-teal/10 rounded-full blur-[120px] -translate-y-1/2" />
                 <div className="max-w-7xl mx-auto px-4 relative z-10">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8 mb-8 md:mb-12">
-                        <div className="text-right">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-8 mb-8 md:mb-12">
+                        <div className="text-right flex-1">
                             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3 md:mb-4">ניהול משרות ומועמדים</h1>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                 <p className="text-white/60 text-base md:text-lg font-bold">צפה בביצועי המשרות שלך ונהל את תהליכי הגיוס במקום אחד.</p>
@@ -419,25 +421,34 @@ const EmployerDashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex flex-col items-center gap-4 md:flex-row">
+                        <div className="flex items-center gap-4">
                             <button 
-                                onClick={() => {
-                                    import('../lib/firebase').then(({ auth }) => auth.signOut());
-                                    navigate('/');
-                                }}
-                                className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-6 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center gap-2"
+                                onClick={() => setRefreshKey(prev => prev + 1)}
+                                className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-full transition-colors flex items-center justify-center group"
+                                title="רענן נתונים"
                             >
-                                <LogOut size={18} />
-                                התנתק
+                                <RefreshCw size={24} className="group-hover:rotate-180 transition-transform duration-500" />
                             </button>
-                            <Button
-                                onClick={() => navigate('/employer/post-job')}
-                                size="lg"
-                                leftIcon={<Plus size={24} />}
-                                className="px-10 py-5 rounded-[2rem] shadow-2xl shadow-teal-500/30"
-                            >
-                                פרסם משרה עכשיו
-                            </Button>
+                            <div className="flex flex-col items-center gap-4 md:flex-row">
+                                <button 
+                                    onClick={() => {
+                                        import('../lib/firebase').then(({ auth }) => auth.signOut());
+                                        navigate('/');
+                                    }}
+                                    className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-6 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center gap-2"
+                                >
+                                    <LogOut size={18} />
+                                    התנתק
+                                </button>
+                                <Button
+                                    onClick={() => navigate('/employer/post-job')}
+                                    size="lg"
+                                    leftIcon={<Plus size={24} />}
+                                    className="px-10 py-5 rounded-[2rem] shadow-2xl shadow-teal-500/30"
+                                >
+                                    פרסם משרה עכשיו
+                                </Button>
+                            </div>
                         </div>
                     </div>
 
