@@ -210,6 +210,48 @@ const Register: React.FC = () => {
     }
   };
 
+  const [checkingMaintenance, setCheckingMaintenance] = useState(true);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const sysDoc = await getDoc(doc(db, 'settings', 'system'));
+        if (sysDoc.exists() && sysDoc.data().maintenanceMode) {
+          setMaintenanceMode(true);
+        }
+      } catch (e) {
+        console.error("Error checking maintenance mode", e);
+      } finally {
+        setCheckingMaintenance(false);
+      }
+    };
+    checkMaintenance();
+  }, []);
+
+  if (checkingMaintenance) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-teal"></div>
+      </div>
+    );
+  }
+
+  if (maintenanceMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" dir="rtl">
+        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl text-center border-t-4 border-brand-orange">
+          <AlertCircle className="w-16 h-16 text-brand-orange mx-auto mb-4" />
+          <h2 className="text-2xl font-black text-slate-800 mb-2">המערכת בתחזוקה</h2>
+          <p className="text-slate-600 mb-6 font-medium">לא ניתן להירשם כרגע למערכת עקב עבודות תחזוקה. אנא נסו שוב מאוחר יותר.</p>
+          <Link to="/" className="inline-block bg-brand-teal text-white px-6 py-3 rounded-xl font-bold hover:bg-teal-700 transition-colors">
+            חזרה לדף הבית
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden" dir="rtl">
       <Helmet>
