@@ -41,8 +41,14 @@ import {
     AlertTriangle,
     Sliders,
     Search,
-    RefreshCw
+    RefreshCw,
+    X,
+    KeyRound,
+    MailCheck,
+    ShieldAlert,
+    Check
 } from 'lucide-react';
+import { sendEmail } from '../lib/emailUtils';
 import { cn, validateFile } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -139,10 +145,24 @@ const SeekerDashboard: React.FC = () => {
     // Delete Account State
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [deletePassword, setDeletePassword] = useState('');
+    const [deleteOtpSent, setDeleteOtpSent] = useState(false);
+    const [deleteOtpInput, setDeleteOtpInput] = useState('');
+    const [isSendingOtp, setIsSendingOtp] = useState(false);
+    const [otpCountdown, setOtpCountdown] = useState(0);
 
     const [enableCVUploads, setEnableCVUploads] = useState(true);
     const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
+
+    // OTP Countdown Timer
+    useEffect(() => {
+        let timer: any;
+        if (otpCountdown > 0) {
+            timer = setInterval(() => {
+                setOtpCountdown(prev => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [otpCountdown]);
 
     const handleWithdraw = async (appId: string) => {
         if (!window.confirm('האם אתה בטוח שברצונך למשוך את המועמדות? פעולה זו תעדכן את המעסיק.')) return;
@@ -251,27 +271,112 @@ const SeekerDashboard: React.FC = () => {
         }
     };
 
-    const handleDeleteAccount = async () => {
+    const handleSendDeleteOtp = async () => {
+        if (!user || !user.email) {
+            toast('לא נמצאה כתובת מייל המשויכת לחשבון זה', 'error');
+            return;
+        }
+
+        setIsSendingOtp(true);
+        try {
+            // Generate a 6-digit random code
+            const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+            // Save to Firestore under user subcollection
+            await setDoc(doc(db, 'users', user.uid, 'security', 'deletion_otp'), {
+                code: otpCode,
+                email: user.email,
+                expiresAt,
+                createdAt: new Date().toISOString()
+            });
+
+            // Branded HTML email
+            const emailHtml = `
+                <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; background-color: #f8fafc; border-radius: 16px;">
+                    <div style="background-color: #ffffff; padding: 32px 24px; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center;">
+                        <h2 style="color: #e11d48; margin-top: 0; font-size: 22px; font-weight: 800;">אימות מחיקת חשבון - עובדים בצ'יק</h2>
+                        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+                            שלום <strong>${user.displayName || 'משתמש/ת יקר/ה'}</strong>,<br/>
+                            קיבלנו בקשה למחיקת חשבונך לצמיתות באתר <strong>עובדים בצ'יק</strong>.
+                        </p>
+                        <div style="background-color: #fff1f2; border: 2px dashed #f43f5e; padding: 18px; border-radius: 12px; margin: 24px 0; text-align: center;">
+                            <span style="font-size: 13px; color: #9f1239; display: block; margin-bottom: 6px; font-weight: 700;">קוד האימות שלך הינו:</span>
+                            <span style="font-size: 34px; font-weight: 900; letter-spacing: 6px; color: #be123c; font-family: monospace;">${otpCode}</span>
+                        </div>
+                        <p style="color: #64748b; font-size: 13px; margin-bottom: 8px;">
+                            ⏳ <strong>תוקף הקוד:</strong> 10 דקות בלבד.
+                        </p>
+                        <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                            אם לא ביקשת למחוק את החשבון, התעלם מהודעה זו. חשבונך מוגן ולא יימחק ללא הזנת הקוד.
+                        </p>
+                    </div>
+                </div>
+            `;
+
+            await sendEmail({
+                to: user.email,
+                subject: `קוד אישור למחיקת חשבונך (${otpCode}) - עובדים בצ'יק`,
+                text: `קוד האימות שלך למחיקת החשבון באתר עובדים בצ'יק הינו: ${otpCode}. הקוד תקף ל-10 דקות.`,
+                html: emailHtml
+            });
+
+            setDeleteOtpSent(true);
+            setOtpCountdown(60); // 60s cooldown
+            toast(`קוד אימות נשלח לכתובת ${user.email}`, 'success');
+        } catch (error) {
+            console.error('Error sending deletion OTP:', error);
+            toast('שגיאה בשליחת קוד האימות למייל. אנא נסה שוב.', 'error');
+        } finally {
+            setIsSendingOtp(false);
+        }
+    };
+
+    const handleVerifyOtpAndDeleteAccount = async () => {
         if (!auth.currentUser || !user) return;
+        
+        if (!deleteOtpInput || deleteOtpInput.trim().length !== 6) {
+            toast('אנא הזן את קוד האימות בן 6 הספרות שקיבלת במייל', 'error');
+            return;
+        }
+
         setIsDeleting(true);
         try {
-            // Re-authenticate first to prevent partial deletion (doc deleted but auth throws error)
-            if (linkedProviders.includes('password')) {
-                if (!deletePassword) {
-                    toast('אנא הזן סיסמה כדי לאשר מחיקה', 'error');
+            // 1. Verify OTP from Firestore
+            const otpSnap = await getDoc(doc(db, 'users', user.uid, 'security', 'deletion_otp'));
+            if (!otpSnap.exists()) {
+                toast('לא נמצא קוד אימות תקף. אנא לחץ על שליחת קוד מחדש.', 'error');
+                setIsDeleting(false);
+                return;
+            }
+
+            const otpData = otpSnap.data();
+            if (otpData.code !== deleteOtpInput.trim()) {
+                toast('קוד האימות שגוי. אנא בדוק את המייל ונסה שוב.', 'error');
+                setIsDeleting(false);
+                return;
+            }
+
+            if (otpData.expiresAt && Date.now() > otpData.expiresAt) {
+                toast('פג תוקפו של קוד האימות (מעל 10 דקות). אנא שלח קוד חדש.', 'error');
+                setIsDeleting(false);
+                return;
+            }
+
+            // 2. Re-authenticate popup if Google auth to keep Auth session fresh
+            try {
+                if (linkedProviders.includes('google.com')) {
+                    const provider = new GoogleAuthProvider();
+                    await reauthenticateWithPopup(auth.currentUser, provider);
+                }
+            } catch (reauthErr: any) {
+                if (reauthErr.code === 'auth/popup-closed-by-user' || reauthErr.code === 'auth/cancelled-popup-request') {
                     setIsDeleting(false);
                     return;
                 }
-                const credential = EmailAuthProvider.credential(user.email || '', deletePassword);
-                await reauthenticateWithCredential(auth.currentUser, credential);
-            } else if (linkedProviders.includes('google.com')) {
-                const provider = new GoogleAuthProvider();
-                await reauthenticateWithPopup(auth.currentUser, provider);
             }
 
-            // After re-authentication, it's safe to delete
-            
-            // 1. Delete CV if exists
+            // 3. Delete CV if exists in storage
             if (user.cvUrl) {
                 try {
                     const cvRef = ref(storage, user.cvUrl);
@@ -281,7 +386,7 @@ const SeekerDashboard: React.FC = () => {
                 }
             }
 
-            // 2. Anonymize all applications instead of deleting them
+            // 4. Anonymize all applications instead of deleting them
             const appsQuery = query(collection(db, 'applications'), where('seekerId', '==', user.uid));
             const appsSnap = await getDocs(appsQuery);
             
@@ -310,42 +415,32 @@ const SeekerDashboard: React.FC = () => {
                 await b.commit();
             }
 
-            // 3. Delete user document
-            const { softDelete } = await import('../lib/adminUtils');
-            await softDelete({
-                collectionName: 'users',
-                id: user.uid,
-                deletedBy: user.uid,
-                reason: 'מחיקת חשבון עצמאית על ידי מחפש עבודה'
-            });
-            // 4. Delete auth account
-            await deleteUser(auth.currentUser);
+            // 5. Delete user subcollections and main user document
+            try {
+                await deleteDoc(doc(db, 'users', user.uid, 'security', 'deletion_otp'));
+                await deleteDoc(doc(db, 'users', user.uid, 'profiles', 'seeker'));
+            } catch (e) {
+                // Ignore if subdocument doesn't exist
+            }
+            await deleteDoc(doc(db, 'users', user.uid));
+
+            // 6. Delete Firebase Auth user
+            try {
+                await deleteUser(auth.currentUser);
+            } catch (authDeleteErr: any) {
+                console.error("Auth deleteUser:", authDeleteErr);
+                if (authDeleteErr.code === 'auth/requires-recent-login') {
+                    await signOut();
+                }
+            }
             
             toast('החשבון נמחק בהצלחה', 'success');
             navigate('/');
         } catch (error: any) {
-            if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-                console.error('Error deleting account:', error);
-            }
-            if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-                setIsDeleting(false);
-                return;
-            }
-            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                toast('הסיסמה שגויה', 'error');
-            } else if (error.code === 'auth/requires-recent-login') {
-                toast('מטעמי אבטחה, יש להתנתק ולהתחבר מחדש לפני מחיקת החשבון', 'error');
-                // You can optionally sign out here, or just tell them to do it.
-            } else {
-                toast('אירעה שגיאה במחיקת החשבון', 'error');
-            }
+            console.error('Error deleting account with OTP:', error);
+            toast('אירעה שגיאה במחיקת החשבון', 'error');
         } finally {
             setIsDeleting(false);
-            if (deletePassword) {
-                // If wrong password, don't hide the confirm box so they can try again.
-                // But we just reset the password string.
-                setDeletePassword('');
-            }
         }
     };
 
@@ -1076,47 +1171,134 @@ const SeekerDashboard: React.FC = () => {
                                         <div className="mt-8 flex justify-center text-center">
                                             {!showDeleteConfirm ? (
                                                 <button
-                                                    onClick={() => setShowDeleteConfirm(true)}
-                                                    className="bg-white text-rose-600 hover:bg-rose-50 px-6 py-3 rounded-2xl font-black transition-colors border-2 border-rose-100"
+                                                    onClick={() => {
+                                                        setShowDeleteConfirm(true);
+                                                        setDeleteOtpSent(false);
+                                                        setDeleteOtpInput('');
+                                                    }}
+                                                    className="bg-white text-rose-600 hover:bg-rose-50 px-6 py-3 rounded-2xl font-black transition-colors border-2 border-rose-100 flex items-center gap-2 mx-auto"
                                                 >
+                                                    <ShieldAlert size={18} />
                                                     מחיקת חשבון לצמיתות
                                                 </button>
                                             ) : (
-                                                <div className="bg-rose-50 rounded-3xl p-8 border border-rose-200 mt-6 max-w-lg w-full text-center shadow-inner">
+                                                <div className="bg-rose-50 rounded-3xl p-6 md:p-8 border border-rose-200 mt-6 max-w-lg w-full text-center shadow-inner">
                                                     <AlertTriangle className="text-rose-500 w-12 h-12 mx-auto mb-4" />
-                                                    <h4 className="text-xl font-black text-rose-900 mb-2">אזור מסוכן - אישור מחיקה</h4>
-                                                    <p className="text-rose-800 font-medium mb-4">האם אתה בטוח? מחיקת החשבון הינה פעולה בלתי הפיכה.</p>
-                                                    <p className="text-rose-900 font-bold text-xs mb-8 bg-white/60 p-4 rounded-xl text-right">
-                                                        שימו לב: מחיקת החשבון תסיר את פרטיכם האישיים. עם זאת, קורות חיים שכבר הורדו על ידי מעסיקים, או מועמדויות שכבר טופלו ונמצאות במאגרי המעסיקים, כפופות למדיניות הפרטיות שלהם.
+                                                    <h4 className="text-xl font-black text-rose-900 mb-2">אזור מסוכן - אימות ומחיקת חשבון</h4>
+                                                    <p className="text-rose-800 font-medium mb-4">מחיקת החשבון הינה פעולה בלתי הפיכה ותמחק את כל הנתונים.</p>
+                                                    
+                                                    <p className="text-rose-900 font-bold text-xs mb-6 bg-white/70 p-4 rounded-xl text-right leading-relaxed border border-rose-100">
+                                                        שימו לב: מחיקת החשבון תסיר את פרטיכם האישיים, קורות החיים ונתוני הגישה. קורות חיים שכבר הורדו על ידי מעסיקים כפופים למדיניות הפרטיות שלהם.
                                                     </p>
-                                                    {linkedProviders.includes('password') && (
-                                                        <div className="mb-6 relative max-w-sm mx-auto">
-                                                            <label className="block text-right text-sm font-bold text-rose-900 mb-2">הזן סיסמה לאימות</label>
-                                                            <input 
-                                                                type="password"
-                                                                value={deletePassword}
-                                                                onChange={(e) => setDeletePassword(e.target.value)}
-                                                                placeholder="סיסמת החשבון שלך"
-                                                                className="w-full px-4 py-3 bg-white border border-rose-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-slate-800"
-                                                            />
+
+                                                    {!deleteOtpSent ? (
+                                                        <div className="space-y-4">
+                                                            <div className="bg-white/80 p-4 rounded-2xl border border-rose-200/60 text-right">
+                                                                <div className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-1">
+                                                                    <Mail className="text-rose-500" size={16} />
+                                                                    אימות בטיחות בדוא"ל
+                                                                </div>
+                                                                <p className="text-xs text-slate-600">
+                                                                    לצורך אבטחת חשבונך, נשלח קוד אימות חד-פעמי (OTP) בן 6 ספרות לכתובת: <strong className="text-rose-900 font-bold dir-ltr">{user?.email}</strong>
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+                                                                <button
+                                                                    onClick={handleSendDeleteOtp}
+                                                                    disabled={isSendingOtp}
+                                                                    className="bg-rose-600 text-white px-6 py-3 rounded-xl font-black hover:bg-rose-700 transition-all shadow-md shadow-rose-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                                                                >
+                                                                    {isSendingOtp ? (
+                                                                        <>
+                                                                            <RefreshCw size={16} className="animate-spin" />
+                                                                            שולח קוד למייל...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <KeyRound size={16} />
+                                                                            שלח לי קוד אימות למייל
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setShowDeleteConfirm(false)}
+                                                                    disabled={isSendingOtp}
+                                                                    className="bg-white text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 hover:bg-slate-50 transition-all disabled:opacity-50"
+                                                                >
+                                                                    ביטול
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-4">
+                                                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-emerald-800 text-sm font-medium flex items-center gap-2 text-right">
+                                                                <MailCheck className="text-emerald-600 shrink-0" size={20} />
+                                                                <span>קוד אימות בן 6 ספרות נשלח לכתובת <strong>{user?.email}</strong> (תקף ל-10 דקות)</span>
+                                                            </div>
+
+                                                            <div className="max-w-xs mx-auto text-center">
+                                                                <label className="block text-sm font-black text-rose-900 mb-2">
+                                                                    הזן את קוד האימות (6 ספרות)
+                                                                </label>
+                                                                <input 
+                                                                    type="text"
+                                                                    maxLength={6}
+                                                                    value={deleteOtpInput}
+                                                                    onChange={(e) => setDeleteOtpInput(e.target.value.replace(/\D/g, ''))}
+                                                                    placeholder="------"
+                                                                    className="w-full text-center text-2xl tracking-[0.5em] font-mono font-black py-3 bg-white border-2 border-rose-300 rounded-xl focus:border-rose-600 focus:ring-2 focus:ring-rose-400 outline-none text-slate-900 shadow-sm"
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+
+                                                            <div className="text-xs text-slate-500 flex justify-center items-center gap-1">
+                                                                {otpCountdown > 0 ? (
+                                                                    <span>שליחה חוזרת תתאפשר בעוד <strong>{otpCountdown}</strong> שניות</span>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={handleSendDeleteOtp}
+                                                                        disabled={isSendingOtp}
+                                                                        className="text-rose-600 font-bold hover:underline"
+                                                                    >
+                                                                        לא קיבלת את הקוד? שלח שוב
+                                                                    </button>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-3">
+                                                                <button
+                                                                    onClick={handleVerifyOtpAndDeleteAccount}
+                                                                    disabled={isDeleting || deleteOtpInput.length !== 6}
+                                                                    className="bg-rose-600 text-white px-6 py-3 rounded-xl font-black hover:bg-rose-700 transition-all shadow-md shadow-rose-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                                                                >
+                                                                    {isDeleting ? (
+                                                                        <>
+                                                                            <RefreshCw size={16} className="animate-spin" />
+                                                                            מאמת ומוחק חשבון...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <AlertTriangle size={16} />
+                                                                            אימות ומחיקת חשבון לצמיתות
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setShowDeleteConfirm(false);
+                                                                        setDeleteOtpSent(false);
+                                                                        setDeleteOtpInput('');
+                                                                    }}
+                                                                    disabled={isDeleting}
+                                                                    className="bg-white text-slate-700 px-6 py-3 rounded-xl font-bold border border-slate-200 hover:bg-slate-50 transition-all disabled:opacity-50"
+                                                                >
+                                                                    ביטול
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     )}
-                                                    <div className="flex flex-col sm:flex-row justify-center gap-4">
-                                                        <button
-                                                            onClick={handleDeleteAccount}
-                                                            disabled={isDeleting}
-                                                            className="bg-rose-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-rose-700 transition-all shadow-md shadow-rose-500/20 disabled:opacity-50"
-                                                        >
-                                                            {isDeleting ? 'מוחק...' : 'כן, מחק חשבון'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setShowDeleteConfirm(false)}
-                                                            disabled={isDeleting}
-                                                            className="bg-white text-slate-700 px-8 py-3 rounded-xl font-bold border border-slate-200 hover:bg-slate-50 transition-all disabled:opacity-50"
-                                                        >
-                                                            ביטול חזרה לעמוד
-                                                        </button>
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>
