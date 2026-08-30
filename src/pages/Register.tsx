@@ -120,7 +120,13 @@ const Register: React.FC = () => {
            url: `${window.location.origin}/login?verified=true`,
            handleCodeInApp: false
          };
-         await sendEmailVerification(user, actionCodeSettings);
+         try {
+           await sendEmailVerification(user, actionCodeSettings);
+         } catch (emailErr: any) {
+           console.error("Email verification error:", emailErr);
+           // Fallback without actionCodeSettings just in case it's a URL mismatch
+           await sendEmailVerification(user);
+         }
          await auth.signOut();
          setVerificationSent(true);
          setLoading(false);

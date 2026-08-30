@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, GoogleAuthProvider, sendEmailVerification } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { trackEvent } from '../lib/analytics';
 import { auth, db } from '../lib/firebase';
@@ -30,6 +30,34 @@ const Login: React.FC = () => {
   const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   const [successMsg, setSuccessMsg] = useState('');
+  const [unverifiedUser, setUnverifiedUser] = useState<any>(null);
+
+  const handleResendEmail = async () => {
+    if (!unverifiedUser) return;
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+    try {
+        const actionCodeSettings = {
+           url: `${window.location.origin}/login?verified=true`,
+           handleCodeInApp: false
+        };
+        await sendEmailVerification(unverifiedUser, actionCodeSettings);
+        setSuccessMsg('קישור אימות חדש נשלח לכתובת האימייל שלך.');
+    } catch (err) {
+        console.error("Resend email error:", err);
+        try {
+            await sendEmailVerification(unverifiedUser);
+            setSuccessMsg('קישור אימות חדש נשלח לכתובת האימייל שלך.');
+        } catch (e) {
+            setError('שגיאה בשליחת המייל. נסה שוב מאוחר יותר.');
+        }
+    } finally {
+        setUnverifiedUser(null);
+        await auth.signOut();
+        setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (urlMessage === 'verify_email') {
@@ -82,9 +110,8 @@ const Login: React.FC = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       if (requireEmail && !userCredential.user.emailVerified) {
-        isRedirecting.current = true;
-        await auth.signOut();
-        setError('טרם אימתת את כתובת האימייל שלך. בדוק את תיבת הדואר שלך לקישור אימות.');
+        setUnverifiedUser(userCredential.user);
+        setError('טרם אימתת את כתובת האימייל שלך. אם המייל לא הגיע, תוכל לבקש שליחה מחדש.');
         setLoading(false);
         return;
       }
@@ -230,10 +257,21 @@ const Login: React.FC = () => {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mb-8 p-4 bg-red-50 text-red-600 text-sm rounded-2xl border border-red-100 font-bold text-right flex items-start gap-3"
+              className="mb-8 p-4 bg-red-50 text-red-600 text-sm rounded-2xl border border-red-100 font-bold text-right flex flex-col gap-3"
             >
-              <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0">!</div>
-              {error}
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0">!</div>
+                {error}
+              </div>
+              {unverifiedUser && (
+                <button
+                  onClick={handleResendEmail}
+                  disabled={loading}
+                  className="mt-2 w-full py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-xl transition-colors font-bold text-center"
+                >
+                  שלח שוב למייל זה
+                </button>
+              )}
             </motion.div>
           )}
 
