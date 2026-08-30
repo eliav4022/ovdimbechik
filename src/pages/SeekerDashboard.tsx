@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -46,23 +46,36 @@ import {
     KeyRound,
     MailCheck,
     ShieldAlert,
-    Check
+    Check,
+    Settings
 } from 'lucide-react';
 import { sendEmail } from '../lib/emailUtils';
 import { cn, validateFile } from '../lib/utils';
+import { isLocationWithinDistance } from '../lib/distanceUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const SeekerDashboard: React.FC = () => {
     const { user, signOut } = useAuth();
     const { toast } = useToast();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [appliedJobs, setAppliedJobs] = useState<{ job: Job; app: Application }[]>([]);
     const [savedJobs, setSavedJobs] = useState<Job[]>([]);
     const [matchedJobs, setMatchedJobs] = useState<Job[]>([]);
     const [allJobs, setAllJobs] = useState<Job[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
-    const [activeTab, setActiveTab] = useState<'applications' | 'saved' | 'profile' | 'matches'>('applications');
+    const [activeTab, setActiveTab] = useState<'applications' | 'saved' | 'profile' | 'matches' | 'settings'>(() => {
+        const tab = new URLSearchParams(window.location.search).get('tab');
+        return (tab && ['applications', 'saved', 'profile', 'matches', 'settings'].includes(tab)) ? (tab as any) : 'applications';
+    });
     const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && ['applications', 'saved', 'profile', 'matches', 'settings'].includes(tab)) {
+            setActiveTab(tab as any);
+        }
+    }, [searchParams]);
 
     // Profile State
     const [displayName, setDisplayName] = useState(user?.displayName || '');
@@ -122,12 +135,12 @@ const SeekerDashboard: React.FC = () => {
 
     // Profile Completion Logic
     const profileFields = [
-        { key: 'displayName', label: 'שם מלא', isComplete: !!user?.displayName || !!user?.fullName },
-        { key: 'phone', label: 'טלפון', isComplete: !!user?.phone },
-        { key: 'bio', label: 'קצת עליי', isComplete: !!user?.bio },
-        { key: 'preferredCategories', label: 'תחומי עניין', isComplete: !!user?.preferredCategories && user.preferredCategories.length > 0 },
-        { key: 'preferredLocations', label: 'אזורי עבודה', isComplete: !!user?.preferredLocations && user.preferredLocations.length > 0 },
-        { key: 'jobScope', label: 'סוג משרה (היקף)', isComplete: !!user?.jobScope && user.jobScope.length > 0 },
+        { key: 'displayName', label: 'שם מלא', isComplete: !!user?.displayName || !!user?.fullName, action: () => setActiveTab('profile') },
+        { key: 'phone', label: 'טלפון', isComplete: !!user?.phone, action: () => setActiveTab('profile') },
+        { key: 'bio', label: 'קצת עליי', isComplete: !!user?.bio, action: () => setActiveTab('profile') },
+        { key: 'preferredCategories', label: 'תחומי עניין', isComplete: !!user?.preferredCategories && user.preferredCategories.length > 0, action: () => setShowPreferencesModal(true) },
+        { key: 'preferredLocations', label: 'אזורי עבודה', isComplete: !!user?.preferredLocations && user.preferredLocations.length > 0, action: () => setShowPreferencesModal(true) },
+        { key: 'jobScope', label: 'סוג משרה (היקף)', isComplete: !!user?.jobScope && user.jobScope.length > 0, action: () => setShowPreferencesModal(true) },
     ];
     const completedFieldsCount = profileFields.filter(f => f.isComplete).length;
     const profileCompletionPercentage = Math.round((completedFieldsCount / profileFields.length) * 100);
@@ -481,16 +494,63 @@ const SeekerDashboard: React.FC = () => {
         // Saved Jobs
         setSavedJobs(allJobs.filter(j => user.savedJobs?.includes(j.id)));
         
-        // Match Jobs (Simulated logic based on common tags or categories)
+        // Match Jobs (Simulated logic based on common tags, categories, location, and scope)
         const userCategories = new Set([
             ...appliedJobs.map(aj => aj.job.category),
             ...((user.preferredCategories as string[]) || [])
         ]);
-        let matches = allJobs.filter(j => 
-            !appliedJobs.some(aj => aj.job.id === j.id) && 
-            (userCategories.has(j.category) || j.isUrgent)
-        );
-        // Fallback if no exact matches, show other unapplied jobs
+        const prefLocations = (user.preferredLocations as string[]) || [];
+        const prefDistance = (user.preferredDistance as number) ?? 30;
+        const remoteOnlyPref = (user.remoteOnly as boolean) || false;
+        const prefScope = (user.jobScope as string[]) || [];
+        
+        let matches = allJobs.filter(j => {
+            // Already applied
+            if (appliedJobs.some(aj => aj.job.id === j.id)) return false;
+            
+            // Score based matching
+            let score = 0;
+            
+            // 1. Category check
+            if (userCategories.has(j.category)) score += 10;
+            
+            // 2. Scope check (if user has scopes defined)
+            if (prefScope.length > 0) {
+                // If the job's scope is in the user's preferred scope
+                if (prefScope.includes(j.workMode || 'משרה מלאה') || prefScope.includes(j.type)) {
+                    score += 5;
+                }
+            }
+            
+            // 3. Location/Remote check
+            if (remoteOnlyPref) {
+                if (j.location.includes('מהבית') || j.location.toLowerCase().includes('remote') || j.location === 'Remote') {
+                    score += 10;
+                } else {
+                    return false; // Strict filter if remote only
+                }
+            } else if (prefLocations.length > 0 && prefLocations[0]) {
+                const isWithin = isLocationWithinDistance(j.location, prefLocations[0], prefDistance);
+                if (isWithin) {
+                    score += 15;
+                } else {
+                    // Penalty for out of range, but might still be a match if category/scope is a perfect hit
+                    score -= 5;
+                }
+            }
+            
+            if (j.isUrgent) score += 2;
+            
+            return score > 0;
+        });
+        
+        // Sort by score (desc) - since we don't attach score to object, we sort by urgent first, but the items included are better
+        matches.sort((a, b) => {
+            if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
+            return 0;
+        });
+        
+        // Fallback only if no preferences are set at all, or if matches are still 0 (give some suggestions instead of empty)
         if (matches.length === 0) {
              matches = allJobs.filter(j => !appliedJobs.some(aj => aj.job.id === j.id));
         }
@@ -652,7 +712,20 @@ const SeekerDashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button 
+                                onClick={() => setActiveTab('settings')}
+                                className={cn(
+                                    "px-5 py-3 rounded-2xl transition-all font-black text-sm border flex items-center gap-2 shadow-sm",
+                                    activeTab === 'settings' 
+                                        ? "bg-white text-brand-dark border-white shadow-lg" 
+                                        : "bg-white/10 hover:bg-white/20 text-white border-white/20"
+                                )}
+                                title="הגדרות חשבון ואבטחה"
+                            >
+                                <Settings size={18} />
+                                <span className="hidden sm:inline">הגדרות חשבון</span>
+                            </button>
                             <button 
                                 onClick={() => setRefreshKey(prev => prev + 1)}
                                 className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-4 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center justify-center group"
@@ -662,10 +735,10 @@ const SeekerDashboard: React.FC = () => {
                             </button>
                             <button 
                                 onClick={signOut}
-                                className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-6 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center gap-2"
+                                className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-5 sm:px-6 py-3 rounded-2xl transition-all font-black text-sm border border-white/10 flex items-center gap-2"
                             >
                                 <LogOut size={18} />
-                                התנתק
+                                <span className="hidden sm:inline">התנתק</span>
                             </button>
                         </div>
                     </div>
@@ -707,21 +780,30 @@ const SeekerDashboard: React.FC = () => {
                             {profileCompletionPercentage < 100 && (
                                 <ul className="text-right text-xs text-slate-600 space-y-2 mb-4 w-full bg-slate-50 p-4 rounded-xl">
                                     {profileFields.map(f => (
-                                        <li key={f.key} className="flex items-center justify-between">
-                                            <span>{f.label}</span>
+                                        <li 
+                                            key={f.key} 
+                                            onClick={f.action}
+                                            className="flex items-center justify-between cursor-pointer hover:bg-slate-100 p-1.5 -mx-1.5 rounded-lg transition-colors group"
+                                        >
+                                            <span className="group-hover:text-brand-teal transition-colors font-semibold">{f.label}</span>
                                             {f.isComplete ? (
                                                 <CheckCircle size={14} className="text-brand-teal" />
                                             ) : (
-                                                <XCircle size={14} className="text-rose-400" />
+                                                <XCircle size={14} className="text-rose-400 group-hover:scale-110 transition-transform" />
                                             )}
                                         </li>
                                     ))}
                                 </ul>
                             )}
-                            {profileCompletionPercentage < 100 && activeTab !== 'profile' && (
+                            {profileCompletionPercentage < 100 && (
                                 <button 
-                                    onClick={() => setActiveTab('profile')}
-                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-black text-sm transition-all"
+                                    onClick={() => {
+                                        const firstIncomplete = profileFields.find(f => !f.isComplete);
+                                        if (firstIncomplete) {
+                                            firstIncomplete.action();
+                                        }
+                                    }}
+                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-black text-sm transition-all hover:text-brand-teal"
                                 >
                                     השלם חסרים עכשיו
                                 </button>
@@ -732,7 +814,8 @@ const SeekerDashboard: React.FC = () => {
                             { id: 'applications', label: 'המועמדויות שלי', icon: Send, count: appliedJobs.length },
                             { id: 'saved', label: 'משרות ששמרתי', icon: Heart, count: savedJobs.length },
                             { id: 'matches', label: 'התאמות AI בשבילך', icon: Zap, count: matchedJobs.length },
-                            { id: 'profile', label: 'פרופיל אישי', icon: UserIcon }
+                            { id: 'profile', label: 'פרופיל אישי וקו"ח', icon: UserIcon },
+                            { id: 'settings', label: 'הגדרות חשבון ואבטחה', icon: Settings }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -1031,7 +1114,52 @@ const SeekerDashboard: React.FC = () => {
                                         </div>
                                     )}
 
-                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mt-8">
+                                    {/* Quick Link to Settings */}
+                                    <div className="bg-slate-50 border border-slate-200/80 rounded-[2.5rem] p-6 md:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 mt-8">
+                                        <div className="flex items-center gap-4 text-right">
+                                            <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-brand-teal shrink-0">
+                                                <Settings size={24} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-lg font-black text-slate-900">הגדרות חשבון ואבטחה</h4>
+                                                <p className="text-sm font-bold text-slate-500">שינוי סיסמה, ניהול שיטות התחברות (Google) ומחיקת חשבון</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('settings')}
+                                            className="bg-brand-dark text-white px-8 py-3.5 rounded-xl font-black text-sm shadow-md hover:bg-slate-800 transition-all shrink-0 flex items-center gap-2"
+                                        >
+                                            <span>פתח הגדרות</span>
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {activeTab === 'settings' && (
+                                <motion.div 
+                                    key="settings"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    className="space-y-8"
+                                >
+                                    {/* Settings Hero */}
+                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-3xl bg-brand-teal/10 flex items-center justify-center text-brand-teal shrink-0">
+                                                <Settings size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-3xl font-black text-slate-900 mb-1">הגדרות חשבון ואבטחה</h3>
+                                                <p className="text-slate-500 font-bold text-sm">נהל את אפשרויות הכניסה, הסיסמה ופרטיות החשבון שלך</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Change Password */}
+                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
                                         <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3">
                                             <Lock className="text-brand-teal" />
                                             שינוי סיסמה
@@ -1068,7 +1196,7 @@ const SeekerDashboard: React.FC = () => {
                                                 <div className="space-y-2">
                                                     <label className="text-sm font-black text-slate-700 pr-2">אימות סיסמה חדשה</label>
                                                     <input 
-                                                        type="password"
+                                                        type="password" 
                                                         required
                                                         minLength={6}
                                                         className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-brand-teal/10 outline-none text-slate-700 font-bold shadow-inner"
@@ -1089,7 +1217,7 @@ const SeekerDashboard: React.FC = () => {
                                     </div>
 
                                     {/* Linked Accounts */}
-                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mt-8">
+                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100">
                                         <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3">
                                             <ShieldCheck className="text-brand-teal" />
                                             שיטות התחברות לחשבון
@@ -1151,7 +1279,7 @@ const SeekerDashboard: React.FC = () => {
                                     </div>
 
                                     {/* Delete Account */}
-                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mt-8 mb-12">
+                                    <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mb-12">
                                         <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
                                             <ShieldCheck className="text-brand-orange" />
                                             פרטיות וניהול חשבון

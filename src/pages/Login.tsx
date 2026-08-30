@@ -18,14 +18,36 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [requireEmail, setRequireEmail] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const redirectPath = searchParams.get('redirect') || '/';
+  const urlMessage = searchParams.get('message');
 
   const { user: authUser, loading: authLoading } = useAuth();
 
   const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  useEffect(() => {
+    if (urlMessage === 'verify_email') {
+      setError('נשלח אליך מייל אימות. אנא לחץ על הקישור במייל כדי להפעיל את חשבונך, ולאחר מכן התחבר.');
+    }
+  }, [urlMessage]);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const sysDoc = await getDoc(doc(db, 'settings', 'system'));
+        if (sysDoc.exists() && sysDoc.data().requireEmailVerification) {
+          setRequireEmail(true);
+        }
+      } catch (e) {
+        console.error("Error checking system settings", e);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     // If the user object exists from AuthContext, they are already authenticated.
@@ -53,6 +75,13 @@ const Login: React.FC = () => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
+      if (requireEmail && !userCredential.user.emailVerified) {
+        await auth.signOut();
+        setError('טרם אימתת את כתובת האימייל שלך. בדוק את תיבת הדואר שלך לקישור אימות.');
+        setLoading(false);
+        return;
+      }
+
       if (redirectPath === '/') {
         const docRef = doc(db, 'users', userCredential.user.uid);
         const docSnap = await getDoc(docRef);

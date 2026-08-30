@@ -103,6 +103,7 @@ const JobDetails: React.FC = () => {
   const [reportDetails, setReportDetails] = useState('');
   const [reporting, setReporting] = useState(false);
   const [enableCVUploads, setEnableCVUploads] = useState(true);
+  const [requireResumeGlobal, setRequireResumeGlobal] = useState(false);
   const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -299,6 +300,7 @@ const JobDetails: React.FC = () => {
         const systemSnap = await getDoc(doc(db, 'settings', 'system'));
         if (systemSnap.exists()) {
             setEnableCVUploads(systemSnap.data().enableCVUploads !== false);
+            setRequireResumeGlobal(!!systemSnap.data().requireResumeUpload);
             setMaxUserUploadSizeMB(systemSnap.data().maxUserUploadSizeMB || 1);
         }
       } catch (error) {
@@ -326,7 +328,7 @@ const JobDetails: React.FC = () => {
       toast('אנא הזן אימייל תקין', 'error');
       return;
     }
-    if (enableCVUploads && job.requireCV !== false && !cvFile && !user.cvUrl) {
+    if (enableCVUploads && (job.requireCV !== false || requireResumeGlobal) && !cvFile && !user.cvUrl) {
       toast('חובה לצרף קובץ קורות חיים', 'error');
       return;
     }
@@ -810,11 +812,11 @@ const JobDetails: React.FC = () => {
                         <div className={`grid grid-cols-1 ${enableCVUploads ? 'md:grid-cols-2' : ''} gap-10`}>
                             {enableCVUploads && (
                                 <div className="space-y-5 text-right">
-                                    <label className="block text-sm font-black text-text-main pr-3">קורות חיים (PDF / WORD)</label>
+                                    <label className="block text-sm font-black text-text-main pr-3">קורות חיים (PDF / WORD) {(job.requireCV !== false || requireResumeGlobal) && !user?.cvUrl ? '*' : ''}</label>
                                     <div className="relative group overflow-hidden rounded-[2.5rem]">
                                         <input
                                             type="file"
-                                            required={job.requireCV !== false && !user?.cvUrl}
+                                            required={(job.requireCV !== false || requireResumeGlobal) && !user?.cvUrl}
                                             accept=".pdf,.doc,.docx"
                                             className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                             onChange={(e) => setCvFile(e.target.files?.[0] || null)}

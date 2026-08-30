@@ -405,7 +405,7 @@ export const AdminEmployerDetail: React.FC = () => {
                                             setEmployer({...employer, isCompanyAdmin: newStatus});
                                             toast(newStatus ? 'הוגדר כמעסיק ראשי' : 'בוטל סטטוס מעסיק ראשי', 'success');
                                         } catch (e) {
-                                            toast('שגיאה בעדכון الסטטוס', 'error');
+                                            toast('שגיאה בעדכון הסטטוס', 'error');
                                         }
                                     }}
                                     className={`text-xs px-2 py-1 rounded font-bold shadow-sm transition-colors ${employer.isCompanyAdmin ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}

@@ -5,7 +5,8 @@ import {
   signInWithPopup,
   signInWithRedirect,
   GoogleAuthProvider,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { setDoc } from '../lib/firestore-audit';;
@@ -110,6 +111,13 @@ const Register: React.FC = () => {
         });
       }
 
+      if (requireEmail) {
+         await sendEmailVerification(user);
+         await auth.signOut();
+         navigate('/login?message=verify_email');
+         return;
+      }
+
       if (redirectPath === '/') {
         if (role === UserRole.SEEKER) navigate('/seeker/dashboard');
         else if (role === UserRole.EMPLOYER) navigate('/employer/dashboard');
@@ -210,26 +218,40 @@ const Register: React.FC = () => {
     }
   };
 
-  const [checkingMaintenance, setCheckingMaintenance] = useState(true);
+  const [checkingSettings, setCheckingSettings] = useState(true);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [allowSeeker, setAllowSeeker] = useState(true);
+  const [allowEmployer, setAllowEmployer] = useState(true);
+  const [requireEmail, setRequireEmail] = useState(false);
 
   useEffect(() => {
-    const checkMaintenance = async () => {
+    const fetchSettings = async () => {
       try {
         const sysDoc = await getDoc(doc(db, 'settings', 'system'));
-        if (sysDoc.exists() && sysDoc.data().maintenanceMode) {
-          setMaintenanceMode(true);
+        if (sysDoc.exists()) {
+          const data = sysDoc.data();
+          if (data.maintenanceMode) setMaintenanceMode(true);
+          if (data.allowSeekerRegistration === false) setAllowSeeker(false);
+          if (data.allowEmployerRegistration === false) setAllowEmployer(false);
+          if (data.requireEmailVerification) setRequireEmail(true);
+          
+          // If the currently selected role is disabled, switch to the other if available
+          if (data.allowSeekerRegistration === false && data.allowEmployerRegistration !== false) {
+             setRole(UserRole.EMPLOYER);
+          } else if (data.allowEmployerRegistration === false && data.allowSeekerRegistration !== false) {
+             setRole(UserRole.SEEKER);
+          }
         }
       } catch (e) {
-        console.error("Error checking maintenance mode", e);
+        console.error("Error checking system settings", e);
       } finally {
-        setCheckingMaintenance(false);
+        setCheckingSettings(false);
       }
     };
-    checkMaintenance();
+    fetchSettings();
   }, []);
 
-  if (checkingMaintenance) {
+  if (checkingSettings) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-teal"></div>
@@ -237,13 +259,13 @@ const Register: React.FC = () => {
     );
   }
 
-  if (maintenanceMode) {
+  if (maintenanceMode || (!allowSeeker && !allowEmployer)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" dir="rtl">
         <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl text-center border-t-4 border-brand-orange">
           <AlertCircle className="w-16 h-16 text-brand-orange mx-auto mb-4" />
-          <h2 className="text-2xl font-black text-slate-800 mb-2">המערכת בתחזוקה</h2>
-          <p className="text-slate-600 mb-6 font-medium">לא ניתן להירשם כרגע למערכת עקב עבודות תחזוקה. אנא נסו שוב מאוחר יותר.</p>
+          <h2 className="text-2xl font-black text-slate-800 mb-2">{maintenanceMode ? 'המערכת בתחזוקה' : 'ההרשמה סגורה'}</h2>
+          <p className="text-slate-600 mb-6 font-medium">{maintenanceMode ? 'לא ניתן להירשם כרגע למערכת עקב עבודות תחזוקה. אנא נסו שוב מאוחר יותר.' : 'ההרשמה למערכת סגורה כרגע לכלל המשתמשים. נשמח לראותכם בעתיד.'}</p>
           <Link to="/" className="inline-block bg-brand-teal text-white px-6 py-3 rounded-xl font-bold hover:bg-teal-700 transition-colors">
             חזרה לדף הבית
           </Link>
@@ -362,30 +384,34 @@ const Register: React.FC = () => {
             <div className="space-y-3 pt-2">
               <label className="block text-xs font-black text-slate-400 uppercase pr-2">מי אתם?</label>
               <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setRole(UserRole.SEEKER)}
-                  className={cn(
-                    "py-4 px-4 rounded-2xl border-2 text-sm font-black transition-all",
-                    role === UserRole.SEEKER
-                      ? "bg-brand-teal/5 border-brand-teal text-brand-teal shadow-xl shadow-teal-500/10"
-                      : "bg-white border-slate-50 text-slate-500 hover:border-slate-200"
-                  )}
-                >
-                  محפש עבודה 💼
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole(UserRole.EMPLOYER)}
-                  className={cn(
-                    "py-4 px-4 rounded-2xl border-2 text-sm font-black transition-all",
-                    role === UserRole.EMPLOYER
-                      ? "bg-brand-orange/5 border-brand-orange text-brand-orange shadow-xl shadow-orange-500/10"
-                      : "bg-white border-slate-50 text-slate-500 hover:border-slate-200"
-                  )}
-                >
-                  מעסיק 📢
-                </button>
+                {allowSeeker && (
+                  <button
+                    type="button"
+                    onClick={() => setRole(UserRole.SEEKER)}
+                    className={cn(
+                      "py-4 px-4 rounded-2xl border-2 text-sm font-black transition-all",
+                      role === UserRole.SEEKER
+                        ? "bg-brand-teal/5 border-brand-teal text-brand-teal shadow-xl shadow-teal-500/10"
+                        : "bg-white border-slate-50 text-slate-500 hover:border-slate-200"
+                    )}
+                  >
+                    מחפש עבודה 💼
+                  </button>
+                )}
+                {allowEmployer && (
+                  <button
+                    type="button"
+                    onClick={() => setRole(UserRole.EMPLOYER)}
+                    className={cn(
+                      "py-4 px-4 rounded-2xl border-2 text-sm font-black transition-all",
+                      role === UserRole.EMPLOYER
+                        ? "bg-brand-orange/5 border-brand-orange text-brand-orange shadow-xl shadow-orange-500/10"
+                        : "bg-white border-slate-50 text-slate-500 hover:border-slate-200"
+                    )}
+                  >
+                    מעסיק 📢
+                  </button>
+                )}
               </div>
             </div>
 
