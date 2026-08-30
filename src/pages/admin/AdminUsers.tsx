@@ -1,3 +1,4 @@
+import { auth } from "../../lib/firebase";
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, doc, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { setDoc, addDoc } from '../../lib/firestore-audit';;
@@ -181,6 +182,24 @@ export const AdminUsers: React.FC = () => {
       for (const b of batches) {
           await b.commit();
       }
+      
+      // Also delete the user from Firebase Auth via server
+      if (auth.currentUser) {
+          const token = await auth.currentUser.getIdToken();
+          try {
+              const res = await fetch("/api/admin/delete-user", {
+                  method: "POST",
+                  headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${token}`
+                  },
+                  body: JSON.stringify({ targetUid: uid })
+              });
+          } catch (apiErr) {
+              console.error("API error deleting user from Auth:", apiErr);
+          }
+      }
+
 
           toast('המשתמש הועבר לסל המיחזור בהצלחה!', 'success');
     } catch (error) {

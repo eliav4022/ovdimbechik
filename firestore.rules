@@ -22,11 +22,11 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (("email" in request.auth.token) && (request.auth.token.email.lower() == 'eliav4022@gmail.com' || request.auth.token.email == 'eliav4022@gmail.com')) ||
+        (("email" in request.auth.token) && (request.auth.token.email == 'eliav4022@gmail.com')) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           (
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN', 'SUPPORT_AGENT', 'CONTENT_MANAGER', 'FINANCE_MANAGER', 'Admin', 'admin', 'SuperAdmin', 'super_admin'] ||
-           (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []).size() > 0)
+           (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []) is list && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []).size() > 0)
           )
         )
       );

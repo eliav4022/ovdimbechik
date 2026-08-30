@@ -200,6 +200,41 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/delete-user", async (req, res) => {
+    if (!admin.apps.length) return res.status(500).json({ error: "Firebase Admin config missing" });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: "Unauthorized" });
+    
+    try {
+      const idToken = authHeader.split('Bearer ')[1];
+      const decodedUser = await admin.auth().verifyIdToken(idToken);
+      
+      const userDoc = await admin.firestore().collection('users').doc(decodedUser.uid).get();
+      if (!userDoc.exists || userDoc.data()?.role !== 'ADMIN') {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+
+      const { targetUid } = req.body;
+      if (!targetUid) {
+         return res.status(400).json({ error: "Invalid payload: targetUid is required" });
+      }
+
+      try {
+        await admin.auth().deleteUser(targetUid);
+      } catch (deleteErr: any) {
+        console.warn(`User ${targetUid} deletion from Auth failed or already deleted. Error:`, deleteErr?.message || deleteErr);
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Admin Delete User Error:", error.message);
+      if (error.message.includes("Identity Toolkit API has not been used") || error.message.includes("Credential is") || error.message.includes("PERMISSION_DENIED") || error.message.includes("accessNotConfigured")) {
+          return res.status(500).json({ error: "Firebase Admin config missing" });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/admin/update-user-email", async (req, res) => {
     if (!admin.apps.length) return res.status(500).json({ error: "Firebase Admin config missing" });
     const authHeader = req.headers.authorization;

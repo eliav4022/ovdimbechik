@@ -1,3 +1,4 @@
+import { auth } from "../../lib/firebase";
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
@@ -242,6 +243,20 @@ export const AdminEmployers: React.FC = () => {
                 deletedBy: currentUser.uid,
                 reason
             });
+            // Delete from Auth
+            if (auth.currentUser) {
+                const token = await auth.currentUser.getIdToken();
+                try {
+                    await fetch("/api/admin/delete-user", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ targetUid: (userToDelete as any).id || userToDelete.uid })
+                    });
+                } catch (e) { console.error(e); }
+            }
           toast('המעסיק הועבר לארכיון', 'success');
         } catch (error) {
             toast('שגיאה במחיקה', 'error');
