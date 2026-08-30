@@ -147,6 +147,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      try {
+        const sysDoc = await getDoc(doc(db, 'settings', 'system'));
+        if (sysDoc.exists() && sysDoc.data().requireEmailVerification && !fUser.emailVerified) {
+             setUser(null);
+             setLoading(false);
+             return;
+        }
+      } catch (err) {
+        console.error("Error fetching system settings in AuthContext", err);
+      }
+
       const userRef = doc(db, 'users', fUser.uid);
       
       // Start listening immediately

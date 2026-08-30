@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   createUserWithEmailAndPassword, 
@@ -30,6 +30,7 @@ const Register: React.FC = () => {
   const [role, setRole] = useState<UserRole>(UserRole.SEEKER);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -41,9 +42,11 @@ const Register: React.FC = () => {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+  const isRedirecting = useRef(false);
+
   useEffect(() => {
     // If the user object exists from AuthContext, they are already authenticated.
-    if (!authLoading && authUser) {
+    if (!authLoading && authUser && !loading && !isRedirecting.current) {
       const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
       sessionStorage.removeItem('google_auth_redirect');
       
@@ -112,9 +115,15 @@ const Register: React.FC = () => {
       }
 
       if (requireEmail) {
-         await sendEmailVerification(user);
+         isRedirecting.current = true;
+         const actionCodeSettings = {
+           url: `${window.location.origin}/login?verified=true`,
+           handleCodeInApp: false
+         };
+         await sendEmailVerification(user, actionCodeSettings);
          await auth.signOut();
-         navigate('/login?message=verify_email');
+         setVerificationSent(true);
+         setLoading(false);
          return;
       }
 
@@ -255,6 +264,38 @@ const Register: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-teal"></div>
+      </div>
+    );
+  }
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8" dir="rtl">
+        <Helmet>
+          <title>אימות כתובת אימייל</title>
+        </Helmet>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/50 text-center"
+        >
+          <div className="w-20 h-20 bg-brand-teal/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-10 h-10 text-brand-teal" />
+          </div>
+          <h2 className="text-3xl font-black text-slate-800 mb-4">נשלח קישור אימות</h2>
+          <p className="text-slate-600 mb-8 font-medium leading-relaxed">
+            שלחנו אליך עכשיו מייל עם קישור חד-פעמי. אנא פתח את תיבת הדואר שלך ולחץ על הקישור כדי לאמת את החשבון ולהשלים את ההרשמה.
+          </p>
+          <p className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl">
+            הקישור אישי ואקסקלוסיבי עבורך. רק לאחר האימות תוכל להתחבר למערכת.
+          </p>
+          <Link
+            to="/login"
+            className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white bg-brand-teal hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-teal transition-all"
+          >
+            מעבר למסך ההתחברות
+          </Link>
+        </motion.div>
       </div>
     );
   }

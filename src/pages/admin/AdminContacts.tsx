@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Inquiry } from '../../types';
@@ -12,6 +13,7 @@ export const AdminContacts: React.FC = () => {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     const q = query(collection(db, 'inquiries'), orderBy('createdAt', 'desc'));
@@ -19,6 +21,14 @@ export const AdminContacts: React.FC = () => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Inquiry));
       setInquiries(data);
       setLoading(false);
+      
+      const idParam = searchParams.get('id');
+      if (idParam && !selectedInquiry) {
+          const found = data.find(i => i.id === idParam);
+          if (found) {
+              setSelectedInquiry(found);
+          }
+      }
     }, (error) => {
       console.error("Error fetching inquiries:", error);
       setLoading(false);

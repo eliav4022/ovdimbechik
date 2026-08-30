@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -29,11 +29,15 @@ const Login: React.FC = () => {
 
   const isIPad = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+  const [successMsg, setSuccessMsg] = useState('');
+
   useEffect(() => {
     if (urlMessage === 'verify_email') {
       setError('נשלח אליך מייל אימות. אנא לחץ על הקישור במייל כדי להפעיל את חשבונך, ולאחר מכן התחבר.');
+    } else if (urlMessage === 'true' || searchParams.get('verified') === 'true') {
+      setSuccessMsg('האימייל אומת בהצלחה! אתה יכול כעת להתחבר.');
     }
-  }, [urlMessage]);
+  }, [urlMessage, searchParams]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -49,9 +53,11 @@ const Login: React.FC = () => {
     fetchSettings();
   }, []);
 
+  const isRedirecting = useRef(false);
+
   useEffect(() => {
     // If the user object exists from AuthContext, they are already authenticated.
-    if (!authLoading && authUser) {
+    if (!authLoading && authUser && !loading && !isRedirecting.current) {
       const savedRedirect = sessionStorage.getItem('google_auth_redirect') || redirectPath;
       sessionStorage.removeItem('google_auth_redirect');
       
@@ -76,6 +82,7 @@ const Login: React.FC = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       if (requireEmail && !userCredential.user.emailVerified) {
+        isRedirecting.current = true;
         await auth.signOut();
         setError('טרם אימתת את כתובת האימייל שלך. בדוק את תיבת הדואר שלך לקישור אימות.');
         setLoading(false);
@@ -207,6 +214,17 @@ const Login: React.FC = () => {
             <h2 className="text-3xl font-black text-slate-900 mb-2">ברוכים השבים 👋</h2>
             <p className="text-slate-500 font-bold">התחברו כדי למצוא את המשרה הבאה בצ'יק</p>
           </div>
+
+          {successMsg && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-8 p-4 bg-emerald-50 text-emerald-600 text-sm rounded-2xl border border-emerald-100 font-bold text-right flex items-start gap-3"
+            >
+              <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">✓</div>
+              {successMsg}
+            </motion.div>
+          )}
 
           {error && (
             <motion.div 

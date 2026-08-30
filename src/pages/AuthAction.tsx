@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
+import { confirmPasswordReset, verifyPasswordResetCode, applyActionCode } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { Helmet } from 'react-helmet-async';
-import { Key, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Key, CheckCircle, XCircle, Loader2, MailCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AuthAction = () => {
@@ -20,7 +20,13 @@ const AuthAction = () => {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (mode === 'resetPassword' && oobCode) {
+    if (!mode || !oobCode) {
+       setError('פעולה לא חוקית או קישור פגום.');
+       setVerifying(false);
+       return;
+    }
+
+    if (mode === 'resetPassword') {
       verifyPasswordResetCode(auth, oobCode)
         .then(() => {
           setVerifying(false);
@@ -29,11 +35,24 @@ const AuthAction = () => {
           setError('הקישור לאיפוס סיסמה פג תוקף או שאינו תקין. אנא בקש קישור חדש.');
           setVerifying(false);
         });
+    } else if (mode === 'verifyEmail') {
+       applyActionCode(auth, oobCode)
+        .then(() => {
+          setVerifying(false);
+          setSuccess(true);
+          setTimeout(() => {
+            navigate('/login?verified=true');
+          }, 3000);
+        })
+        .catch((err) => {
+          setError('הקישור לאימות כתובת המייל פג תוקף או שאינו תקין. ייתכן שהחשבון כבר אומת.');
+          setVerifying(false);
+        });
     } else {
-       setError('פעולה לא חוקית או קישור פגום.');
+       setError('פעולה לא נתמכת.');
        setVerifying(false);
     }
-  }, [mode, oobCode]);
+  }, [mode, oobCode, navigate]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,9 +92,15 @@ const AuthAction = () => {
       >
         <div className="text-center mb-8">
           <div className="mx-auto w-16 h-16 bg-brand-teal/10 rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3">
-            <Key size={32} className="text-brand-teal -rotate-3" />
+            {mode === 'verifyEmail' ? (
+              <MailCheck size={32} className="text-brand-teal -rotate-3" />
+            ) : (
+              <Key size={32} className="text-brand-teal -rotate-3" />
+            )}
           </div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">איפוס סיסמה</h2>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight">
+             {mode === 'verifyEmail' ? 'אימות דואר אלקטרוני' : 'איפוס סיסמה'}
+          </h2>
         </div>
 
         {verifying ? (
@@ -88,17 +113,21 @@ const AuthAction = () => {
               <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-red-800 mb-2">שגיאה</h3>
               <p className="text-red-600 font-medium mb-6">{error}</p>
-              <button onClick={() => navigate('/forgot-password')} className="bg-red-100 text-red-700 font-bold py-2 px-6 rounded-xl hover:bg-red-200 transition-colors">
-                 בקש איפוס מחדש
-              </button>
+              {mode !== 'verifyEmail' && (
+                <button onClick={() => navigate('/forgot-password')} className="bg-red-100 text-red-700 font-bold py-2 px-6 rounded-xl hover:bg-red-200 transition-colors">
+                   בקש איפוס מחדש
+                </button>
+              )}
            </div>
         ) : success ? (
             <div className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center">
               <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-green-800 mb-2">הסיסמה שונתה בהצלחה!</h3>
+              <h3 className="text-lg font-bold text-green-800 mb-2">
+                 {mode === 'verifyEmail' ? 'כתובת המייל אומתה בהצלחה!' : 'הסיסמה שונתה בהצלחה!'}
+              </h3>
               <p className="text-green-600 font-medium">מעביר אותך לעמוד ההתחברות...</p>
            </div>
-        ) : (
+        ) : mode === 'resetPassword' && (
             <form className="space-y-6" onSubmit={handleReset}>
                 <div className="space-y-2">
                     <label htmlFor="newPassword" className="block text-sm font-black text-slate-700">סיסמה חדשה</label>

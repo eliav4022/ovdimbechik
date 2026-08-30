@@ -37,7 +37,9 @@ import {
   Eye,
   MousePointerClick,
   LayoutDashboard,
-  RefreshCw
+  RefreshCw,
+  MessageSquare,
+  Mail
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -56,7 +58,9 @@ export const AdminDashboard: React.FC = () => {
   
   const [showTasksModal, setShowTasksModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
+  const [showInquiriesModal, setShowInquiriesModal] = useState(false);
   const [pendingJobReportsList, setPendingJobReportsList] = useState<any[]>([]);
+  const [pendingInquiriesList, setPendingInquiriesList] = useState<any[]>([]);
   const [showPendingJobsModal, setShowPendingJobsModal] = useState(false);
   const [showUnassignedModal, setShowUnassignedModal] = useState(false);
   const [unassignedEmployers, setUnassignedEmployers] = useState(0);
@@ -81,6 +85,7 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       let unsubscribeJobReports: (() => void) | undefined;
+      let unsubscribeInquiries: (() => void) | undefined;
       try {
         const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
         const chartMap: Record<string, any> = {};
@@ -158,6 +163,19 @@ export const AdminDashboard: React.FC = () => {
         }
 
         try {
+            unsubscribeInquiries = onSnapshot(collection(db, 'inquiries'), (snapshot) => {
+                const newInquiries = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter((data: any) => data.status === 'NEW');
+                setPendingInquiriesList(newInquiries);
+            }, (error) => {
+                console.error("Error subscribing to inquiries: ", error);
+            });
+        } catch (error) {
+            console.error("Error setting up inquiries snapshot", error);
+        }
+
+        try {
             const analyticsSnap = await getDocs(query(collection(db, 'analytics_events'), limit(5000)));
             const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
             const visitsMap: Record<string, any> = {};
@@ -224,7 +242,10 @@ export const AdminDashboard: React.FC = () => {
       } finally {
         setLoading(false);
       }
-      return unsubscribeJobReports;
+      return () => {
+         if (unsubscribeJobReports) unsubscribeJobReports();
+         if (unsubscribeInquiries) unsubscribeInquiries();
+      };
     };
 
     let unsub: (() => void) | undefined;
@@ -262,11 +283,11 @@ export const AdminDashboard: React.FC = () => {
   };
 
 
-  const statsData = [
+  const statsData: any[] = [
     { label: 'משתמשים רשומים', value: stats.usersCount.toString(), trend: '+5%', isUp: true, icon: Users, color: 'indigo' },
     { label: 'משרות במערכת', value: stats.jobsCount.toString(), trend: '+12%', isUp: true, icon: Briefcase, color: 'emerald' },
     { label: 'מועמדויות', value: stats.applicationsCount.toString(), trend: '+20%', isUp: true, icon: FileText, color: 'amber' },
-    { label: 'הכנסות', value: `₪${stats.revenue}`, trend: '+0%', isUp: true, icon: CircleDollarSign, color: 'blue' },
+    { label: 'פניות חדשות', value: pendingInquiriesList.length.toString(), trend: 'פעולה נדרשת', isUp: false, isWarning: true, icon: MessageSquare, color: 'blue', onClick: () => setShowInquiriesModal(true) },
   ];
 
   const chartData = liveChartData.length > 0 ? liveChartData : [
@@ -347,13 +368,17 @@ export const AdminDashboard: React.FC = () => {
         {statsData.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-default">
+            <Card 
+                key={stat.label} 
+                onClick={stat.onClick}
+                className={`p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 transition-transform ${stat.onClick ? 'cursor-pointer hover:scale-[1.02] ring-2 ring-transparent hover:ring-indigo-500' : 'cursor-default hover:scale-[1.02]'}`}
+            >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
                 <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-slate-50 flex items-center justify-center text-slate-600 shrink-0`}>
                   <Icon size={20} className="md:w-6 md:h-6" />
                 </div>
-                <Badge variant={stat.isUp ? 'success' : 'error'} className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit">
-                  {stat.isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                <Badge variant={stat.isWarning ? 'warning' : (stat.isUp ? 'success' : 'error')} className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit">
+                  {stat.isWarning ? null : (stat.isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />)}
                   {stat.trend}
                 </Badge>
               </div>
@@ -693,6 +718,50 @@ export const AdminDashboard: React.FC = () => {
                                                   <span className="text-[11px] bg-white border border-slate-200 text-slate-500 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 shadow-sm">
                                                       <Clock size={12} className="text-slate-400" />
                                                       נוצר: {new Date(task.createdAt).toLocaleDateString('he-IL')}
+                                                  </span>
+                                              )}
+                                          </div>
+                                      </div>
+                                  </Link>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {showInquiriesModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                      <h2 className="text-xl font-black text-slate-800">פניות משתמשים (חדשות)</h2>
+                      <button onClick={() => setShowInquiriesModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  <div className="p-6 overflow-y-auto">
+                      {pendingInquiriesList.length === 0 ? (
+                          <div className="text-center text-slate-500 font-medium py-8">אין פניות משתמשים חדשות.</div>
+                      ) : (
+                          <div className="space-y-4">
+                               {pendingInquiriesList.map(inquiry => (
+                                  <Link to={`/admin/contacts?id=${inquiry.id}`} key={inquiry.id} className="block p-4 border border-slate-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all bg-slate-50 cursor-pointer text-right group">
+                                      <div className="flex flex-col gap-3">
+                                          <div className="flex items-start justify-between">
+                                              <div>
+                                                  <h4 className="font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors text-lg">{inquiry.subject || 'ללא נושא'}</h4>
+                                                  <p className="text-sm text-slate-600 line-clamp-2">מאת: {inquiry.senderName} ({inquiry.senderEmail})</p>
+                                              </div>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                                              <span className="text-[11px] px-2.5 py-1 rounded-md font-bold flex items-center gap-1 bg-amber-100 text-amber-700">
+                                                  סטטוס: חדש
+                                              </span>
+                                              {inquiry.createdAt && (
+                                                  <span className="text-[11px] bg-white border border-slate-200 text-slate-500 px-2.5 py-1 rounded-md font-bold flex items-center gap-1 shadow-sm">
+                                                      <Clock size={12} className="text-slate-400" />
+                                                      נוצר: {new Date(inquiry.createdAt).toLocaleDateString('he-IL')}
                                                   </span>
                                               )}
                                           </div>
