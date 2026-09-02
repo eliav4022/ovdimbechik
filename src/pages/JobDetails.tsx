@@ -42,7 +42,8 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { cn, validateFile } from '../lib/utils';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
+import { triggerWebhook } from '../services/webhookService';
 import { JobCard } from '../components/JobCard';
 import { trackEvent } from '../lib/analytics';
 
@@ -103,7 +104,6 @@ const JobDetails: React.FC = () => {
   const [reportDetails, setReportDetails] = useState('');
   const [reporting, setReporting] = useState(false);
   const [enableCVUploads, setEnableCVUploads] = useState(true);
-  const [requireResumeGlobal, setRequireResumeGlobal] = useState(false);
   const [maxUserUploadSizeMB, setMaxUserUploadSizeMB] = useState(1);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -286,22 +286,29 @@ const JobDetails: React.FC = () => {
           }
         }
         
-        if (user && user.role === UserRole.SEEKER) {
-          const appsQuery = query(
-            collection(db, 'applications'), 
-            where('jobId', '==', id),
-            where('seekerId', '==', user.uid)
-          );
-          const appsSnap = await getDocs(appsQuery);
-          if (!appsSnap.empty) setApplied(true);
+        if (user) {
+          try {
+            const appsQuery = query(
+              collection(db, 'applications'), 
+              where('jobId', '==', id),
+              where('seekerId', '==', user.uid)
+            );
+            const appsSnap = await getDocs(appsQuery);
+            if (!appsSnap.empty) setApplied(true);
+          } catch (err) {
+            console.warn("Could not check application status", err);
+          }
         }
 
         // Fetch settings
-        const systemSnap = await getDoc(doc(db, 'settings', 'system'));
-        if (systemSnap.exists()) {
-            setEnableCVUploads(systemSnap.data().enableCVUploads !== false);
-            setRequireResumeGlobal(!!systemSnap.data().requireResumeUpload);
-            setMaxUserUploadSizeMB(systemSnap.data().maxUserUploadSizeMB || 1);
+        try {
+          const systemSnap = await getDoc(doc(db, 'settings', 'system'));
+          if (systemSnap.exists()) {
+              setEnableCVUploads(systemSnap.data().enableCVUploads !== false);
+              setMaxUserUploadSizeMB(systemSnap.data().maxUserUploadSizeMB || 1);
+          }
+        } catch (err) {
+          console.warn("Could not fetch system settings", err);
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, `jobs/${id}`);
@@ -328,15 +335,19 @@ const JobDetails: React.FC = () => {
       toast('אנא הזן אימייל תקין', 'error');
       return;
     }
-    if (enableCVUploads && (job.requireCV !== false || requireResumeGlobal) && !cvFile && !user.cvUrl) {
+    if (enableCVUploads && job.requireCV !== false && !cvFile && !user.cvUrl) {
       toast('חובה לצרף קובץ קורות חיים', 'error');
       return;
     }
     
-    if (cvFile) {
-      const validation = validateFile(cvFile, maxUserUploadSizeMB);
+    if (enableCVUploads && cvFile) {
+      const validation = validateFile(cvFile, 0.05); // 50KB = 0.05MB (or 50 * 1024 bytes)
+      if (cvFile.size > 50 * 1024) {
+        toast('גודל הקובץ חורג מהמגבלה של 50KB', 'error');
+        return;
+      }
       if (!validation.valid) {
-        toast(validation.error || 'קובץ לא תקין', 'error');
+        toast(validation.error || 'סוג הקובץ אינו נתמך. נא להעלות קבצי PDF או Word.', 'error');
         return;
       }
     }
@@ -349,28 +360,23 @@ const JobDetails: React.FC = () => {
     setApplying(true);
 
     try {
-      let finalCvUrl = user.cvUrl || '';
-      if (cvFile) {
-          const cvRef = ref(storage, `cvs/${user.uid}/${Date.now()}_${cvFile.name}`);
-          
-          const fileName = cvFile.name.toLowerCase();
-          let contentType = cvFile.type || 'application/octet-stream';
-          if (fileName.endsWith('.pdf')) contentType = 'application/pdf';
-          else if (fileName.endsWith('.doc')) contentType = 'application/msword';
-          else if (fileName.endsWith('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
-          const fileBytes = new Uint8Array(await cvFile.arrayBuffer());
-          await uploadBytes(cvRef, fileBytes, { contentType });
-          
-          finalCvUrl = window.location.origin + '/file/' + cvRef.fullPath;
+      let finalCvUrl = '';
+      if (enableCVUploads) {
+        finalCvUrl = user.cvUrl || '';
+        if (cvFile) {
+            const { uploadAndReplaceCV } = await import('../lib/cvUtils');
+            finalCvUrl = await uploadAndReplaceCV(cvFile, user);
+        }
       }
 
       const appRef = doc(collection(db, 'applications'));
+      const resolvedOwnerId = job.ownerId || job.employerId || user.uid;
       const application: Application = {
         id: appRef.id,
         jobId: job.id,
         seekerId: user.uid,
-        ownerId: job.ownerId || job.employerId || '',
+        ownerId: resolvedOwnerId,
+        employerId: resolvedOwnerId,
         applicantName,
         applicantPhone,
         applicantEmail,
@@ -390,6 +396,14 @@ const JobDetails: React.FC = () => {
       }
 
       await batch.commit();
+
+      // Dispatch integration webhook for new candidate application
+      triggerWebhook('application.created', {
+        ...application,
+        jobTitle: job.title,
+        companyName: job.companyName,
+        jobCategory: job.category
+      });
 
       toast('המועמדות שלך נשלחה בהצלחה!', 'success');
 
@@ -812,11 +826,11 @@ const JobDetails: React.FC = () => {
                         <div className={`grid grid-cols-1 ${enableCVUploads ? 'md:grid-cols-2' : ''} gap-10`}>
                             {enableCVUploads && (
                                 <div className="space-y-5 text-right">
-                                    <label className="block text-sm font-black text-text-main pr-3">קורות חיים (PDF / WORD) {(job.requireCV !== false || requireResumeGlobal) && !user?.cvUrl ? '*' : ''}</label>
+                                    <label className="block text-sm font-black text-text-main pr-3">קורות חיים (PDF / WORD) {job.requireCV !== false && !user?.cvUrl ? '*' : ''}</label>
                                     <div className="relative group overflow-hidden rounded-[2.5rem]">
                                         <input
                                             type="file"
-                                            required={(job.requireCV !== false || requireResumeGlobal) && !user?.cvUrl}
+                                            required={job.requireCV !== false && !user?.cvUrl}
                                             accept=".pdf,.doc,.docx"
                                             className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                             onChange={(e) => setCvFile(e.target.files?.[0] || null)}
@@ -828,7 +842,7 @@ const JobDetails: React.FC = () => {
                                             <p className="font-black text-text-main text-lg mb-2">
                                                 {cvFile ? cvFile.name : (user?.cvUrl ? 'קורות החיים שלך בפרופיל ישלחו (לחץ להחלפה)' : 'לחץ להעלאת קובץ')}
                                             </p>
-                                            <p className="text-text-muted text-xs font-black uppercase tracking-[0.2em]">{user?.cvUrl ? 'ניתן להעלות קובץ אחר' : (job.requireCV !== false ? 'חובה לצרף CV' : 'רשות לצרף CV')}</p>
+                                            <p className="text-text-muted text-xs font-black uppercase tracking-[0.2em]">{user?.cvUrl ? 'ניתן להעלות קובץ אחר (עד 50KB)' : (job.requireCV !== false ? 'חובה לצרף CV (עד 50KB)' : 'רשות לצרף CV (עד 50KB)')}</p>
                                         </div>
                                     </div>
                                 </div>

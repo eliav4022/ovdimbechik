@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, onSnapshot, query, where, doc, serverTimestamp, writeBatch, getDocs } from 'firebase/firestore';
-import { setDoc, addDoc } from '../../lib/firestore-audit';;
+import { collection, onSnapshot, query, where, doc, serverTimestamp } from 'firebase/firestore';
+import { setDoc, addDoc } from '../../lib/firestore-audit';
 import { db, storage } from '../../lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes } from 'firebase/storage';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
-import { Building2, Globe, MapPin, ShieldCheck, Mail } from 'lucide-react';
+import { Building2, Globe, MapPin, ShieldCheck, Mail, Users, Briefcase, Sparkles } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { softDelete } from '../../lib/adminUtils';
@@ -14,6 +14,7 @@ import { TwoStepConfirmModal } from '../../components/ui/TwoStepConfirmModal';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { ensureDefaultEntities, syncCompanyNameChange, unlinkEmployerFromCompany } from '../../services/entityService';
 
 export const AdminCompanies: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -28,14 +29,19 @@ export const AdminCompanies: React.FC = () => {
 
     const [newCompany, setNewCompany] = useState({
         name: '',
-        employerId: '',
         industry: '',
-        location: ''
+        location: '',
+        website: '',
+        description: ''
     });
 
     const [employers, setEmployers] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<any[]>([]);
 
     useEffect(() => {
+        // Ensure default company and default employer exist
+        ensureDefaultEntities().catch(err => console.error("Error ensuring default entities", err));
+
         const q = query(collection(db, 'companies'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs
@@ -54,36 +60,43 @@ export const AdminCompanies: React.FC = () => {
             setEmployers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((u: any) => !u.deletedAt));
         });
 
+        const qJobs = query(collection(db, 'jobs'));
+        const unsubJobs = onSnapshot(qJobs, (snapshot) => {
+            setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((j: any) => !j.deletedAt));
+        });
+
         return () => {
             unsubscribe();
             unsubEmps();
+            unsubJobs();
         };
     }, []);
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            if (!newCompany.name.trim()) {
+                toast('נא להזין שם חברה', 'error');
+                return;
+            }
+
             const companyId = 'comp_' + Date.now();
-            const employerIdToSet = newCompany.employerId || currentUser?.uid || 'system';
             
             await setDoc(doc(db, 'companies', companyId), {
-                name: newCompany.name,
-                employerId: employerIdToSet,
-                industry: newCompany.industry,
-                location: newCompany.location,
+                id: companyId,
+                name: newCompany.name.trim(),
+                industry: newCompany.industry || 'כללי',
+                location: newCompany.location || 'ישראל',
+                website: newCompany.website || '',
+                description: newCompany.description || '',
                 isVerified: true,
+                credits: 0,
                 createdAt: new Date().toISOString()
             });
-
-            // Update user to link company
-            if (employerIdToSet !== 'system') {
-                const userRef = doc(db, 'users', employerIdToSet);
-                await setDoc(userRef, { companyId: companyId, companyName: newCompany.name }, { merge: true });
-            }
             
             toast('חברה חדשה התווספה בהצלחה', 'success');
             setIsAddModalOpen(false);
-            setNewCompany({ name: '', employerId: '', industry: '', location: '' });
+            setNewCompany({ name: '', industry: '', location: '', website: '', description: '' });
         } catch (error) {
             console.error("Error adding company:", error);
             toast('שגיאה בהוספת החברה', 'error');
@@ -98,9 +111,10 @@ export const AdminCompanies: React.FC = () => {
     const handleClone = (company: any) => {
         setNewCompany({
             name: company.name ? company.name + ' (עותק)' : '',
-            employerId: company.employerId || '',
             industry: company.industry || '',
-            location: company.location || ''
+            location: company.location || '',
+            website: company.website || '',
+            description: company.description || ''
         });
         setIsAddModalOpen(true);
     };
@@ -109,26 +123,22 @@ export const AdminCompanies: React.FC = () => {
         e.preventDefault();
         if (!companyToEdit) return;
         try {
+            const oldName = companies.find(c => c.id === companyToEdit.id)?.name;
+            const newName = companyToEdit.name.trim();
+
             await setDoc(doc(db, 'companies', companyToEdit.id), {
-                name: companyToEdit.name,
-                industry: companyToEdit.industry,
-                location: companyToEdit.location,
+                name: newName,
+                industry: companyToEdit.industry || '',
+                location: companyToEdit.location || '',
+                website: companyToEdit.website || '',
+                description: companyToEdit.description || '',
+                logoUrl: companyToEdit.logoUrl || null,
                 updatedAt: new Date().toISOString()
             }, { merge: true });
             
-            // Also update jobs and user
-            if (companyToEdit.employerId) {
-                const userRef = doc(db, 'users', companyToEdit.employerId);
-                await setDoc(userRef, { companyName: companyToEdit.name }, { merge: true });
-                
-                // Update jobs
-                const jobsQuery = query(collection(db, 'jobs'), where('companyId', '==', companyToEdit.id));
-                const jobsSnap = await getDocs(jobsQuery);
-                const batch = writeBatch(db);
-                jobsSnap.forEach(jobDoc => {
-                    batch.update(jobDoc.ref, { companyName: companyToEdit.name });
-                });
-                await batch.commit();
+            // If company name changed, sync across all associated employers and jobs
+            if (oldName && oldName !== newName) {
+                await syncCompanyNameChange(companyToEdit.id, newName);
             }
             
             toast('החברה עודכנה בהצלחה', 'success');
@@ -141,6 +151,10 @@ export const AdminCompanies: React.FC = () => {
     };
 
     const handleDelete = (c: any) => {
+        if (c.isDefault || c.id === 'comp_default') {
+            toast('לא ניתן למחוק את חברת ברירת המחדל של המערכת', 'error');
+            return;
+        }
         setCompanyToDelete(c);
         setIsDeleteModalOpen(true);
     };
@@ -148,13 +162,19 @@ export const AdminCompanies: React.FC = () => {
     const confirmDelete = async (reason: string) => {
         if (!companyToDelete || !currentUser) return;
         try {
+            // Re-link employers of this company to default company
+            const linkedEmps = employers.filter(e => e.companyId === companyToDelete.id);
+            for (const emp of linkedEmps) {
+                await unlinkEmployerFromCompany(emp.id || emp.uid);
+            }
+
             await softDelete({
                 collectionName: 'companies',
                 id: companyToDelete.id,
                 deletedBy: currentUser.uid,
                 reason
             });
-            toast('החברה הועברה לארכיון', 'success');
+            toast('החברה הועברה לארכיון והמעסיקים המשויכים הועברו לעובדים בצ\'יק כללי', 'success');
         } catch (error) {
             toast('שגיאה במחיקה', 'error');
         } finally {
@@ -181,43 +201,67 @@ export const AdminCompanies: React.FC = () => {
         { 
             key: 'name', 
             header: 'שם החברה',
-            render: (c: any) => (
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden p-1">
-                        {c.logoUrl ? (
-                            <img src={c.logoUrl} alt={c.name} className="w-full h-full object-contain rounded-xl" />
-                        ) : (
-                            <Building2 className="text-slate-300" size={24} />
-                        )}
+            render: (c: any) => {
+                const isDefaultComp = c.isDefault || c.id === 'comp_default';
+                return (
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden p-1">
+                            {c.logoUrl ? (
+                                <img src={c.logoUrl} alt={c.name} className="w-full h-full object-contain rounded-xl" />
+                            ) : (
+                                <Building2 className="text-slate-300" size={24} />
+                            )}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <Link to={`/admin/companies/${c.id}`} className="font-black text-slate-900 leading-tight hover:text-indigo-600 hover:underline">{c.name}</Link>
+                                {isDefaultComp && (
+                                    <Badge variant="brand" className="text-[9px] font-black bg-indigo-100 text-indigo-700">
+                                        <Sparkles size={10} className="mr-1" />
+                                        חברת ברירת מחדל
+                                    </Badge>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{c.industry || 'תעשייה כללית'} | {c.location || 'ישראל'}</p>
+                        </div>
                     </div>
-                    <div>
-                        <Link to={`/admin/companies/${c.id}`} className="font-black text-slate-900 leading-tight hover:text-indigo-600 hover:underline">{c.name}</Link>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{c.industry || 'תעשייה כללית'} | {c.location}</p>
-                    </div>
-                </div>
-            )
+                );
+            }
         },
         {
-            key: 'employer',
-            header: 'מעסיק בעלים',
+            key: 'employersCount',
+            header: 'מעסיקים משויכים',
             render: (c: any) => {
-                const emp = employers.find(e => (e as any).id === c.employerId || e.uid === c.employerId);
+                const linkedEmps = employers.filter(e => e.companyId === c.id || (c.isDefault && !e.companyId));
                 return (
-                    <div className="flex flex-col">
-                        <span className="font-bold text-slate-800 text-xs">{emp ? emp.displayName : 'לא ידוע'}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{emp ? emp.email : c.employerId}</span>
+                    <Link to={`/admin/companies/${c.id}?tab=employers`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 font-bold text-xs transition-colors">
+                        <Users size={13} className="text-indigo-500" />
+                        <span>{linkedEmps.length} מעסיקים</span>
+                    </Link>
+                );
+            }
+        },
+        { 
+            key: 'jobsCount', 
+            header: 'משרות בחברה',
+            render: (c: any) => {
+                const compJobs = jobs.filter(j => j.companyId === c.id || (!j.companyId && c.isDefault));
+                return (
+                    <div className="flex items-center gap-1 text-sm font-bold text-slate-600">
+                        <Briefcase size={13} className="text-slate-400" />
+                        <span>{compJobs.length} משרות</span>
                     </div>
                 );
             }
         },
         {
             key: 'verification',
-            header: 'אימות',
+            header: 'סטטוס אימות',
             render: (c: any) => (
                 c.isVerified ? (
                     <Badge variant="success" className="text-[10px] font-black flex items-center gap-1">
                         <ShieldCheck size={12} />
-                        חברה מאומתת
+                        מאומתת
                     </Badge>
                 ) : (
                     <Badge variant="warning" className="text-[10px] font-black">
@@ -241,8 +285,7 @@ export const AdminCompanies: React.FC = () => {
             header: 'קישורים',
             render: (c: any) => (
                 <div className="flex items-center gap-3">
-                    {c.website && <a href={c.website} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-primary transition-colors"><Globe size={14} /></a>}
-                    {c.email && <a href={`mailto:${c.email}`} className="text-slate-400 hover:text-primary transition-colors"><Mail size={14} /></a>}
+                    {c.website && <a href={c.website} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-indigo-600 transition-colors" title={c.website}><Globe size={14} /></a>}
                 </div>
             )
         },
@@ -254,23 +297,14 @@ export const AdminCompanies: React.FC = () => {
                     {c.credits || 0}
                 </div>
             )
-        },
-        { 
-            key: 'jobsCount', 
-            header: 'משרות',
-            render: (c: any) => (
-                <div className="text-sm font-bold text-slate-600">
-                    {c.activeJobsCount || 0} פעילות
-                </div>
-            )
         }
     ];
 
     return (
         <>
             <AdminTable 
-                title="ניהול חברות"
-                description="פיקוח על פרופילי חברות, אימות מעסיקים וניהול מותג מעסיק."
+                title="ניהול חברות (אובייקט אב)"
+                description="חברה מהווה ישות-אב המרכזת תחתיה מעסיקים, משרות וקרדיטים משותפים."
                 data={companies}
                 columns={columns}
                 searchFields={['name', 'industry', 'location']}
@@ -299,7 +333,7 @@ export const AdminCompanies: React.FC = () => {
                     onClose={() => setIsDeleteModalOpen(false)}
                     onConfirm={confirmDelete}
                     title="ארכוב פרופיל חברה"
-                    message={`האם אתה בטוח שברצונך לארכב את חברת ${companyToDelete.name}?`}
+                    message={`האם אתה בטוח שברצונך לארכב את חברת ${companyToDelete.name}? כל המעסיקים והמשרות המשויכים יועברו אוטומטית לחברת ברירת המחדל.`}
                     confirmWord="מחק"
                 />
             )}
@@ -311,42 +345,46 @@ export const AdminCompanies: React.FC = () => {
             >
                 <form onSubmit={handleAdd} className="space-y-6">
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">בעלי החברה (מעסיק)</label>
-                        <select 
-                            required
-                            className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
-                            value={newCompany.employerId}
-                            onChange={(e) => setNewCompany(prev => ({...prev, employerId: e.target.value}))}
-                        >
-                            <option value="">בחר מעסיק...</option>
-                            {employers.map(emp => (
-                                <option key={emp.id || emp.uid} value={emp.id || emp.uid}>{emp.displayName} ({emp.email})</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">שם חברה</label>
                         <Input 
                             required
-                            placeholder="למשל: סייברקאפ..." 
+                            placeholder="למשל: סייברקאפ, גוגל, עובדים בציק..." 
                             value={newCompany.name}
                             onChange={(e) => setNewCompany(prev => ({...prev, name: e.target.value}))}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">תעשייה</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">תעשייה / תחום</label>
                         <Input 
-                            placeholder="למשל: תוכנה..." 
+                            placeholder="למשל: תוכנה, קמעונאות, מזון..." 
                             value={newCompany.industry}
                             onChange={(e) => setNewCompany(prev => ({...prev, industry: e.target.value}))}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">מיקום משרדים</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">מיקום משרדים / מטה</label>
                         <Input 
                             placeholder="למשל: תל אביב, חיפה..." 
                             value={newCompany.location}
                             onChange={(e) => setNewCompany(prev => ({...prev, location: e.target.value}))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">אתר אינטרנט (אופציונלי)</label>
+                        <Input 
+                            placeholder="https://example.com" 
+                            value={newCompany.website}
+                            onChange={(e) => setNewCompany(prev => ({...prev, website: e.target.value}))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">תיאור החברה (אופציונלי)</label>
+                        <textarea 
+                            rows={3}
+                            className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 font-sans"
+                            placeholder="תיאור כללי על החברה..."
+                            value={newCompany.description}
+                            onChange={(e) => setNewCompany(prev => ({...prev, description: e.target.value}))}
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-6">
@@ -387,7 +425,6 @@ export const AdminCompanies: React.FC = () => {
                                             await uploadBytes(storageRef, fileBytes, { contentType: file.type });
                                             const url = window.location.origin + '/file/' + storageRef.fullPath;
                                             
-                                            // Save to files collection
                                             const compName = companyToEdit.name || 'חברה_ללא_שם';
                                             const formattedDate = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
                                             await addDoc(collection(db, 'files'), {
@@ -400,7 +437,7 @@ export const AdminCompanies: React.FC = () => {
                                             });
                                             
                                             setCompanyToEdit({ ...companyToEdit, logoUrl: url });
-                                            toast('הלוגו הועלה בהצלחה נוסף לניהול קבצים (אל תשכחו לשמור)', 'success');
+                                            toast('הלוגו הועלה בהצלחה (אל תשכחו לשמור)', 'success');
                                         } catch (error) {
                                             console.error('Error uploading logo:', error);
                                             toast('שגיאה בהעלאת התמונה', 'error');
@@ -420,15 +457,31 @@ export const AdminCompanies: React.FC = () => {
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">תעשייה</label>
                             <Input 
-                                value={companyToEdit.industry}
+                                value={companyToEdit.industry || ''}
                                 onChange={(e) => setCompanyToEdit({ ...companyToEdit, industry: e.target.value })}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">מיקום משרדים</label>
                             <Input 
-                                value={companyToEdit.location}
+                                value={companyToEdit.location || ''}
                                 onChange={(e) => setCompanyToEdit({ ...companyToEdit, location: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">אתר אינטרנט</label>
+                            <Input 
+                                value={companyToEdit.website || ''}
+                                onChange={(e) => setCompanyToEdit({ ...companyToEdit, website: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">תיאור החברה</label>
+                            <textarea 
+                                rows={3}
+                                className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 font-sans"
+                                value={companyToEdit.description || ''}
+                                onChange={(e) => setCompanyToEdit({ ...companyToEdit, description: e.target.value })}
                             />
                         </div>
                         <div className="flex justify-end gap-3 pt-6">

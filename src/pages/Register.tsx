@@ -14,11 +14,14 @@ import { updateDoc } from '../lib/firestore-audit';;
 import { trackEvent } from '../lib/analytics';
 import { auth, db } from '../lib/firebase';
 import { UserRole, User } from '../types';
+import { DEFAULT_COMPANY_ID, DEFAULT_COMPANY_NAME } from '../services/entityService';
 import { Briefcase, User as UserIcon, Mail, Lock, Chrome, Rocket, ArrowRight, Bot, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
+import { triggerWebhook } from '../services/webhookService';
+import { collection, addDoc } from 'firebase/firestore';
 
 let googleLoginInProgress = false;
 
@@ -86,6 +89,8 @@ const Register: React.FC = () => {
         fullName: fullDisplayName,
         displayName: fullDisplayName,
         role: isSelfAdmin ? UserRole.ADMIN : role,
+        companyId: (role === UserRole.EMPLOYER && !isSelfAdmin) ? DEFAULT_COMPANY_ID : null,
+        companyName: (role === UserRole.EMPLOYER && !isSelfAdmin) ? DEFAULT_COMPANY_NAME : null,
         status: 'Active',
         permissions: isSelfAdmin ? ['ALL'] : [],
         createdAt: new Date().toISOString(),
@@ -109,9 +114,34 @@ const Register: React.FC = () => {
         await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
           userId: user.uid,
           position: '',
-          companyId: null,
+          companyId: DEFAULT_COMPANY_ID,
+          companyName: DEFAULT_COMPANY_NAME,
           isPrimaryContact: true,
         });
+
+        // Trigger employer registration webhook
+        triggerWebhook('employer.registered', {
+          uid: user.uid,
+          email: user.email,
+          fullName: fullDisplayName,
+          role: UserRole.EMPLOYER,
+          createdAt: new Date().toISOString()
+        });
+
+        // Create Admin Task / Notification for new employer
+        try {
+          const taskRef = doc(collection(db, 'reports'));
+          await setDoc(taskRef, {
+            id: taskRef.id,
+            title: `מעסיק חדש נרשם: ${fullDisplayName}`,
+            description: `נרשם מעסיק חדש למערכת עם כתובת אימייל: ${user.email}`,
+            priority: 'Medium',
+            isResolved: false,
+            createdAt: new Date().toISOString()
+          });
+        } catch (taskErr) {
+          console.warn("Could not create admin notification for new employer:", taskErr);
+        }
       }
 
       if (requireEmail) {
@@ -177,6 +207,8 @@ const Register: React.FC = () => {
           fullName: user.displayName || '',
           displayName: user.displayName || '',
           role: isSelfAdmin ? UserRole.ADMIN : role,
+          companyId: (role === UserRole.EMPLOYER && !isSelfAdmin) ? DEFAULT_COMPANY_ID : null,
+          companyName: (role === UserRole.EMPLOYER && !isSelfAdmin) ? DEFAULT_COMPANY_NAME : null,
           status: 'Active',
           permissions: isSelfAdmin ? ['ALL'] : [],
           createdAt: new Date().toISOString(),
@@ -198,7 +230,8 @@ const Register: React.FC = () => {
           await setDoc(doc(db, `users/${user.uid}/profiles/employer`), {
             userId: user.uid,
             position: '',
-            companyId: null,
+            companyId: DEFAULT_COMPANY_ID,
+            companyName: DEFAULT_COMPANY_NAME,
             isPrimaryContact: true,
           });
         }

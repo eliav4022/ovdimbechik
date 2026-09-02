@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { User, Job, Application, UserRole, JobStatus, Inquiry, getTxTypeLabel, isPositiveTx } from '../../types';
-import { ArrowRight, Building2, Briefcase, FileText, Mail, Phone, Clock, CalendarDays, Loader2, Link as LinkIcon, BarChart3, PlusCircle, Edit2, CheckCircle } from 'lucide-react';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, updateDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../../lib/firebase';
+import { User, Job, Application, UserRole, JobStatus, Inquiry, getTxTypeLabel, isPositiveTx, calculateRemainingJobs } from '../../types';
+import { ArrowRight, Building2, Briefcase, FileText, Mail, Phone, Clock, CalendarDays, Loader2, Link as LinkIcon, BarChart3, PlusCircle, Edit2, CheckCircle, Trash2, ShieldCheck, Coins, Sparkles, Lock, ShieldAlert } from 'lucide-react';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { useToast } from '../../context/ToastContext';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { TwoStepConfirmModal } from '../../components/ui/TwoStepConfirmModal';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { softDelete } from '../../lib/adminUtils';
+import { addCredits } from '../../services/creditService';
+import { assignEmployerToCompany, unlinkEmployerFromCompany, DEFAULT_COMPANY_ID, DEFAULT_COMPANY_NAME } from '../../services/entityService';
+import { useAuth } from '../../lib/AuthContext';
 
 export const AdminEmployerDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { user: currentUser } = useAuth();
 
     const [employer, setEmployer] = useState<User | null>(null);
     const [company, setCompany] = useState<any | null>(null);
@@ -28,8 +34,17 @@ export const AdminEmployerDetail: React.FC = () => {
     const [allCompanies, setAllCompanies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'general' | 'jobs' | 'pending_jobs' | 'applications' | 'contacts' | 'credits'>('general');
+    
+    // Actions & Modals state
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState<Partial<User>>({});
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
+    const [creditsAmount, setCreditsAmount] = useState<number>(5);
+    const [isAddingCredits, setIsAddingCredits] = useState(false);
+    const [newPasswordForUser, setNewPasswordForUser] = useState('');
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
 
     useEffect(() => {
         const fetchEmployerData = async () => {
@@ -163,6 +178,38 @@ export const AdminEmployerDetail: React.FC = () => {
         return format(new Date(isoString), 'dd/MM/yyyy HH:mm', { locale: he });
     };
 
+    const handleToggleVerification = async () => {
+        if (!employer) return;
+        const newStatus = !employer.isVerified;
+        try {
+            await updateDoc(doc(db, 'users', employer.id), {
+                isVerified: newStatus,
+                updatedAt: new Date().toISOString()
+            });
+            setEmployer({ ...employer, isVerified: newStatus });
+            toast(newStatus ? 'המעסיק אומת בהצלחה' : 'אימות המעסיק בוטל', 'success');
+        } catch (error) {
+            console.error(error);
+            toast('שגיאה בעדכון סטטוס אימות', 'error');
+        }
+    };
+
+    const handleOpenEdit = () => {
+        if (!employer) return;
+        setEditData({
+            displayName: employer.displayName || '',
+            email: employer.email || '',
+            phone: employer.phone || '',
+            companyName: employer.companyName || '',
+            companyDescription: employer.companyDescription || '',
+            companyId: employer.companyId || '',
+            location: employer.location || '',
+            canViewRelevantSeekers: employer.canViewRelevantSeekers || false
+        });
+        setNewPasswordForUser('');
+        setIsEditModalOpen(true);
+    };
+
     const handleAssignAdmin = async (adminId: string) => {
         if (!employer) return;
         try {
@@ -170,10 +217,95 @@ export const AdminEmployerDetail: React.FC = () => {
                 assignedAdminId: adminId
             });
             setEmployer({ ...employer, assignedAdminId: adminId });
-            toast('נשמר בהצלחה', 'success');
+            toast('שיוך מנהל נשמר בהצלחה', 'success');
         } catch (error) {
             console.error(error);
             toast('שגיאה בשמירת שיוך', 'error');
+        }
+    };
+
+    const handleAddCreditsSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!employer || !creditsAmount || creditsAmount <= 0) {
+            toast('יש להזין כמות קרדיטים תקינה', 'error');
+            return;
+        }
+
+        setIsAddingCredits(true);
+        try {
+            await addCredits(employer.id, Number(creditsAmount), 'ADMIN_ADDITION');
+            const newTotal = (employer.credits || 0) + Number(creditsAmount);
+            setEmployer({ ...employer, credits: newTotal });
+            
+            const newTx = {
+                id: 'tx_' + Date.now(),
+                employerId: employer.id,
+                amount: Number(creditsAmount),
+                type: 'ADMIN_ADDITION',
+                createdAt: new Date().toISOString()
+            };
+            setTransactions([newTx, ...transactions]);
+
+            toast(`נוספו ${creditsAmount} קרדיטים בהצלחה למעסיק`, 'success');
+            setIsCreditsModalOpen(false);
+            setCreditsAmount(5);
+        } catch (err: any) {
+            console.error('Error adding credits:', err);
+            toast('שגיאה בהוספת קרדיטים: ' + (err.message || 'שגיאת שרת'), 'error');
+        } finally {
+            setIsAddingCredits(false);
+        }
+    };
+
+    const handleDeleteEmployer = async () => {
+        if (!employer) return;
+        try {
+            await softDelete({
+                collectionName: 'users',
+                id: employer.id,
+                deletedBy: currentUser?.uid || 'admin',
+                reason: 'ארכוב מעסיק מדף הרשומה'
+            });
+            toast('המעסיק הועבר לארכיון בהצלחה', 'success');
+            navigate('/admin/employers');
+        } catch (error) {
+            console.error('Error archiving employer:', error);
+            toast('שגיאה בארכוב מעסיק', 'error');
+        } finally {
+            setIsDeleteModalOpen(false);
+        }
+    };
+
+    const handleUpdatePassword = async () => {
+        if (!newPasswordForUser || newPasswordForUser.length < 6) {
+            toast('הסיסמה חייבת להכיל לפחות 6 תווים', 'error');
+            return;
+        }
+        setIsUpdatingPassword(true);
+        try {
+            const token = await auth.currentUser?.getIdToken();
+            const res = await fetch('/api/admin/users/password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    userId: employer?.id,
+                    newPassword: newPasswordForUser
+                })
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'שגיאה באיפוס סיסמה');
+            }
+            toast('הסיסמה עודכנה בהצלחה', 'success');
+            setNewPasswordForUser('');
+        } catch (err: any) {
+            console.error(err);
+            toast('שגיאה באיפוס סיסמה: ' + err.message, 'error');
+        } finally {
+            setIsUpdatingPassword(false);
         }
     };
 
@@ -182,25 +314,34 @@ export const AdminEmployerDetail: React.FC = () => {
         if (!employer) return;
         try {
             const updates: any = {
+                displayName: editData.displayName || employer.displayName || '',
                 email: editData.email,
                 phone: editData.phone,
                 companyName: editData.companyName,
                 companyDescription: editData.companyDescription,
+                location: editData.location || '',
+                canViewRelevantSeekers: Boolean(editData.canViewRelevantSeekers),
+                updatedAt: new Date().toISOString()
             };
-            if (editData.companyId !== undefined) {
-                updates.companyId = editData.companyId || null; // null if empty string
+
+            if (editData.companyId !== undefined && editData.companyId !== employer.companyId) {
+                if (editData.companyId && editData.companyId !== DEFAULT_COMPANY_ID) {
+                    const compSnap = await getDoc(doc(db, 'companies', editData.companyId));
+                    const cName = compSnap.exists() ? compSnap.data()?.name : (editData.companyName || DEFAULT_COMPANY_NAME);
+                    await assignEmployerToCompany(employer.id, editData.companyId, cName);
+                    if (compSnap.exists()) {
+                        setCompany({ id: compSnap.id, ...compSnap.data() });
+                    }
+                } else {
+                    await unlinkEmployerFromCompany(employer.id);
+                    setCompany(null);
+                }
+            } else {
+                await updateDoc(doc(db, 'users', employer.id), updates);
             }
 
-            await updateDoc(doc(db, 'users', employer.id), updates);
-            
-            // if companyId changed, fetch new company
-            if (editData.companyId && editData.companyId !== employer.companyId) {
-                const compSnap = await getDoc(doc(db, 'companies', editData.companyId));
-                if (compSnap.exists()) {
-                    setCompany({ id: compSnap.id, ...compSnap.data() });
-                }
-            } else if (!editData.companyId) {
-                setCompany(null);
+            if (newPasswordForUser && newPasswordForUser.trim().length >= 6) {
+                await handleUpdatePassword();
             }
 
             setEmployer({ ...employer, ...updates });
@@ -243,20 +384,67 @@ export const AdminEmployerDetail: React.FC = () => {
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4">
                     <button 
                         onClick={() => navigate(-1)} 
                         className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500 hover:text-slate-900"
+                        title="חזור"
                     >
                         <ArrowRight size={20} />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                            <Building2 className="text-indigo-600" /> {employer.companyName || employer.displayName || 'מעסיק'}
-                        </h1>
-                        <p className="text-slate-500 font-mono text-sm mt-1">ID: {employer.id || employer.uid}</p>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                                <Building2 className="text-indigo-600" /> {employer.companyName || employer.displayName || 'מעסיק'}
+                            </h1>
+                            {employer.isVerified ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                    <ShieldCheck size={14} /> מאומת
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                    <ShieldAlert size={14} /> לא מאומת
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-slate-500 font-mono text-sm mt-1">ID: {employer.id || employer.uid} • אימייל: {employer.email} • קרדיטים: <span className="font-bold text-indigo-600">{employer.credits || 0}</span></p>
                     </div>
+                </div>
+
+                {/* Header Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button 
+                        onClick={() => setIsCreditsModalOpen(true)}
+                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold flex items-center gap-2 text-sm shadow-sm"
+                    >
+                        <Coins size={16} />
+                        הוסף קרדיטים
+                    </Button>
+                    <Button 
+                        variant="secondary"
+                        onClick={handleOpenEdit}
+                        className="font-bold flex items-center gap-2 text-sm bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+                    >
+                        <Edit2 size={16} />
+                        ערוך פרטי מעסיק
+                    </Button>
+                    <Button 
+                        variant="ghost"
+                        onClick={handleToggleVerification}
+                        className={`font-bold flex items-center gap-2 text-sm border ${employer.isVerified ? 'text-amber-700 border-amber-200 hover:bg-amber-50' : 'text-emerald-700 border-emerald-200 hover:bg-emerald-50'}`}
+                    >
+                        <ShieldCheck size={16} />
+                        {employer.isVerified ? 'בטל אימות' : 'אמת מעסיק'}
+                    </Button>
+                    <Button 
+                        variant="danger"
+                        onClick={() => setIsDeleteModalOpen(true)}
+                        className="font-bold flex items-center gap-2 text-sm bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"
+                    >
+                        <Trash2 size={16} />
+                        ארכוב
+                    </Button>
                 </div>
             </div>
 
@@ -835,6 +1023,7 @@ export const AdminEmployerDetail: React.FC = () => {
                 </div>
             )}
 
+            {/* Edit Employer Modal */}
             <Modal
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
@@ -842,7 +1031,15 @@ export const AdminEmployerDetail: React.FC = () => {
             >
                 <form onSubmit={handleSaveEdit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">אימייל</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">שם מלא / איש קשר</label>
+                        <Input 
+                            placeholder="שם מלא..." 
+                            value={editData.displayName || ''}
+                            onChange={(e) => setEditData({...editData, displayName: e.target.value})}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">אימייל</label>
                         <Input 
                             type="email"
                             placeholder="אימייל..." 
@@ -851,15 +1048,15 @@ export const AdminEmployerDetail: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">שם חברה / מעסיק</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">שם חברה / מותג</label>
                         <Input 
-                            placeholder="שם חברה/מעסיק..." 
+                            placeholder="שם חברה..." 
                             value={editData.companyName || ''}
                             onChange={(e) => setEditData({...editData, companyName: e.target.value})}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">טלפון / סלולרי</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">טלפון / סלולרי</label>
                         <Input 
                             placeholder="טלפון..." 
                             value={editData.phone || ''}
@@ -867,18 +1064,26 @@ export const AdminEmployerDetail: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">תיאור חברה</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">מיקום / עיר</label>
+                        <Input 
+                            placeholder="מיקום (למשל: תל אביב)..." 
+                            value={editData.location || ''}
+                            onChange={(e) => setEditData({...editData, location: e.target.value})}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">תיאור חברה</label>
                         <textarea 
-                            className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 min-h-[100px]"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 min-h-[90px]"
                             placeholder="קצת על החברה..." 
                             value={editData.companyDescription || ''}
                             onChange={(e) => setEditData({...editData, companyDescription: e.target.value})}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">שיוך לחברה במערכת</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">שיוך לחברה במערכת</label>
                         <select 
-                            className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500"
                             value={editData.companyId || ''}
                             onChange={(e) => setEditData({...editData, companyId: e.target.value})}
                         >
@@ -888,12 +1093,134 @@ export const AdminEmployerDetail: React.FC = () => {
                             ))}
                         </select>
                     </div>
-                    <div className="flex justify-end gap-3 pt-6">
+
+                    <div className="pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <input 
+                                type="checkbox"
+                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                checked={Boolean(editData.canViewRelevantSeekers)}
+                                onChange={(e) => setEditData({...editData, canViewRelevantSeekers: e.target.checked})}
+                            />
+                            <div>
+                                <span className="text-sm font-bold text-slate-800">הצג מועמדים רלוונטיים (Smart Matching)</span>
+                                <p className="text-xs text-slate-500">מאפשר למעסיק זה לצפות ברשימת מועמדים מתאימים למשרות שלו</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    {/* Password reset section */}
+                    <div className="pt-3 border-t border-slate-100">
+                        <label className="block text-sm font-bold text-slate-700 mb-1">איפוס סיסמה למעסיק (אופציונלי)</label>
+                        <div className="flex gap-2">
+                            <Input 
+                                type="text"
+                                placeholder="סיסמה חדשה (לפחות 6 תווים)..." 
+                                value={newPasswordForUser}
+                                onChange={(e) => setNewPasswordForUser(e.target.value)}
+                            />
+                            {newPasswordForUser && (
+                                <Button 
+                                    type="button"
+                                    onClick={handleUpdatePassword}
+                                    disabled={isUpdatingPassword}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0 text-xs"
+                                >
+                                    {isUpdatingPassword ? 'מעדכן...' : 'עדכן סיסמה עכשיו'}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
                          <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>ביטול</Button>
-                         <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">שמור שינויים</Button>
+                         <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">שמור שינויים</Button>
                     </div>
                 </form>
             </Modal>
+
+            {/* Add Credits Modal */}
+            <Modal
+                isOpen={isCreditsModalOpen}
+                onClose={() => setIsCreditsModalOpen(false)}
+                title="הוספת קרדיטים למעסיק"
+            >
+                <div className="space-y-5">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg text-amber-700">
+                            <Coins size={24} />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-slate-800">
+                                יתרה נוכחית: <span className="text-amber-700 text-lg font-black">{employer.credits || 0}</span> קרדיטים
+                            </p>
+                            <p className="text-xs text-slate-500">
+                                עבור: {employer.companyName || employer.displayName || employer.email}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">בחירה מהירה:</label>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            {[1, 5, 10, 25, 50, 100].map((preset) => (
+                                <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => setCreditsAmount(preset)}
+                                    className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${
+                                        creditsAmount === preset
+                                            ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    +{preset}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">כמות מותאמת אישית:</label>
+                        <Input
+                            type="number"
+                            min="1"
+                            value={creditsAmount || ''}
+                            onChange={(e) => setCreditsAmount(Number(e.target.value))}
+                            placeholder="הזן מספר קרדיטים..."
+                            className="font-bold text-lg"
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <Button 
+                            variant="ghost" 
+                            onClick={() => setIsCreditsModalOpen(false)}
+                            disabled={isAddingCredits}
+                        >
+                            ביטול
+                        </Button>
+                        <Button 
+                            onClick={handleAddCreditsSubmit}
+                            disabled={isAddingCredits || !creditsAmount || creditsAmount <= 0}
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold flex items-center gap-2"
+                        >
+                            <Coins size={16} />
+                            {isAddingCredits ? 'מוסיף...' : `הוסף ${creditsAmount} קרדיטים`}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Archive / Delete TwoStepConfirmModal */}
+            <TwoStepConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleDeleteEmployer}
+                title="ארכוב מעסיק"
+                message={`האם אתה בטוח שברצונך להעביר את המעסיק "${employer.companyName || employer.displayName || employer.email}" לארכיון? המעסיק יוסתר מהתצוגה הפעילה אך נתוניו ההיסטוריים יישמרו.`}
+                confirmWord="מחק"
+            />
         </div>
     );
 };

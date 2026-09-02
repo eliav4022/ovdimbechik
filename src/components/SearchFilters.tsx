@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search, MapPin, Filter, SlidersHorizontal, Trash2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { JobType, WorkMode, ExperienceLevel } from '../types';
 import { cn } from '../lib/utils';
 

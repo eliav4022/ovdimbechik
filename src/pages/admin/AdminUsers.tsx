@@ -8,6 +8,7 @@ import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
 import { User, UserRole } from '../../types';
+import { DEFAULT_COMPANY_ID, DEFAULT_COMPANY_NAME } from '../../services/entityService';
 import { Trash2, ShieldCheck, Mail, Phone, Lock, User as UserIcon } from 'lucide-react';
 import { TwoStepConfirmModal } from '../../components/ui/TwoStepConfirmModal';
 import { softDelete } from '../../lib/adminUtils';
@@ -114,6 +115,8 @@ export const AdminUsers: React.FC = () => {
               phone: newUser.phone,
               location: newUser.location,
               role: newUser.role,
+              companyId: newUser.role === UserRole.EMPLOYER ? DEFAULT_COMPANY_ID : null,
+              companyName: newUser.role === UserRole.EMPLOYER ? DEFAULT_COMPANY_NAME : null,
               permissions: newUser.permissions,
               isVerified: true,
               createdAt: new Date().toISOString()
@@ -290,7 +293,7 @@ export const AdminUsers: React.FC = () => {
               return;
           }
 
-          await setDoc(doc(db, 'users', id), {
+          const updates: any = {
               displayName: userToEdit.displayName,
               email: userToEdit.email,
               phone: userToEdit.phone || null,
@@ -299,7 +302,14 @@ export const AdminUsers: React.FC = () => {
               permissions: userToEdit.permissions || [],
               photoURL: userToEdit.photoURL || null,
               updatedAt: new Date().toISOString()
-          }, { merge: true });
+          };
+
+          if (userToEdit.role === UserRole.EMPLOYER && !(userToEdit as any).companyId) {
+              updates.companyId = DEFAULT_COMPANY_ID;
+              updates.companyName = DEFAULT_COMPANY_NAME;
+          }
+
+          await setDoc(doc(db, 'users', id), updates, { merge: true });
           
           try {
               const token = await (await import('../../lib/firebase')).auth.currentUser?.getIdToken();

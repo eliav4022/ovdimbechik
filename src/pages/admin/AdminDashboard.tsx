@@ -33,6 +33,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   UserPlus,
+  UserX,
   X,
   Eye,
   MousePointerClick,
@@ -44,6 +45,7 @@ import {
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/Loading';
+import { OrphanedSeekersModal } from '../../components/admin/OrphanedSeekersModal';
 
 export const AdminDashboard: React.FC = () => {
   const { toast } = useToast();
@@ -53,6 +55,7 @@ export const AdminDashboard: React.FC = () => {
   const [isSeeding, setIsSeeding] = useState(false);
   const [myTasks, setMyTasks] = useState<Report[]>([]);
   const [unassignedEmployersList, setUnassignedEmployersList] = useState<User[]>([]);
+  const [seekersList, setSeekersList] = useState<User[]>([]);
   const [pendingJobsList, setPendingJobsList] = useState<Job[]>([]);
   const [adminsList, setAdminsList] = useState<User[]>([]);
   
@@ -63,7 +66,9 @@ export const AdminDashboard: React.FC = () => {
   const [pendingInquiriesList, setPendingInquiriesList] = useState<any[]>([]);
   const [showPendingJobsModal, setShowPendingJobsModal] = useState(false);
   const [showUnassignedModal, setShowUnassignedModal] = useState(false);
+  const [showOrphanedSeekersModal, setShowOrphanedSeekersModal] = useState(false);
   const [unassignedEmployers, setUnassignedEmployers] = useState(0);
+  const [orphanedSeekersCount, setOrphanedSeekersCount] = useState(0);
   const [pendingJobsCount, setPendingJobsCount] = useState(0);
   
   const [pendingJobReportsCount, setPendingJobReportsCount] = useState(0);
@@ -83,9 +88,10 @@ export const AdminDashboard: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    let unsubscribeJobReports: (() => void) | undefined;
+    let unsubscribeInquiries: (() => void) | undefined;
+
     const fetchDashboardData = async () => {
-      let unsubscribeJobReports: (() => void) | undefined;
-      let unsubscribeInquiries: (() => void) | undefined;
       try {
         const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
         const chartMap: Record<string, any> = {};
@@ -93,11 +99,25 @@ export const AdminDashboard: React.FC = () => {
 
         try {
             const usersSnap = await getDocs(collection(db, 'users'));
-            const unassignedList = usersSnap.docs.map(d => ({ id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.EMPLOYER && !data.assignedAdminId);
+            const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data()} as User));
+            
+            const unassignedList = allUsers.filter(data => data.role === UserRole.EMPLOYER && !data.assignedAdminId);
             setUnassignedEmployersList(unassignedList);
             setUnassignedEmployers(unassignedList.length);
 
-            const admins = usersSnap.docs.map(d => ({id: d.id, ...d.data()} as User)).filter(data => data.role === UserRole.ADMIN);
+            const seekers = allUsers.filter(data => data.role === UserRole.SEEKER);
+            setSeekersList(seekers);
+            
+            const orphanedSeekers = seekers.filter(s => {
+              const hasCv = Boolean(s.cvUrl || s.seekerProfile?.cvUrl);
+              const isAssigned = Boolean(s.assignedAdminId);
+              const isVerified = Boolean(s.isVerified);
+              const hasCompleteProfile = Boolean((s.jobTitle || s.seekerProfile?.jobTitle) && (s.phone || s.location));
+              return !isAssigned || !hasCv || !hasCompleteProfile || !isVerified;
+            });
+            setOrphanedSeekersCount(orphanedSeekers.length);
+
+            const admins = allUsers.filter(data => data.role === UserRole.ADMIN);
             setAdminsList(admins);
             setStats(prev => ({ ...prev, usersCount: usersSnap.size }));
         } catch (error) {
@@ -169,7 +189,7 @@ export const AdminDashboard: React.FC = () => {
                     .filter((data: any) => data.status === 'NEW');
                 setPendingInquiriesList(newInquiries);
             }, (error) => {
-                console.error("Error subscribing to inquiries: ", error);
+                console.warn("Inquiries subscription notice: ", error);
             });
         } catch (error) {
             console.error("Error setting up inquiries snapshot", error);
@@ -242,19 +262,15 @@ export const AdminDashboard: React.FC = () => {
       } finally {
         setLoading(false);
       }
-      return () => {
-         if (unsubscribeJobReports) unsubscribeJobReports();
-         if (unsubscribeInquiries) unsubscribeInquiries();
-      };
     };
 
-    let unsub: (() => void) | undefined;
     if (user) {
         setLoading(true);
-        fetchDashboardData().then(fn => { unsub = fn; setLoading(false); });
+        fetchDashboardData();
     }
     return () => {
-        if (unsub) unsub();
+         if (unsubscribeJobReports) unsubscribeJobReports();
+         if (unsubscribeInquiries) unsubscribeInquiries();
     }
   }, [toast, user, refreshKey]);
 
@@ -395,9 +411,9 @@ export const AdminDashboard: React.FC = () => {
           <h2 className="text-2xl font-black text-slate-900 mb-2 font-sans tracking-tight mt-6">פעולות לביצוע</h2>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
         {/* Tasks Card */}
-        <Card onClick={() => setShowTasksModal(true)} className="p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-indigo-500">
+        <Card onClick={() => setShowTasksModal(true)} className="p-3 md:p-5 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-indigo-500">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
             <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0`}>
               <CheckCircle2 size={20} className="md:w-6 md:h-6" />
@@ -414,7 +430,7 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Pending Job Reports Card */}
         <div onClick={() => setShowReportsModal(true)} className="block outline-none">
-            <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-red-500 bg-red-50/10">
+            <Card className="h-full p-3 md:p-5 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-red-500 bg-red-50/10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
                 <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-red-50 flex items-center justify-center text-red-600 shrink-0`}>
                 <AlertTriangle size={20} className="md:w-6 md:h-6" />
@@ -434,7 +450,7 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Pending Jobs Card */}
         <div onClick={() => setShowPendingJobsModal(true)} className="block outline-none">
-            <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-amber-500 bg-amber-50/10">
+            <Card className="h-full p-3 md:p-5 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-amber-500 bg-amber-50/10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
                 <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0`}>
                 <Clock size={20} className="md:w-6 md:h-6" />
@@ -454,7 +470,7 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Unassigned Employers Card */}
         <div onClick={() => setShowUnassignedModal(true)} className="block outline-none">
-            <Card className="h-full p-3 md:p-6 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-emerald-500 bg-emerald-50/10">
+            <Card className="h-full p-3 md:p-5 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-emerald-500 bg-emerald-50/10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
                 <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0`}>
                 <UserPlus size={20} className="md:w-6 md:h-6" />
@@ -466,8 +482,28 @@ export const AdminDashboard: React.FC = () => {
                 )}
             </div>
             <div>
-                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">יתומים</p>
+                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">מעסיקים יתומים</p>
                 <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{unassignedEmployers}</h3>
+            </div>
+            </Card>
+        </div>
+
+        {/* Orphaned Seekers / Employees Card */}
+        <div onClick={() => setShowOrphanedSeekersModal(true)} className="block outline-none">
+            <Card className="h-full p-3 md:p-5 border-none shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-transform cursor-pointer ring-2 ring-transparent hover:ring-purple-500 bg-purple-50/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 md:mb-4 gap-2">
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0`}>
+                <UserX size={20} className="md:w-6 md:h-6" />
+                </div>
+                {orphanedSeekersCount > 0 && (
+                     <Badge variant="error" className="rounded-lg px-2 flex items-center gap-1 font-bold text-[10px] w-fit line-clamp-1">
+                        לטיפול
+                     </Badge>
+                )}
+            </div>
+            <div>
+                <p className="text-slate-500 text-xs md:text-sm font-bold mb-1">מועסקים יתומים</p>
+                <h3 className="text-xl md:text-3xl font-black text-slate-900 font-mono tracking-tighter">{orphanedSeekersCount}</h3>
             </div>
             </Card>
         </div>
@@ -903,6 +939,17 @@ export const AdminDashboard: React.FC = () => {
               </div>
           </div>
       )}
+
+      {/* Orphaned Seekers Modal */}
+      <OrphanedSeekersModal
+        isOpen={showOrphanedSeekersModal}
+        onClose={() => setShowOrphanedSeekersModal(false)}
+        seekers={seekersList}
+        adminsList={adminsList}
+        onSeekerUpdated={(updatedSeeker) => {
+          setSeekersList(prev => prev.map(s => s.id === updatedSeeker.id ? updatedSeeker : s));
+        }}
+      />
 
     </div>
   );

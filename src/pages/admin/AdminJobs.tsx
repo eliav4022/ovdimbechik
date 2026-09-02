@@ -323,8 +323,15 @@ export const AdminJobs: React.FC<{ isCasual?: boolean }> = ({ isCasual = false }
       if (!j.hasPendingUpdate || !j.pendingUpdate) return;
       try {
           // Merge pending update into main document
+          const safePendingUpdate = { ...j.pendingUpdate };
+          Object.keys(safePendingUpdate).forEach(key => {
+              if (safePendingUpdate[key] === undefined) {
+                  delete safePendingUpdate[key];
+              }
+          });
+
           const finalUpdates = {
-              ...j.pendingUpdate,
+              ...safePendingUpdate,
               hasPendingUpdate: false,
               pendingUpdate: null,
               updatedAt: new Date().toISOString()

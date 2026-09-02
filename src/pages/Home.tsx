@@ -6,7 +6,7 @@ import { isJobActive } from '../lib/jobUtils';
 import { JobCard } from '../components/JobCard';
 import { useAuth } from '../lib/AuthContext';
 import { Rocket, Star, Heart, TrendingUp, Laptop, Utensils, Shield, ShoppingBag, Truck, Construction, Users, CheckCircle, Zap, Search, Briefcase, ArrowLeft } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
 import { JobCardSkeleton } from '../components/ui/Loading';

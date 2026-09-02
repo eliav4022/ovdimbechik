@@ -1,6 +1,7 @@
 import { collection, addDoc, getDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Inquiry } from '../types';
+import { triggerWebhook } from './webhookService';
 
 export const sendInquiry = async (
   inquiryData: Omit<Inquiry, 'id' | 'status' | 'createdAt'>
@@ -12,6 +13,9 @@ export const sendInquiry = async (
       status: 'NEW',
       createdAt: new Date().toISOString()
     });
+
+    // Trigger integrations webhook
+    triggerWebhook('inquiry.created', inquiryData);
 
     console.log("Inquiry submitted:", inquiryData);
 

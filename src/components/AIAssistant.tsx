@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Type, FunctionDeclaration } from "@google/genai";
 import { MessageSquare, X, Send, Bot, Sparkles, User as UserIcon, Coins, LogIn } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
 import { collection, getDocs, query, where, limit, getDoc, doc, setDoc, increment } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -269,10 +269,10 @@ export const AIAssistant: React.FC = () => {
                                 date: today,
                                 tokens: increment(totalTokens),
                                 queries: increment(1)
-                            }, { merge: true }).catch(err => console.error("Failed to track AI usage", err));
+                            }, { merge: true }).catch(err => console.warn("Notice: AI usage tracking not recorded:", err));
                         }
                     } catch (e) {
-                         console.error("Error setting AI usage", e);
+                         console.warn("Notice: Error preparing AI usage tracking:", e);
                     }
                 }
                 return data;

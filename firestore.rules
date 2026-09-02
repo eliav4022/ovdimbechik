@@ -20,11 +20,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'SEEKER');
     }
 
+    function isSuperAdminEmail() {
+      return isSignedIn() && (
+        ("email" in request.auth.token && (request.auth.token.email.lower() == 'eliav4022@gmail.com' || request.auth.token.email == 'eliav4022@gmail.com')) ||
+        (request.auth.uid == 'eliav4022@gmail.com')
+      );
+    }
+
     function isAdmin() {
       return isSignedIn() && (
-        (("email" in request.auth.token) && (request.auth.token.email == 'eliav4022@gmail.com')) ||
+        isSuperAdminEmail() ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           (
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '').lower() in ['admin', 'super_admin', 'superadmin', 'support_agent', 'content_manager', 'finance_manager'] ||
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN', 'SUPPORT_AGENT', 'CONTENT_MANAGER', 'FINANCE_MANAGER', 'Admin', 'admin', 'SuperAdmin', 'super_admin'] ||
            (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []) is list && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []).size() > 0)
           )
@@ -139,13 +147,15 @@ service cloud.firestore {
 
     // AI Stats
     match /ai_stats/{dateId} {
-      allow read: if isAdmin() || true;
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
     match /inquiries/{inquiryId} {
       allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow read: if true;
+      allow update, delete: if isAdmin() || isSuperAdminEmail();
     }
 
     match /mail/{mailId} {
@@ -162,6 +172,10 @@ service cloud.firestore {
     match /popups/{popupId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+    match /webhook_logs/{logId} {
+      allow create: if true;
+      allow read, write, delete: if isAdmin() || isSuperAdminEmail();
     }
   }
 }

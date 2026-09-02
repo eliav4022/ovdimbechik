@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { CheckCircle2, ShieldCheck, MessageSquare, Lock } from 'lucide-react';
 import { cn } from '../../lib/utils';
 

@@ -3,10 +3,11 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { Save, Settings, Shield, CreditCard, RotateCcw, Bell, Lock, Globe, Share2, Briefcase, Webhook, LayoutTemplate, Bot, Activity, Database, Trash2, Download, Upload, FileText, Copy } from 'lucide-react';
-import { doc, getDoc, collection, query, where, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore';
-import { setDoc, deleteDoc } from '../../lib/firestore-audit';;
+import { Save, Settings, Shield, CreditCard, RotateCcw, Bell, Lock, Globe, Share2, Briefcase, Webhook, LayoutTemplate, Bot, Activity, Database, Trash2, Download, Upload, FileText, Copy, Check, CheckCircle2, AlertCircle, Play, Send, RefreshCw, Zap, Key, Radio, ExternalLink, Sparkles, Clock, CheckCheck, XCircle } from 'lucide-react';
+import { doc, getDoc, collection, query, where, orderBy, limit, getDocs, getCountFromServer, deleteDoc as firestoreDeleteDoc } from 'firebase/firestore';
+import { setDoc, deleteDoc } from '../../lib/firestore-audit';
 import { db } from '../../lib/firebase';
+import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/AuthContext';
 import { UserRole, JobType, WorkMode, ExperienceLevel } from '../../types';
 import { useToast } from '../../context/ToastContext';
@@ -17,6 +18,7 @@ import { RecycleBinTab } from '../../components/admin/RecycleBinTab';
 import { AdminObjectManager } from '../../components/admin/AdminObjectManager';
 import { AdminPagesManager } from '../../components/admin/AdminPagesManager';
 import { CsvBulkImporter } from '../../components/admin/CsvBulkImporter';
+import { testWebhook, getRecentWebhookLogs, WebhookLog, WebhookEvent, SAMPLE_PAYLOADS } from '../../services/webhookService';
 
 interface SystemSettings {
     contactEmail: string;
@@ -52,13 +54,22 @@ interface SystemSettings {
     maxActiveCasualJobsPerEmployer: number;
 
     defaultCreditsForNewEmployer: number;
+    creditsCostPerJob?: number;
+    creditsCostPerUrgentJob?: number;
     pricePerCreditAmount: number;
     platformFeePercentage: number;
     enableDiscountCoupons: boolean;
     currency: string;
 
+    webhookEnabled?: boolean;
+    webhookSecret?: string;
     webhookUrlNewJob: string;
     webhookUrlStatusChange: string;
+    webhookUrlNewApplication?: string;
+    webhookUrlNewEmployer?: string;
+    webhookUrlNewInquiry?: string;
+    whatsappGatewayUrl?: string;
+    whatsappApiKey?: string;
     enableCandidateWhatsAppNotifications: boolean;
     enableCandidateEmailNotifications: boolean;
     notifyOnNewJobPending: boolean;
@@ -107,13 +118,22 @@ const DEFAULT_SETTINGS: SystemSettings = {
     maxActiveCasualJobsPerEmployer: 5,
 
     defaultCreditsForNewEmployer: 0,
+    creditsCostPerJob: 5,
+    creditsCostPerUrgentJob: 2,
     pricePerCreditAmount: 50,
     platformFeePercentage: 10,
     enableDiscountCoupons: false,
     currency: 'ILS',
 
+    webhookEnabled: true,
+    webhookSecret: '',
     webhookUrlNewJob: '',
     webhookUrlStatusChange: '',
+    webhookUrlNewApplication: '',
+    webhookUrlNewEmployer: '',
+    webhookUrlNewInquiry: '',
+    whatsappGatewayUrl: '',
+    whatsappApiKey: '',
     enableCandidateWhatsAppNotifications: false,
     enableCandidateEmailNotifications: true,
     notifyOnNewJobPending: true,
@@ -787,36 +807,101 @@ export const AdminSettings: React.FC = () => {
         setSettings(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleTestWebhook = async (url: string, eventName: string) => {
-        if (!url) {
-            toast('נא להזין כתובת Webhook קודם', 'info');
+    const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [testingEventKey, setTestingEventKey] = useState<string | null>(null);
+    const [testResult, setTestResult] = useState<{ url: string; event: string; success: boolean; statusCode: number; responseTimeMs: number; responseBody?: string; error?: string } | null>(null);
+    const [selectedLogForModal, setSelectedLogForModal] = useState<WebhookLog | null>(null);
+    const [activeIntegrationSubTab, setActiveIntegrationSubTab] = useState<'endpoints' | 'tester' | 'logs' | 'docs'>('endpoints');
+    const [customTestEvent, setCustomTestEvent] = useState<WebhookEvent>('job.created');
+    const [customTestUrl, setCustomTestUrl] = useState('');
+    const [customTestPayload, setCustomTestPayload] = useState(JSON.stringify(SAMPLE_PAYLOADS['job.created'], null, 2));
+
+    const loadWebhookLogs = async () => {
+        setLoadingLogs(true);
+        try {
+            const logs = await getRecentWebhookLogs(30);
+            setWebhookLogs(logs);
+        } catch (e) {
+            console.error("Failed to load webhook logs:", e);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'integrations') {
+            loadWebhookLogs();
+        }
+    }, [activeTab]);
+
+    const generateRandomSecret = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+        let secret = 'whsec_';
+        for (let i = 0; i < 28; i++) {
+            secret += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        handleChange('webhookSecret', secret);
+        toast('נוצר מפתח סודי חדש ל-Webhook! אל תשכח לשמור.', 'success');
+    };
+
+    const handleRunTestWebhook = async (url: string, eventName: WebhookEvent, payloadOverride?: any) => {
+        if (!url || !url.trim().startsWith('http')) {
+            toast('נא להזין כתובת Webhook תקינה (המתחילה ב-http:// או https://)', 'error');
             return;
         }
-        
+
+        setTestingEventKey(eventName);
+        setTestResult(null);
+
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    event: eventName,
-                    test: true,
-                    timestamp: new Date().toISOString(),
-                    data: {
-                        message: "This is a test event from the Admin Settings."
-                    }
-                })
+            let finalPayload = payloadOverride;
+            if (!finalPayload && SAMPLE_PAYLOADS[eventName]) {
+                finalPayload = SAMPLE_PAYLOADS[eventName];
+            }
+
+            const result = await testWebhook(url.trim(), eventName, finalPayload, settings.webhookSecret);
+            setTestResult({
+                url,
+                event: eventName,
+                success: result.success,
+                statusCode: result.statusCode,
+                responseTimeMs: result.responseTimeMs,
+                responseBody: result.responseBody,
+                error: result.error
             });
 
-            if (response.ok) {
-                toast('הבקשה נשלחה בהצלחה!', 'success');
+            if (result.success) {
+                toast(`בדיקת Webhook עברה בהצלחה! (${result.statusCode} OK - ${result.responseTimeMs}ms)`, 'success');
             } else {
-                toast(`שגיאה בשרת: ${response.status}`, 'error');
+                toast(`בדיקת Webhook נכשלה: ${result.error || `קוד ${result.statusCode}`}`, 'error');
             }
-        } catch (error) {
-            toast('שגיאה בשליחת הבקשה, ייתכן בעיית CORS או שרת לא זמין', 'error');
+
+            // Refresh logs
+            loadWebhookLogs();
+        } catch (err: any) {
+            toast(`שגיאה בהפעלת Webhook: ${err.message || 'שגיאת רשת'}`, 'error');
+        } finally {
+            setTestingEventKey(null);
         }
+    };
+
+    const handleClearLogs = async () => {
+        if (!window.confirm('האם אתה בטוח שברצונך למחוק את כל יומני ה-Webhooks?')) return;
+        try {
+            const snap = await getDocs(collection(db, 'webhook_logs'));
+            const deletePromises = snap.docs.map(d => firestoreDeleteDoc(doc(db, 'webhook_logs', d.id)));
+            await Promise.all(deletePromises);
+            setWebhookLogs([]);
+            toast('יומני ה-Webhooks נמחקו בהצלחה', 'success');
+        } catch (e) {
+            console.error("Failed to clear webhook logs:", e);
+            toast('שגיאה במחיקת יומנים', 'error');
+        }
+    };
+
+    const handleTestWebhook = async (url: string, eventName: string) => {
+        handleRunTestWebhook(url, eventName as WebhookEvent);
     };
 
     const handleOpenExportModal = (collectionName: string) => {
@@ -1323,8 +1408,8 @@ for (const jobData of previewJobs) {
                                         activeColorClass="peer-checked:bg-red-500"
                                     />
                                     <ToggleSwitch
-                                        label="אפשר העלאת קורות חיים"
-                                        description="התרת העלאת קבצי קורות חיים למערכת עבור מחפשי עבודה."
+                                        label="הפעלת מנגנון קורות חיים באתר"
+                                        description="הפעלה או ניתוק מוחלט של כל מנגנון קורות החיים (העלאה לפרופיל וצירוף קו״ח בהגשת מועמדות למשרות)."
                                         checked={settings.enableCVUploads}
                                         onChange={(v) => handleChange('enableCVUploads', v)}
                                         activeColorClass="peer-checked:bg-indigo-600"
@@ -1462,13 +1547,6 @@ for (const jobData of previewJobs) {
                                         description="משתמשים יחויבו לאמת את כתובת הדוא״ל שלהם."
                                         checked={settings.requireEmailVerification}
                                         onChange={(v) => handleChange('requireEmailVerification', v)}
-                                        activeColorClass="peer-checked:bg-emerald-500"
-                                    />
-                                    <ToggleSwitch
-                                        label="דרישת העלאת קורות חיים"
-                                        description="משתמש לא יוכל להגיש מועמדות ללא קורות חיים."
-                                        checked={settings.requireResumeUpload}
-                                        onChange={(v) => handleChange('requireResumeUpload', v)}
                                         activeColorClass="peer-checked:bg-emerald-500"
                                     />
                                     <ToggleSwitch
@@ -1612,16 +1690,47 @@ for (const jobData of previewJobs) {
                                     <h3 className="text-xl font-black text-slate-800">תמחור וקרדיטים</h3>
                                 </div>
                                 <div className="space-y-6">
+                                    <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-amber-800">סיכום תמחור בפועל למעסיק:</span>
+                                            <span className="text-xs font-mono font-black text-amber-900 bg-amber-200/60 px-2 py-0.5 rounded-md">
+                                                1 קרדיט = {settings.pricePerCreditAmount} {settings.currency === 'USD' ? '$' : settings.currency === 'EUR' ? '€' : '₪'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-amber-700 font-medium">
+                                            עלות פרסום משרה רגילה: <strong className="font-black text-amber-950">{(settings.creditsCostPerJob || 5)} קרדיטים</strong> (שווה ערך ל-<strong>{(settings.creditsCostPerJob || 5) * settings.pricePerCreditAmount} {settings.currency === 'USD' ? '$' : settings.currency === 'EUR' ? '€' : '₪'}</strong>)
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <Input
+                                            label="עלות פרסום משרה רגילה (בקרדיטים)"
+                                            type="number"
+                                            min="1"
+                                            value={(settings.creditsCostPerJob ?? 5).toString()}
+                                            onChange={(e) => handleChange('creditsCostPerJob', Math.max(1, parseInt(e.target.value) || 1))}
+                                        />
+                                        <Input
+                                            label="עלות תוספת הדגשת משרה דחופה (בקרדיטים)"
+                                            type="number"
+                                            min="0"
+                                            value={(settings.creditsCostPerUrgentJob ?? 2).toString()}
+                                            onChange={(e) => handleChange('creditsCostPerUrgentJob', Math.max(0, parseInt(e.target.value) || 0))}
+                                        />
+                                    </div>
+
                                     <Input
-                                        label="כמות קרדיטים במתנה למעסיק חדש"
+                                        label="כמות קרדיטים במתנה למעסיק חדש בהרשמה"
                                         type="number"
+                                        min="0"
                                         value={settings.defaultCreditsForNewEmployer.toString()}
                                         onChange={(e) => handleChange('defaultCreditsForNewEmployer', parseInt(e.target.value) || 0)}
                                     />
                                     <div className="grid grid-cols-2 gap-4">
                                         <Input
-                                            label="מחיר לקרדיט"
+                                            label="מחיר לקרדיט יחיד"
                                             type="number"
+                                            min="1"
                                             value={settings.pricePerCreditAmount.toString()}
                                             onChange={(e) => handleChange('pricePerCreditAmount', parseInt(e.target.value) || 0)}
                                         />
@@ -1661,93 +1770,773 @@ for (const jobData of previewJobs) {
                     {/* 5. Integrations & Notifications */}
                     {activeTab === 'integrations' && (
                         <div className="space-y-6 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
-                            <Card className="p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                                        <Webhook size={20} />
-                                    </div>
-                                    <h3 className="text-xl font-black text-slate-800">אינטגרציות (n8n & Webhooks)</h3>
-                                </div>
-                                <div className="space-y-6">
-                                    <div className="flex items-end gap-3 w-full">
-                                        <div className="flex-1 w-full">
-                                            <Input
-                                                label="Webhook URL: משרה חדשה נוצרה"
-                                                type="url"
-                                                dir="ltr"
-                                                className="text-left w-full"
-                                                placeholder="https://your-n8n-instance.com/webhook/new-job"
-                                                value={settings.webhookUrlNewJob}
-                                                onChange={(e) => handleChange('webhookUrlNewJob', e.target.value)}
-                                            />
-                                        </div>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => handleTestWebhook(settings.webhookUrlNewJob, 'new_job')}
-                                        >
-                                            Test Webhook
-                                        </Button>
-                                    </div>
-                                    <div className="flex items-end gap-3 w-full">
-                                        <div className="flex-1 w-full">
-                                            <Input
-                                                label="Webhook URL: שינוי סטטוס מועמדות"
-                                                type="url"
-                                                dir="ltr"
-                                                className="text-left w-full"
-                                                placeholder="https://your-n8n-instance.com/webhook/status-change"
-                                                value={settings.webhookUrlStatusChange}
-                                                onChange={(e) => handleChange('webhookUrlStatusChange', e.target.value)}
-                                            />
-                                        </div>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => handleTestWebhook(settings.webhookUrlStatusChange, 'status_change')}
-                                        >
-                                            Test Webhook
-                                        </Button>
-                                    </div>
-                                </div>
-                            </Card>
+                            {/* Integrations Sub-Navigation */}
+                            <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/60">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveIntegrationSubTab('endpoints')}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all",
+                                        activeIntegrationSubTab === 'endpoints'
+                                            ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                                            : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                                    )}
+                                >
+                                    <Webhook size={16} />
+                                    כתובות Webhook והגדרות
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveIntegrationSubTab('tester')}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all",
+                                        activeIntegrationSubTab === 'tester'
+                                            ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                                            : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                                    )}
+                                >
+                                    <Play size={16} />
+                                    כלי בדיקה בזמן אמת (Live Tester)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveIntegrationSubTab('logs');
+                                        loadWebhookLogs();
+                                    }}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all",
+                                        activeIntegrationSubTab === 'logs'
+                                            ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                                            : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                                    )}
+                                >
+                                    <Clock size={16} />
+                                    יומן קריאות ({webhookLogs.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveIntegrationSubTab('docs')}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all",
+                                        activeIntegrationSubTab === 'docs'
+                                            ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                                            : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                                    )}
+                                >
+                                    <Sparkles size={16} />
+                                    מדריך ודוגמאות JSON (n8n / Make)
+                                </button>
+                            </div>
 
-                            <Card className="p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-                                        <Bell size={20} />
+                            {/* SUB-TAB 1: ENDPOINTS & SETTINGS */}
+                            {activeIntegrationSubTab === 'endpoints' && (
+                                <div className="space-y-6">
+                                    <Card className="p-6 md:p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-slate-100">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner">
+                                                    <Webhook size={24} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-800">הגדרות אינטגרציה ו-Webhooks</h3>
+                                                    <p className="text-xs text-slate-500 font-medium">סנכרון נתונים אוטומטי מול n8n, Make.com, Zapier או שרתים פרטיים</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-500">סטטוס מנגנון:</span>
+                                                <span className={cn(
+                                                    "px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5",
+                                                    settings.webhookEnabled !== false
+                                                        ? "bg-emerald-50 text-emerald-600 border border-emerald-200/60"
+                                                        : "bg-slate-100 text-slate-500 border border-slate-200"
+                                                )}>
+                                                    <span className={cn("w-2 h-2 rounded-full", settings.webhookEnabled !== false ? "bg-emerald-500 animate-pulse" : "bg-slate-400")} />
+                                                    {settings.webhookEnabled !== false ? "פעיל" : "מושבת"}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <ToggleSwitch
+                                                label="הפעלת שיגור Webhooks אוטומטי"
+                                                description="כאשר מופעל, המערכת תשלח קריאות HTTP POST לכתובות המוגדרות מטה בעת כל אירוע במערכת."
+                                                checked={settings.webhookEnabled !== false}
+                                                onChange={(v) => handleChange('webhookEnabled', v)}
+                                                activeColorClass="peer-checked:bg-indigo-600"
+                                            />
+
+                                            {/* Webhook Secret Key */}
+                                            <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Key size={16} className="text-indigo-600" />
+                                                        <span className="text-sm font-bold text-slate-800">מפתח אבטחה וחתימה (Webhook Secret Token)</span>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={generateRandomSecret}
+                                                        className="text-xs h-8 gap-1.5"
+                                                    >
+                                                        <RefreshCw size={13} />
+                                                        צור מפתח חדש
+                                                    </Button>
+                                                </div>
+                                                <p className="text-xs text-slate-500">
+                                                    מפתח זה יישלח בכל קריאה בכותרות <code className="text-indigo-600 font-mono bg-white px-1.5 py-0.5 rounded border">X-Webhook-Secret</code> ו-<code className="text-indigo-600 font-mono bg-white px-1.5 py-0.5 rounded border">Authorization: Bearer</code> לאימות מקור הבקשה ב-n8n / Make.
+                                                </p>
+                                                <Input
+                                                    type="text"
+                                                    dir="ltr"
+                                                    className="font-mono text-xs text-left bg-white"
+                                                    placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
+                                                    value={settings.webhookSecret || ''}
+                                                    onChange={(e) => handleChange('webhookSecret', e.target.value)}
+                                                />
+                                            </div>
+
+                                            {/* Webhook Endpoints List */}
+                                            <div className="space-y-5 pt-2">
+                                                <h4 className="text-sm font-black text-slate-700 flex items-center gap-2">
+                                                    <Zap size={16} className="text-amber-500" />
+                                                    יעדי אירועים (Event Endpoints)
+                                                </h4>
+
+                                                {/* 1. New Job Created / Updated */}
+                                                <div className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-200 transition-colors space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-2 h-2 rounded-full bg-blue-500" />
+                                                            <span className="text-sm font-bold text-slate-800">משרה חדשה פורסמה / עודכנה</span>
+                                                            <span className="text-[11px] font-mono bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold">job.created / job.updated</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-400">מופעל כאשר מעסיק או מנהל מפרסמים משרה</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="url"
+                                                            dir="ltr"
+                                                            className="text-left font-mono text-xs flex-1"
+                                                            placeholder="https://n8n.your-domain.com/webhook/job-created"
+                                                            value={settings.webhookUrlNewJob || ''}
+                                                            onChange={(e) => handleChange('webhookUrlNewJob', e.target.value)}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={testingEventKey === 'job.created' || !settings.webhookUrlNewJob}
+                                                            onClick={() => handleRunTestWebhook(settings.webhookUrlNewJob, 'job.created')}
+                                                            className="text-xs h-10 px-3 whitespace-nowrap gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                        >
+                                                            {testingEventKey === 'job.created' ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                                                            בדיקה
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 2. New Application Submitted */}
+                                                <div className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-200 transition-colors space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                            <span className="text-sm font-bold text-slate-800">מועמד הגיש מועמדות למשרה</span>
+                                                            <span className="text-[11px] font-mono bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-semibold">application.created</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-400">כולל פרטי מועמד, קו"ח ומספר טלפון</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="url"
+                                                            dir="ltr"
+                                                            className="text-left font-mono text-xs flex-1"
+                                                            placeholder="https://n8n.your-domain.com/webhook/candidate-applied"
+                                                            value={settings.webhookUrlNewApplication || ''}
+                                                            onChange={(e) => handleChange('webhookUrlNewApplication', e.target.value)}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={testingEventKey === 'application.created' || !settings.webhookUrlNewApplication}
+                                                            onClick={() => handleRunTestWebhook(settings.webhookUrlNewApplication, 'application.created')}
+                                                            className="text-xs h-10 px-3 whitespace-nowrap gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                        >
+                                                            {testingEventKey === 'application.created' ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                                                            בדיקה
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 3. Candidate Status Changed */}
+                                                <div className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-200 transition-colors space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                                            <span className="text-sm font-bold text-slate-800">שינוי סטטוס מועמד (ראיון, התקבל, נדחה)</span>
+                                                            <span className="text-[11px] font-mono bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-semibold">application.status_changed</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-400">מאפשר שיגור הודעת וואטסאפ אוטומטית למועמד</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="url"
+                                                            dir="ltr"
+                                                            className="text-left font-mono text-xs flex-1"
+                                                            placeholder="https://n8n.your-domain.com/webhook/candidate-status"
+                                                            value={settings.webhookUrlStatusChange || ''}
+                                                            onChange={(e) => handleChange('webhookUrlStatusChange', e.target.value)}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={testingEventKey === 'application.status_changed' || !settings.webhookUrlStatusChange}
+                                                            onClick={() => handleRunTestWebhook(settings.webhookUrlStatusChange, 'application.status_changed')}
+                                                            className="text-xs h-10 px-3 whitespace-nowrap gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                        >
+                                                            {testingEventKey === 'application.status_changed' ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                                                            בדיקה
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 4. New Employer Registered */}
+                                                <div className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-200 transition-colors space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-2 h-2 rounded-full bg-purple-500" />
+                                                            <span className="text-sm font-bold text-slate-800">מעסיק חדש נרשם למערכת</span>
+                                                            <span className="text-[11px] font-mono bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-semibold">employer.registered</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-400">מאפשר שליחת מייל ברוכים הבאים או רישום ב-CRM</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="url"
+                                                            dir="ltr"
+                                                            className="text-left font-mono text-xs flex-1"
+                                                            placeholder="https://n8n.your-domain.com/webhook/employer-registered"
+                                                            value={settings.webhookUrlNewEmployer || ''}
+                                                            onChange={(e) => handleChange('webhookUrlNewEmployer', e.target.value)}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={testingEventKey === 'employer.registered' || !settings.webhookUrlNewEmployer}
+                                                            onClick={() => handleRunTestWebhook(settings.webhookUrlNewEmployer, 'employer.registered')}
+                                                            className="text-xs h-10 px-3 whitespace-nowrap gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                        >
+                                                            {testingEventKey === 'employer.registered' ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                                                            בדיקה
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 5. New Contact Inquiry */}
+                                                <div className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-indigo-200 transition-colors space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-2 h-2 rounded-full bg-teal-500" />
+                                                            <span className="text-sm font-bold text-slate-800">פנייה חדשה בטופס יצירת קשר</span>
+                                                            <span className="text-[11px] font-mono bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full font-semibold">inquiry.created</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-400">שליחת התראה לטלגרם, סלאק או אימייל תמיכה</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="url"
+                                                            dir="ltr"
+                                                            className="text-left font-mono text-xs flex-1"
+                                                            placeholder="https://n8n.your-domain.com/webhook/contact-inquiry"
+                                                            value={settings.webhookUrlNewInquiry || ''}
+                                                            onChange={(e) => handleChange('webhookUrlNewInquiry', e.target.value)}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={testingEventKey === 'inquiry.created' || !settings.webhookUrlNewInquiry}
+                                                            onClick={() => handleRunTestWebhook(settings.webhookUrlNewInquiry, 'inquiry.created')}
+                                                            className="text-xs h-10 px-3 whitespace-nowrap gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                        >
+                                                            {testingEventKey === 'inquiry.created' ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                                                            בדיקה
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Card>
+
+                                    {/* Notifications Card */}
+                                    <Card className="p-6 md:p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shadow-inner">
+                                                <Bell size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-800">התראות אוטומטיות (Automated Notifications)</h3>
+                                                <p className="text-xs text-slate-500 font-medium">שליחת עדכונים והתראות מערכת למועמדים ולמנהלים</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <ToggleSwitch
+                                                label="הפעלת התראות WhatsApp למועמדים"
+                                                description="שליחת הודעות אוטומטיות למועמדים על שינוי סטטוס (מחייב אינטגרציה מוגדרת)."
+                                                checked={settings.enableCandidateWhatsAppNotifications}
+                                                onChange={(v) => handleChange('enableCandidateWhatsAppNotifications', v)}
+                                                activeColorClass="peer-checked:bg-emerald-500"
+                                            />
+                                            <ToggleSwitch
+                                                label="הפעלת התראות Email למועמדים"
+                                                description="שליחת עדכוני דוא״ל למועמדים על מצב מועמדותם כאשר המעסיק מעדכן סטטוס."
+                                                checked={settings.enableCandidateEmailNotifications}
+                                                onChange={(v) => handleChange('enableCandidateEmailNotifications', v)}
+                                                activeColorClass="peer-checked:bg-indigo-500"
+                                            />
+                                            <ToggleSwitch
+                                                label="התראת אדמין: משרה חדשה"
+                                                description="ישלח התראה פנימית ומשימה למנהל כשנוצרת משרה שממתינה לאישור."
+                                                checked={settings.notifyOnNewJobPending}
+                                                onChange={(v) => handleChange('notifyOnNewJobPending', v)}
+                                                activeColorClass="peer-checked:bg-orange-500"
+                                            />
+                                            <ToggleSwitch
+                                                label="התראת אדמין: מעסיק חדש נרשם"
+                                                description="ישלח התראה פנימית ומשימה למנהל כשמעסיק חדש נרשם למערכת."
+                                                checked={settings.notifyOnNewEmployerRegistered}
+                                                onChange={(v) => handleChange('notifyOnNewEmployerRegistered', v)}
+                                                activeColorClass="peer-checked:bg-orange-500"
+                                            />
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
+
+                            {/* SUB-TAB 2: LIVE TESTER */}
+                            {activeIntegrationSubTab === 'tester' && (
+                                <Card className="p-6 md:p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl space-y-6">
+                                    <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner">
+                                            <Play size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800">כלי בדיקה בזמן אמת (Webhook Live Tester)</h3>
+                                            <p className="text-xs text-slate-500 font-medium">שלח בקשת בדיקה ישירה לכל כתובת Webhook וצפה בתגובה המדויקת של השרת, בזמן התגובה ובתוכן שהוחזר</p>
+                                        </div>
                                     </div>
-                                    <h3 className="text-xl font-black text-slate-800">התראות (Notifications)</h3>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        {/* Left Side: Test Setup */}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">סוג אירוע לבדיקה (Event Type)</label>
+                                                <select
+                                                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                                    value={customTestEvent}
+                                                    onChange={(e) => {
+                                                        const ev = e.target.value as WebhookEvent;
+                                                        setCustomTestEvent(ev);
+                                                        setCustomTestPayload(JSON.stringify(SAMPLE_PAYLOADS[ev] || {}, null, 2));
+                                                        // Pre-populate URL if configured in settings
+                                                        if (ev === 'job.created' || ev === 'job.updated') {
+                                                            if (settings.webhookUrlNewJob) setCustomTestUrl(settings.webhookUrlNewJob);
+                                                        } else if (ev === 'application.created') {
+                                                            if (settings.webhookUrlNewApplication) setCustomTestUrl(settings.webhookUrlNewApplication);
+                                                        } else if (ev === 'application.status_changed') {
+                                                            if (settings.webhookUrlStatusChange) setCustomTestUrl(settings.webhookUrlStatusChange);
+                                                        } else if (ev === 'employer.registered') {
+                                                            if (settings.webhookUrlNewEmployer) setCustomTestUrl(settings.webhookUrlNewEmployer);
+                                                        } else if (ev === 'inquiry.created') {
+                                                            if (settings.webhookUrlNewInquiry) setCustomTestUrl(settings.webhookUrlNewInquiry);
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="job.created">job.created (משרה חדשה נוצרה)</option>
+                                                    <option value="job.updated">job.updated (משרה עודכנה)</option>
+                                                    <option value="application.created">application.created (הגשת מועמדות חדשה)</option>
+                                                    <option value="application.status_changed">application.status_changed (שינוי סטטוס מועמד)</option>
+                                                    <option value="employer.registered">employer.registered (מעסיק חדש נרשם)</option>
+                                                    <option value="inquiry.created">inquiry.created (פנייה בטופס יצירת קשר)</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">כתובת Webhook יעד (Endpoint URL)</label>
+                                                <Input
+                                                    type="url"
+                                                    dir="ltr"
+                                                    className="font-mono text-xs text-left"
+                                                    placeholder="https://your-n8n-url/webhook/test"
+                                                    value={customTestUrl}
+                                                    onChange={(e) => setCustomTestUrl(e.target.value)}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <label className="text-xs font-bold text-slate-700">גוף הבקשה (JSON Payload)</label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCustomTestPayload(JSON.stringify(SAMPLE_PAYLOADS[customTestEvent] || {}, null, 2))}
+                                                        className="text-[11px] text-indigo-600 font-bold hover:underline"
+                                                    >
+                                                        אפס לברירת מחדל
+                                                    </button>
+                                                </div>
+                                                <textarea
+                                                    dir="ltr"
+                                                    rows={10}
+                                                    className="w-full p-3 font-mono text-xs rounded-xl border border-slate-200 bg-slate-900 text-emerald-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 leading-relaxed"
+                                                    value={customTestPayload}
+                                                    onChange={(e) => setCustomTestPayload(e.target.value)}
+                                                />
+                                            </div>
+
+                                            <Button
+                                                type="button"
+                                                size="lg"
+                                                disabled={testingEventKey === 'custom' || !customTestUrl}
+                                                onClick={async () => {
+                                                    try {
+                                                        const parsedPayload = JSON.parse(customTestPayload);
+                                                        setTestingEventKey('custom');
+                                                        await handleRunTestWebhook(customTestUrl, customTestEvent, parsedPayload);
+                                                    } catch (e: any) {
+                                                        toast('ה-JSON אינו תקין! נא לבדוק את התחביר.', 'error');
+                                                    } finally {
+                                                        setTestingEventKey(null);
+                                                    }
+                                                }}
+                                                className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl shadow-lg shadow-indigo-200"
+                                            >
+                                                {testingEventKey === 'custom' ? (
+                                                    <>
+                                                        <RefreshCw size={18} className="animate-spin" />
+                                                        שולח בקשת בדיקה...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Send size={18} />
+                                                        שגר בדיקה עכשיו (Send Test Webhook)
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+
+                                        {/* Right Side: Live Results Display */}
+                                        <div className="space-y-4">
+                                            <label className="block text-xs font-bold text-slate-700">תוצאת הבדיקה בזמן אמת</label>
+                                            {testResult ? (
+                                                <div className={cn(
+                                                    "p-5 rounded-2xl border space-y-4 transition-all animate-in fade-in",
+                                                    testResult.success
+                                                        ? "bg-emerald-50/50 border-emerald-200"
+                                                        : "bg-red-50/50 border-red-200"
+                                                )}>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            {testResult.success ? (
+                                                                <CheckCircle2 size={20} className="text-emerald-600" />
+                                                            ) : (
+                                                                <XCircle size={20} className="text-red-600" />
+                                                            )}
+                                                            <span className={cn(
+                                                                "text-base font-black",
+                                                                testResult.success ? "text-emerald-900" : "text-red-900"
+                                                            )}>
+                                                                {testResult.success ? "הבקשה הצליחה!" : "הבקשה נכשלה"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs px-2.5 py-1 rounded-full font-mono font-bold bg-white border text-slate-700">
+                                                                {testResult.responseTimeMs} ms
+                                                            </span>
+                                                            <span className={cn(
+                                                                "text-xs px-2.5 py-1 rounded-full font-mono font-black",
+                                                                testResult.statusCode >= 200 && testResult.statusCode < 300
+                                                                    ? "bg-emerald-100 text-emerald-700"
+                                                                    : "bg-red-100 text-red-700"
+                                                            )}>
+                                                                HTTP {testResult.statusCode || 'ERR'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-600 space-y-1 font-mono">
+                                                        <div><span className="font-bold text-slate-700 font-sans">יעד:</span> {testResult.url}</div>
+                                                        <div><span className="font-bold text-slate-700 font-sans">אירוע:</span> {testResult.event}</div>
+                                                    </div>
+
+                                                    {testResult.error && (
+                                                        <div className="p-3 bg-red-100/70 border border-red-200 rounded-xl text-xs text-red-800 font-semibold">
+                                                            שגיאה: {testResult.error}
+                                                        </div>
+                                                    )}
+
+                                                    {testResult.responseBody && (
+                                                        <div>
+                                                            <span className="block text-[11px] font-bold text-slate-500 mb-1">תגובה מהשרת (Response Body):</span>
+                                                            <pre dir="ltr" className="p-3 bg-slate-900 text-slate-100 text-xs font-mono rounded-xl overflow-x-auto max-h-56 leading-relaxed">
+                                                                {testResult.responseBody}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="h-full min-h-[300px] flex flex-col items-center justify-center p-8 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center">
+                                                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-3">
+                                                        <Play size={24} />
+                                                    </div>
+                                                    <h4 className="text-sm font-bold text-slate-700 mb-1">טרם בוצעה בדיקה</h4>
+                                                    <p className="text-xs text-slate-400 max-w-xs">הזן כתובת יעד ולחץ על "שגר בדיקה עכשיו" כדי לבחון את תגובת ה-Webhook</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </Card>
+                            )}
+
+                            {/* SUB-TAB 3: LOGS & HISTORY */}
+                            {activeIntegrationSubTab === 'logs' && (
+                                <Card className="p-6 md:p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl space-y-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner">
+                                                <Clock size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-800">יומן שיגורי Webhook (Logs & History)</h3>
+                                                <p className="text-xs text-slate-500 font-medium">מעקב בזמן אמת אחר כל האירועים שנשלחו, קודי התגובה וזמני השהייה</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={loadingLogs}
+                                                onClick={loadWebhookLogs}
+                                                className="text-xs h-9 gap-1.5"
+                                            >
+                                                <RefreshCw size={14} className={cn(loadingLogs && "animate-spin")} />
+                                                רענן יומן
+                                            </Button>
+                                            {webhookLogs.length > 0 && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleClearLogs}
+                                                    className="text-xs h-9 gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+                                                >
+                                                    <Trash2 size={14} />
+                                                    נקה יומן
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {loadingLogs ? (
+                                        <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-3">
+                                            <RefreshCw size={28} className="animate-spin text-indigo-500" />
+                                            <span className="text-sm font-bold">טוען יומני שיגור...</span>
+                                        </div>
+                                    ) : webhookLogs.length === 0 ? (
+                                        <div className="py-12 flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                            <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                                                <Activity size={24} />
+                                            </div>
+                                            <h4 className="text-base font-bold text-slate-700 mb-1">אין היסטוריית קריאות עדיין</h4>
+                                            <p className="text-xs text-slate-400 max-w-sm">קריאות שיישלחו בעת יצירת משרות, הגשת מועמדויות או בדיקות ידניות יופיעו כאן אוטומטית.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-right text-xs">
+                                                <thead>
+                                                    <tr className="border-b border-slate-200/80 text-slate-500 font-bold">
+                                                        <th className="pb-3 pr-2">אירוע</th>
+                                                        <th className="pb-3">סטטוס</th>
+                                                        <th className="pb-3">כתובת יעד (Endpoint)</th>
+                                                        <th className="pb-3">זמן תגובה</th>
+                                                        <th className="pb-3">תאריך ושעה</th>
+                                                        <th className="pb-3 text-center">פרטים</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {webhookLogs.map((log) => (
+                                                        <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                                                            <td className="py-3 pr-2 font-mono font-bold text-slate-800">
+                                                                <span className={cn(
+                                                                    "px-2.5 py-1 rounded-full text-[11px] font-semibold",
+                                                                    log.event.startsWith('job') ? "bg-blue-50 text-blue-700" :
+                                                                    log.event.startsWith('application') ? "bg-emerald-50 text-emerald-700" :
+                                                                    log.event.startsWith('employer') ? "bg-purple-50 text-purple-700" : "bg-slate-100 text-slate-700"
+                                                                )}>
+                                                                    {log.event}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3">
+                                                                <span className={cn(
+                                                                    "px-2.5 py-0.5 rounded-md font-mono text-[11px] font-black inline-flex items-center gap-1",
+                                                                    log.success
+                                                                        ? "bg-emerald-100 text-emerald-700"
+                                                                        : "bg-red-100 text-red-700"
+                                                                )}>
+                                                                    {log.success ? <Check size={12} /> : <XCircle size={12} />}
+                                                                    {log.statusCode || 'ERR'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 font-mono text-[11px] text-slate-500 max-w-[200px] truncate" dir="ltr">
+                                                                {log.url}
+                                                            </td>
+                                                            <td className="py-3 font-mono text-slate-600">
+                                                                {log.responseTimeMs} ms
+                                                            </td>
+                                                            <td className="py-3 text-slate-500 font-sans">
+                                                                {log.createdAt ? new Date(log.createdAt).toLocaleString('he-IL') : '-'}
+                                                            </td>
+                                                            <td className="py-3 text-center">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setSelectedLogForModal(log)}
+                                                                    className="text-[11px] h-7 px-2.5"
+                                                                >
+                                                                    הצג JSON
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </Card>
+                            )}
+
+                            {/* SUB-TAB 4: DOCS & SCHEMAS */}
+                            {activeIntegrationSubTab === 'docs' && (
+                                <div className="space-y-6">
+                                    <Card className="p-6 md:p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl space-y-6">
+                                        <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                                            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-inner">
+                                                <Sparkles size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-800">מדריך אינטגרציה ודוגמאות JSON</h3>
+                                                <p className="text-xs text-slate-500 font-medium">העתק את מבנה הנתונים המדויק ישירות לתוך n8n, Make.com, Zapier או שרתי Python/Node</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {Object.entries(SAMPLE_PAYLOADS).map(([evName, payload]) => (
+                                                <div key={evName} className="p-5 rounded-2xl border border-slate-200/80 bg-slate-50/50 space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                                                            {evName}
+                                                        </span>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+                                                                toast('ה-JSON הועתק ללוח!', 'success');
+                                                            }}
+                                                            className="text-xs h-8 gap-1"
+                                                        >
+                                                            <Copy size={13} />
+                                                            העתק JSON
+                                                        </Button>
+                                                    </div>
+                                                    <pre dir="ltr" className="p-3 bg-slate-900 text-emerald-400 text-[11px] font-mono rounded-xl overflow-x-auto max-h-48 leading-relaxed">
+                                                        {JSON.stringify(payload, null, 2)}
+                                                    </pre>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Card>
                                 </div>
-                                <div className="space-y-4">
-                                    <ToggleSwitch
-                                        label="הפעלת התראות WhatsApp למועמדים"
-                                        description="שליחת הודעות אוטומטיות למועמדים על שינוי סטטוס."
-                                        checked={settings.enableCandidateWhatsAppNotifications}
-                                        onChange={(v) => handleChange('enableCandidateWhatsAppNotifications', v)}
-                                        activeColorClass="peer-checked:bg-emerald-500"
-                                    />
-                                    <ToggleSwitch
-                                        label="הפעלת התראות Email למועמדים"
-                                        description="שליחת עדכוני דוא״ל למועמדים על מצב מועמדותם."
-                                        checked={settings.enableCandidateEmailNotifications}
-                                        onChange={(v) => handleChange('enableCandidateEmailNotifications', v)}
-                                        activeColorClass="peer-checked:bg-indigo-500"
-                                    />
-                                    <ToggleSwitch
-                                        label="התראת אדמין: משרה חדשה"
-                                        description="ישלח התראה פנימית למנהל כשנוצרת משרה שממתינה לאישור."
-                                        checked={settings.notifyOnNewJobPending}
-                                        onChange={(v) => handleChange('notifyOnNewJobPending', v)}
-                                        activeColorClass="peer-checked:bg-orange-500"
-                                    />
-                                    <ToggleSwitch
-                                        label="התראת אדמין: מעסיק חדש נרשם"
-                                        description="ישלח התראה פנימית למנהל כשמעסיק חדש נרשם למערכת."
-                                        checked={settings.notifyOnNewEmployerRegistered}
-                                        onChange={(v) => handleChange('notifyOnNewEmployerRegistered', v)}
-                                        activeColorClass="peer-checked:bg-orange-500"
-                                    />
-                                </div>
-                            </Card>
+                            )}
+
+                            {/* Modal for Log Details */}
+                            {selectedLogForModal && (
+                                <Modal
+                                    isOpen={!!selectedLogForModal}
+                                    onClose={() => setSelectedLogForModal(null)}
+                                    title={`פרטי קריאת Webhook: ${selectedLogForModal.event}`}
+                                >
+                                    <div className="space-y-4 max-h-[70vh] overflow-y-auto" dir="rtl">
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                <span className="text-slate-400 block mb-1">סטטוס קוד HTTP:</span>
+                                                <span className={cn(
+                                                    "font-mono font-black text-sm",
+                                                    selectedLogForModal.success ? "text-emerald-600" : "text-red-600"
+                                                )}>
+                                                    {selectedLogForModal.statusCode || 'ERROR'} ({selectedLogForModal.success ? 'הצלחה' : 'כישלון'})
+                                                </span>
+                                            </div>
+                                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                <span className="text-slate-400 block mb-1">זמן שהייה (Latency):</span>
+                                                <span className="font-mono font-bold text-sm text-slate-800">
+                                                    {selectedLogForModal.responseTimeMs} ms
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <span className="block text-xs font-bold text-slate-700 mb-1">כתובת יעד (URL):</span>
+                                            <div dir="ltr" className="p-2.5 bg-slate-100 rounded-xl font-mono text-xs text-slate-700 break-all">
+                                                {selectedLogForModal.url}
+                                            </div>
+                                        </div>
+
+                                        {selectedLogForModal.error && (
+                                            <div>
+                                                <span className="block text-xs font-bold text-red-600 mb-1">שגיאה:</span>
+                                                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-semibold">
+                                                    {selectedLogForModal.error}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-xs font-bold text-slate-700">גוף הבקשה שנשלח (Payload):</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(JSON.stringify(selectedLogForModal.payload, null, 2));
+                                                        toast('ה-JSON הועתק!', 'success');
+                                                    }}
+                                                    className="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1"
+                                                >
+                                                    <Copy size={12} /> העתק
+                                                </button>
+                                            </div>
+                                            <pre dir="ltr" className="p-3 bg-slate-900 text-emerald-400 text-xs font-mono rounded-xl overflow-x-auto max-h-48">
+                                                {JSON.stringify(selectedLogForModal.payload, null, 2)}
+                                            </pre>
+                                        </div>
+
+                                        {selectedLogForModal.responseBody && (
+                                            <div>
+                                                <span className="block text-xs font-bold text-slate-700 mb-1">תגובה שהתקבלה מהשרת (Response Body):</span>
+                                                <pre dir="ltr" className="p-3 bg-slate-900 text-slate-200 text-xs font-mono rounded-xl overflow-x-auto max-h-40">
+                                                    {selectedLogForModal.responseBody}
+                                                </pre>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Modal>
+                            )}
                         </div>
                     )}
 
@@ -1961,40 +2750,8 @@ for (const jobData of previewJobs) {
                                                     />
                                                 </div>
                                             </div>
-                                        );;
+                                        );
                                     })}
-                                </div>
-                            </Card>
-
-                            <Card className="p-8 border-none shadow-xl shadow-slate-200/50 rounded-2xl">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                                        <Activity size={20} />
-                                    </div>
-                                    <h3 className="text-xl font-black text-slate-800">ניטור ומגמות גדילה</h3>
-                                </div>
-
-                                <div className="space-y-6">
-                                    <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-600 text-center">
-                                        מוניטור גדילת הנתונים יחל להציג מגמות לאחר שימוש ממושך במערכת (מעל 30 יום).
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm">
-                                            <h5 className="font-bold text-slate-800 text-sm mb-2">אופטימיזציה מומלצת</h5>
-                                            <p className="text-xs text-slate-500 leading-relaxed">
-                                                נפח הצמיחה הנוכחי מאפשר עבודה תקינה בשנים הקרובות ללא צורך בארכיבאציה. 
-                                                מומלץ לוודא אינדקסים על שדות חיפוש נפוצים לשיפור ביצועי השאילתות.
-                                            </p>
-                                        </div>
-                                        <div className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm">
-                                            <h5 className="font-bold text-slate-800 text-sm mb-2">גיבויים ושחזור</h5>
-                                            <p className="text-xs text-slate-500 leading-relaxed">
-                                                הנתונים מגובים אוטומטית על ידי תשתית Google Cloud. 
-                                                Point-in-time recovery פעיל ומאפשר שחזור במקרה של תקלה.
-                                            </p>
-                                        </div>
-                                    </div>
                                 </div>
                             </Card>
 

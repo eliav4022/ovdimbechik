@@ -52,7 +52,7 @@ import {
 import { sendEmail } from '../lib/emailUtils';
 import { cn, validateFile } from '../lib/utils';
 import { isLocationWithinDistance } from '../lib/distanceUtils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 const SeekerDashboard: React.FC = () => {
     const { user, signOut } = useAuth();
@@ -614,30 +614,15 @@ const SeekerDashboard: React.FC = () => {
 
     const handleCVUpload = async (file: File) => {
         if (!user) return;
-        const validation = validateFile(file, maxUserUploadSizeMB);
-        if (!validation.valid) {
-            toast(validation.error || 'קובץ לא תקין', 'error');
-            return;
-        }
+        
         setCvUploading(true);
         try {
-            const cvRef = ref(storage, `cvs/${user.uid}/profile_${Date.now()}_${file.name}`);
-            
-            const fileName = file.name.toLowerCase();
-            let contentType = file.type || 'application/octet-stream';
-            if (fileName.endsWith('.pdf')) contentType = 'application/pdf';
-            else if (fileName.endsWith('.doc')) contentType = 'application/msword';
-            else if (fileName.endsWith('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
-            const fileBytes = new Uint8Array(await file.arrayBuffer());
-            await uploadBytes(cvRef, fileBytes, { contentType });
-            
-            const cvUrl = window.location.origin + '/file/' + cvRef.fullPath;
-            await setDoc(doc(db, 'users', user.uid), { cvUrl }, { merge: true });
-            toast('קורות החיים הועלו בהצלחה!', 'success');
+            const { uploadAndReplaceCV } = await import('../lib/cvUtils');
+            await uploadAndReplaceCV(file, user);
+            toast('קורות החיים הועלו והוחלפו בהצלחה!', 'success');
         } catch (error: any) {
             console.error('CV Upload Error:', error);
-            handleFirestoreError(error, OperationType.UPDATE, 'users');
+            toast(error.message || 'שגיאה בהעלאת הקובץ', 'error');
         } finally {
             setCvUploading(false);
         }
@@ -814,7 +799,7 @@ const SeekerDashboard: React.FC = () => {
                             { id: 'applications', label: 'המועמדויות שלי', icon: Send, count: appliedJobs.length },
                             { id: 'saved', label: 'משרות ששמרתי', icon: Heart, count: savedJobs.length },
                             { id: 'matches', label: 'התאמות AI בשבילך', icon: Zap, count: matchedJobs.length },
-                            { id: 'profile', label: 'פרופיל אישי וקו"ח', icon: UserIcon },
+                            { id: 'profile', label: enableCVUploads ? 'פרופיל אישי וקו"ח' : 'פרופיל אישי', icon: UserIcon },
                             { id: 'settings', label: 'הגדרות חשבון ואבטחה', icon: Settings }
                         ].map(tab => (
                             <button
@@ -1108,7 +1093,7 @@ const SeekerDashboard: React.FC = () => {
                                                     <p className="font-black text-slate-900 mb-1">
                                                         {cvUploading ? 'מעלה קובץ עכשיו...' : 'לחץ להעלאת קורות חיים חדשים'}
                                                     </p>
-                                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">PDF, DOCX עד {maxUserUploadSizeMB}MB</p>
+                                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">PDF, DOCX עד 50KB</p>
                                                 </div>
                                             </div>
                                         </div>

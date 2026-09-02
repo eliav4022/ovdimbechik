@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';

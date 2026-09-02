@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../context/ToastContext';

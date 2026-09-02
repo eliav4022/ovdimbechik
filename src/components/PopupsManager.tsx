@@ -6,7 +6,7 @@ import { Popup, UserRole } from '../types';
 import { useAuth } from '../lib/AuthContext';
 import { Modal } from './ui/Modal';
 import { X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const PopupsManager: React.FC = () => {
     const { user } = useAuth();

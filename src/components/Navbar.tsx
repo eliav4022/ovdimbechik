@@ -11,7 +11,7 @@ import { usePages } from '../context/PagesContext';
 import { auth as firebaseAuth } from '../lib/firebase';
 import { UserRole } from '../types';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const Navbar: React.FC = () => {
   const { user, loading } = useAuth();
@@ -20,6 +20,7 @@ export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [isLogoLoaded, setIsLogoLoaded] = useState(false);
 
   useEffect(() => {
     import('../lib/firebase').then(({ db }) => {
@@ -30,6 +31,7 @@ export const Navbar: React.FC = () => {
              } else {
                  setLogoUrl(null);
              }
+             setIsLogoLoaded(true);
          });
          return () => unsubscribe();
       });
@@ -122,12 +124,10 @@ export const Navbar: React.FC = () => {
                 <div className="flex flex-col text-right">
                     {logoUrl ? (
                         <img src={logoUrl} alt="עובדים בצ'יק" className="h-12 w-auto object-contain" />
+                    ) : isLogoLoaded ? (
+                        <span className="text-2xl font-black tracking-tighter"><span className="text-slate-900">עובדים</span><span className="text-primary">בצ'יק</span></span>
                     ) : (
-                        <img src="/logo.png" alt="עובדים בצ'יק" className="h-12 w-auto object-contain" onError={(e) => {
-                            // אקסטרה עזרה למקרה שאין עדיין קובץ logo.png, נציג טקסט
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML = `<span class="text-2xl font-black tracking-tighter"><span class="text-slate-900">עובדים</span><span class="text-primary">בצ'יק</span></span>`;
-                        }} />
+                        <div className="h-12 w-32 animate-pulse bg-slate-100 rounded-md"></div>
                     )}
                 </div>
             </Link>

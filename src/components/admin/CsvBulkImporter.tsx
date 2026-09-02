@@ -140,9 +140,9 @@ export const CsvBulkImporter: React.FC = () => {
         let generalCompanyId = '';
         
         if (targetCollection === 'jobs') {
-            const ge = employers.find(e => e.fullName === 'מעסיק כללי' || e.displayName === 'מעסיק כללי' || e.companyName?.includes('עובדים בציק') || e.email?.includes('eliav'));
+            const ge = employers.find(e => e.id === 'emp_default' || (e as any).isDefault || e.fullName === 'מעסיק כללי' || e.displayName === 'מעסיק כללי' || e.companyName?.includes('עובדים') || e.email?.includes('eliav'));
             if (ge) generalEmployerId = ge.id;
-            const gc = companies.find(c => (c.name || c.companyName) === 'עובדים בציק כללי' || (c.name || c.companyName)?.includes('עובדים בציק'));
+            const gc = companies.find(c => c.id === 'comp_default' || c.isDefault || (c.name || c.companyName)?.includes('עובדים') || (c.name || c.companyName)?.includes('כללי'));
             if (gc) generalCompanyId = gc.id;
         }
 

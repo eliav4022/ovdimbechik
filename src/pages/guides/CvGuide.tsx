@@ -1,6 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { FileText, CheckCircle2, AlertCircle, Sparkles, Phone, Mail, Link as LinkIcon, User, Star, Lightbulb, Target } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 

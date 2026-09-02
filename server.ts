@@ -56,7 +56,7 @@ if (!admin.apps.length) {
 async function startServer() {
   const app = express();
   app.set("trust proxy", 1);
-  const PORT = Number(process.env.PORT || 3000);
+  const PORT = 3000;
 
   // Minimal middleware for production stability
   app.use(helmet({ contentSecurityPolicy: false })); // allow Vite's inline scripts
@@ -132,6 +132,126 @@ async function startServer() {
       apiKeyDetected: !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || process.env.New_Key),
       availableKeyLikeVars: keyLikeVars
     });
+  });
+
+  // Integration & Webhook Endpoints
+  app.post("/api/integrations/test-webhook", async (req, res) => {
+    const { url, event, payload, secret } = req.body;
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+      return res.status(400).json({ success: false, error: "Invalid or missing Webhook URL (must start with http:// or https://)" });
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const startTime = Date.now();
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'OvdimBeChik-Webhook-Tester/1.0',
+        'X-JobBoard-Event': event || 'test_event',
+        'X-JobBoard-Timestamp': new Date().toISOString()
+      };
+
+      if (secret && typeof secret === 'string' && secret.trim()) {
+        headers['X-Webhook-Secret'] = secret.trim();
+        headers['Authorization'] = `Bearer ${secret.trim()}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload || {
+          event: event || 'test',
+          test: true,
+          timestamp: new Date().toISOString(),
+          message: "Test webhook from OvdimBeChik Job Board"
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      const responseTimeMs = Date.now() - startTime;
+      const responseText = await response.text();
+
+      if (response.ok) {
+        return res.json({
+          success: true,
+          statusCode: response.status,
+          responseTimeMs,
+          responseBody: responseText.slice(0, 1000)
+        });
+      } else {
+        return res.json({
+          success: false,
+          statusCode: response.status,
+          responseTimeMs,
+          responseBody: responseText.slice(0, 1000),
+          error: `השרת החזיר קוד שגיאה: ${response.status} (${response.statusText})`
+        });
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      const responseTimeMs = Date.now() - startTime;
+      const isTimeout = err.name === 'AbortError' || err.code === 'ETIMEDOUT';
+      return res.json({
+        success: false,
+        statusCode: 0,
+        responseTimeMs,
+        error: isTimeout ? 'זמן ההמתנה לשרת ה-Webhook פג (Timeout לאחר 10 שניות)' : (err.message || 'שגיאת חיבור ל-Webhook')
+      });
+    }
+  });
+
+  app.post("/api/integrations/trigger-webhook", async (req, res) => {
+    const { url, event, payload, secret } = req.body;
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+      return res.status(400).json({ success: false, error: "Invalid Webhook URL" });
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const startTime = Date.now();
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'OvdimBeChik-Webhook/1.0',
+        'X-JobBoard-Event': event || 'event',
+        'X-JobBoard-Timestamp': new Date().toISOString()
+      };
+
+      if (secret && typeof secret === 'string' && secret.trim()) {
+        headers['X-Webhook-Secret'] = secret.trim();
+        headers['Authorization'] = `Bearer ${secret.trim()}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      const responseTimeMs = Date.now() - startTime;
+      const responseText = await response.text();
+
+      return res.json({
+        success: response.ok,
+        statusCode: response.status,
+        responseTimeMs,
+        responseBody: responseText.slice(0, 500)
+      });
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      return res.json({
+        success: false,
+        statusCode: 0,
+        responseTimeMs: Date.now() - startTime,
+        error: err.message || 'Failed to dispatch webhook'
+      });
+    }
   });
 
   app.post("/api/admin/create-user", async (req, res) => {

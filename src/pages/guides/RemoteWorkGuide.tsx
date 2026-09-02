@@ -1,6 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Globe, ThumbsUp, ThumbsDown, Search, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 

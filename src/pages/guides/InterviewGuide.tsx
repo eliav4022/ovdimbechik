@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { motion, useScroll, useSpring } from 'framer-motion';
+import { motion, useScroll, useSpring } from 'motion/react';
 import { 
     Gamepad2, Trophy, Map, Target, Sparkles, Zap, MessageSquare, 
     User, HelpCircle, Handshake, CheckSquare, Send, Mail, UserCheck, 

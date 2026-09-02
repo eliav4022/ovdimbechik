@@ -8,7 +8,7 @@ import { User, UserRole } from '../types';
 import { Briefcase, Mail, Lock, Chrome, Rocket, ArrowLeft, Bot, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { useAuth } from '../lib/AuthContext';
 
 let googleLoginInProgress = false;

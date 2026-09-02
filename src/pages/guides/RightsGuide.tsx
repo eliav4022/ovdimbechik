@@ -1,6 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Shield, FileText, DollarSign, Clock, CalendarHeart, Bus, Plane, PiggyBank, Thermometer, Info } from 'lucide-react';
 
 const RIGHTS_DATA = [

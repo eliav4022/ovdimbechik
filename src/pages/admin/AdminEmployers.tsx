@@ -2,12 +2,12 @@ import { auth } from "../../lib/firebase";
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
-import { setDoc } from '../../lib/firestore-audit';;
+import { setDoc } from '../../lib/firestore-audit';
 import { db } from '../../lib/firebase';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { Badge } from '../../components/ui/Badge';
 import { User, UserRole, calculateRemainingJobs } from '../../types';
-import { Trash2, Building2, Mail, Phone, ShieldCheck, Coins } from 'lucide-react';
+import { Trash2, Building2, Mail, Phone, ShieldCheck, Coins, Sparkles, Building } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { softDelete } from '../../lib/adminUtils';
@@ -16,17 +16,20 @@ import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { addCredits } from '../../services/creditService';
+import { ensureDefaultEntities, assignEmployerToCompany, DEFAULT_COMPANY_ID, DEFAULT_COMPANY_NAME } from '../../services/entityService';
 
 export const AdminEmployers: React.FC = () => {
     const { user: currentUser } = useAuth();
     const { toast } = useToast();
     const [employers, setEmployers] = useState<User[]>([]);
+    const [companies, setCompanies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [employerToEdit, setEmployerToEdit] = useState<User | null>(null);
+    const [selectedCompanyIdForEdit, setSelectedCompanyIdForEdit] = useState<string>('');
     const [newPasswordForUser, setNewPasswordForUser] = useState('');
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
@@ -38,7 +41,8 @@ export const AdminEmployers: React.FC = () => {
     const [newEmployer, setNewEmployer] = useState({
         displayName: '',
         email: '',
-        companyName: '',
+        companyId: DEFAULT_COMPANY_ID,
+        newCompanyName: '',
         phone: '',
         location: '',
         password: ''
@@ -55,6 +59,8 @@ export const AdminEmployers: React.FC = () => {
     }, [employers, filterParam]);
 
     useEffect(() => {
+        ensureDefaultEntities().catch(err => console.error("Error ensuring default entities", err));
+
         const q = query(
             collection(db, 'users'), 
             where('role', '==', UserRole.EMPLOYER)
@@ -71,7 +77,18 @@ export const AdminEmployers: React.FC = () => {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        const compQ = query(collection(db, 'companies'));
+        const unsubComp = onSnapshot(compQ, (snapshot) => {
+            const data = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter((c: any) => !c.deletedAt);
+            setCompanies(data);
+        });
+
+        return () => {
+            unsubscribe();
+            unsubComp();
+        };
     }, []);
 
     const handleAdd = async (e: React.FormEvent) => {
@@ -108,31 +125,49 @@ export const AdminEmployers: React.FC = () => {
                 if (!res.ok) throw new Error(data.error === "Firebase Admin config missing" ? "שגיאה: הגדר מפתח פיירבייס SERVICE ACCOUNT בסודות כדי להוסיף סיסמה לחשבון משתמש חדש" : data.error || 'Failed to create user in Auth');
             }
 
-            const companyId = 'comp_' + Date.now();
-            
-            await setDoc(doc(db, 'companies', companyId), {
-                name: newEmployer.companyName || newEmployer.displayName,
-                employerId: uid,
-                isVerified: false,
-                createdAt: new Date().toISOString()
-            });
+            let finalCompanyId = newEmployer.companyId || DEFAULT_COMPANY_ID;
+            let finalCompanyName = DEFAULT_COMPANY_NAME;
+
+            if (newEmployer.companyId === 'NEW') {
+                if (!newEmployer.newCompanyName.trim()) {
+                    toast('נא להזין שם לחברה החדשה', 'error');
+                    return;
+                }
+                finalCompanyId = 'comp_' + Date.now();
+                finalCompanyName = newEmployer.newCompanyName.trim();
+                await setDoc(doc(db, 'companies', finalCompanyId), {
+                    id: finalCompanyId,
+                    name: finalCompanyName,
+                    industry: 'כללי',
+                    location: newEmployer.location || 'ישראל',
+                    isVerified: true,
+                    credits: 0,
+                    createdAt: new Date().toISOString()
+                });
+            } else {
+                const foundComp = companies.find(c => c.id === finalCompanyId);
+                if (foundComp) {
+                    finalCompanyName = foundComp.name;
+                }
+            }
 
             await setDoc(doc(db, 'users', uid), {
                 uid,
                 email: newEmployer.email,
                 displayName: newEmployer.displayName,
-                phone: newEmployer.phone,
-                location: newEmployer.location,
+                phone: newEmployer.phone || null,
+                location: newEmployer.location || null,
                 role: UserRole.EMPLOYER,
-                companyId,
-                companyName: newEmployer.companyName, // Added to fix missing company mapping
+                companyId: finalCompanyId,
+                companyName: finalCompanyName,
                 isVerified: false,
+                credits: 0,
                 createdAt: new Date().toISOString()
             });
             
-          toast('מעסיק חדש התווסף בהצלחה', 'success');
+            toast('מעסיק חדש התווסף בהצלחה', 'success');
             setIsAddModalOpen(false);
-            setNewEmployer({ displayName: '', email: '', companyName: '', phone: '', location: '', password: '' });
+            setNewEmployer({ displayName: '', email: '', companyId: DEFAULT_COMPANY_ID, newCompanyName: '', phone: '', location: '', password: '' });
         } catch (error: any) {
             console.error("Error adding employer:", error);
             toast(error.message || 'שגיאה בהוספת המעסיק', 'error');
@@ -141,6 +176,7 @@ export const AdminEmployers: React.FC = () => {
 
     const handleEditOpen = (user: User) => {
         setEmployerToEdit(user);
+        setSelectedCompanyIdForEdit(user.companyId || DEFAULT_COMPANY_ID);
         setNewPasswordForUser('');
         setIsEditModalOpen(true);
     };
@@ -166,13 +202,13 @@ export const AdminEmployers: React.FC = () => {
             });
             const data = await res.json();
             if (data.success) {
-          toast('הסיסמה עודכנה בהצלחה', 'success');
+                toast('הסיסמה עודכנה בהצלחה', 'success');
                 setNewPasswordForUser('');
             } else {
                 toast(data.error || 'שגיאה בעדכון הסיסמה', 'error');
             }
         } catch (err: any) {
-             toast('שגיאה בתקשורת עם השרת', 'error');
+            toast('שגיאה בתקשורת עם השרת', 'error');
         } finally {
             setIsUpdatingPassword(false);
         }
@@ -182,7 +218,8 @@ export const AdminEmployers: React.FC = () => {
         setNewEmployer({
             displayName: user.displayName ? user.displayName + ' (עותק)' : '',
             email: user.email ? 'copy_' + user.email : '',
-            companyName: (user as any).employerProfile?.companyName || '',
+            companyId: user.companyId || 'comp_default',
+            newCompanyName: '',
             phone: '',
             location: '',
             password: ''
@@ -194,7 +231,16 @@ export const AdminEmployers: React.FC = () => {
         e.preventDefault();
         if (!employerToEdit) return;
         try {
-            await setDoc(doc(db, 'users', (employerToEdit as any).id || employerToEdit.uid), {
+            const empUid = (employerToEdit as any).id || employerToEdit.uid;
+
+            // If company changed, use assignEmployerToCompany
+            if (selectedCompanyIdForEdit && selectedCompanyIdForEdit !== employerToEdit.companyId) {
+                const comp = companies.find(c => c.id === selectedCompanyIdForEdit);
+                const compName = comp ? comp.name : DEFAULT_COMPANY_NAME;
+                await assignEmployerToCompany(empUid, selectedCompanyIdForEdit, compName);
+            }
+
+            await setDoc(doc(db, 'users', empUid), {
                 displayName: employerToEdit.displayName,
                 email: employerToEdit.email,
                 phone: employerToEdit.phone || null,
@@ -212,15 +258,15 @@ export const AdminEmployers: React.FC = () => {
                         'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        targetUid: (employerToEdit as any).id || employerToEdit.uid,
+                        targetUid: empUid,
                         newEmail: employerToEdit.email
                     })
                 });
             } catch (err) {
-                 console.error("Failed to update email in Auth", err);
+                console.error("Failed to update email in Auth", err);
             }
             
-          toast('המעסיק עודכן בהצלחה', 'success');
+            toast('המעסיק עודכן בהצלחה', 'success');
             setIsEditModalOpen(false);
             setEmployerToEdit(null);
         } catch (error) {
@@ -230,6 +276,10 @@ export const AdminEmployers: React.FC = () => {
     };
 
     const handleDelete = (u: User) => {
+        if ((u as any).isDefault || (u as any).id === 'emp_default' || u.uid === 'emp_default') {
+            toast('לא ניתן למחוק את מעסיק ברירת המחדל של המערכת', 'error');
+            return;
+        }
         setUserToDelete(u);
         setIsDeleteModalOpen(true);
     };
@@ -257,7 +307,7 @@ export const AdminEmployers: React.FC = () => {
                     });
                 } catch (e) { console.error(e); }
             }
-          toast('המעסיק הועבר לארכיון', 'success');
+            toast('המעסיק הועבר לארכיון', 'success');
         } catch (error) {
             toast('שגיאה במחיקה', 'error');
         } finally {
@@ -307,17 +357,43 @@ export const AdminEmployers: React.FC = () => {
         { 
             key: 'displayName', 
             header: 'שם המעסיק',
-            render: (u: any) => (
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black border border-indigo-100 shadow-sm">
-                        {u.displayName ? u.displayName[0] : '?'}
+            render: (u: any) => {
+                const isDefaultEmp = u.isDefault || u.id === 'emp_default' || u.uid === 'emp_default';
+                return (
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black border border-indigo-100 shadow-sm">
+                            {u.displayName ? u.displayName[0] : '?'}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <Link to={`/admin/employers/${u.id || u.uid}`} className="font-black text-slate-900 leading-tight hover:text-indigo-600 hover:underline">{u.displayName}</Link>
+                                {isDefaultEmp && (
+                                    <Badge variant="brand" className="text-[9px] font-black bg-indigo-100 text-indigo-700">
+                                        <Sparkles size={10} className="mr-1" />
+                                        מעסיק ברירת מחדל
+                                    </Badge>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-mono">{u.email}</p>
+                        </div>
                     </div>
-                    <div>
-                        <Link to={`/admin/employers/${u.id || u.uid}`} className="font-black text-slate-900 leading-tight hover:text-indigo-600 hover:underline">{u.displayName}</Link>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{u.companyName || u.employerProfile?.companyName || 'חברה לא רשומה'}</p>
-                    </div>
-                </div>
-            )
+                );
+            }
+        },
+        {
+            key: 'company',
+            header: 'חברה משויכת',
+            render: (u: any) => {
+                const comp = companies.find(c => c.id === u.companyId);
+                const compName = u.companyName || comp?.name || DEFAULT_COMPANY_NAME;
+                const compId = u.companyId || DEFAULT_COMPANY_ID;
+                return (
+                    <Link to={`/admin/companies/${compId}`} className="inline-flex items-center gap-1.5 font-bold text-xs text-indigo-600 hover:underline bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                        <Building2 size={13} className="text-slate-400" />
+                        <span>{compName}</span>
+                    </Link>
+                );
+            }
         },
         {
             key: 'isVerified',
@@ -390,10 +466,10 @@ export const AdminEmployers: React.FC = () => {
         <>
             <AdminTable 
                 title="ניהול מעסיקים"
-                description={filterParam === 'unassigned' ? "רשימת מעסיקים ללא שיוך מנהל אישי" : "צפייה במעסיקים רשומים, אימות חברות וניהול הרשאות פרסום."}
+                description={filterParam === 'unassigned' ? "רשימת מעסיקים ללא שיוך מנהל אישי" : "כל מעסיק במערכת מקושר למשתמש וחברה. חברה היא אובייקט האב."}
                 data={filteredEmployers}
                 columns={columns}
-                searchFields={['displayName', 'email']}
+                searchFields={['displayName', 'email', 'companyName']}
                 onAdd={() => setIsAddModalOpen(true)}
                 onEdit={handleEditOpen}
                 onClone={handleClone}
@@ -420,7 +496,7 @@ export const AdminEmployers: React.FC = () => {
                     onClose={() => setIsDeleteModalOpen(false)}
                     onConfirm={confirmDelete}
                     title="ארכוב חשבון מעסיק"
-                    message={`האם אתה בטוח שברצונך לארכב את המעסיק ${userToDelete.displayName}? כל המשרות שלו יושבתו.`}
+                    message={`האם אתה בטוח שברצונך לארכב את המעסיק ${userToDelete.displayName}?`}
                     confirmWord="מחק"
                 />
             )}
@@ -450,14 +526,35 @@ export const AdminEmployers: React.FC = () => {
                             onChange={(e) => setNewEmployer(prev => ({...prev, email: e.target.value}))}
                         />
                     </div>
+
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">שם חברה (אופציונלי)</label>
-                        <Input 
-                            placeholder="למשל: Google" 
-                            value={newEmployer.companyName}
-                            onChange={(e) => setNewEmployer(prev => ({...prev, companyName: e.target.value}))}
-                        />
+                        <label className="block text-sm font-bold text-slate-700 mb-2">שיוך לחברה (אובייקט אב)</label>
+                        <select 
+                            className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                            value={newEmployer.companyId}
+                            onChange={(e) => setNewEmployer(prev => ({...prev, companyId: e.target.value}))}
+                        >
+                            {companies.map(c => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name} {c.isDefault || c.id === 'comp_default' ? '(ברירת מחדל)' : ''}
+                                </option>
+                            ))}
+                            <option value="NEW">+ צור חברה חדשה עבור מעסיק זה</option>
+                        </select>
                     </div>
+
+                    {newEmployer.companyId === 'NEW' && (
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">שם החברה החדשה</label>
+                            <Input 
+                                required
+                                placeholder="למשל: אלתא מערכות, סייברסק..." 
+                                value={newEmployer.newCompanyName}
+                                onChange={(e) => setNewEmployer(prev => ({...prev, newCompanyName: e.target.value}))}
+                            />
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
@@ -484,7 +581,7 @@ export const AdminEmployers: React.FC = () => {
                             value={newEmployer.password || ''}
                             onChange={(e) => setNewEmployer(prev => ({...prev, password: e.target.value}))}
                         />
-                        <p className="text-xs text-slate-500 mt-1">אם תוזן סיסמה, משתמש זה יוצר במערכת ההזדהות ויוכל להתחבר מיד.</p>
+                        <p className="text-xs text-slate-500 mt-1">אם תוזן סיסמה, משתמש זה יווצר במערכת ההזדהות ויוכל להתחבר מיד.</p>
                     </div>
                     <div className="flex justify-end gap-3 pt-6">
                         <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)}>ביטול</Button>
@@ -501,7 +598,7 @@ export const AdminEmployers: React.FC = () => {
                 {employerToEdit && (
                     <form onSubmit={handleEditSubmit} className="space-y-6">
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">שם חדש</label>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">שם המעסיק</label>
                             <Input 
                                 required
                                 value={employerToEdit.displayName}
@@ -517,6 +614,23 @@ export const AdminEmployers: React.FC = () => {
                                 onChange={(e) => setEmployerToEdit({ ...employerToEdit, email: e.target.value })}
                             />
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">חברה משויכת (אובייקט אב)</label>
+                            <select 
+                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                                value={selectedCompanyIdForEdit}
+                                onChange={(e) => setSelectedCompanyIdForEdit(e.target.value)}
+                            >
+                                {companies.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name} {c.isDefault || c.id === 'comp_default' ? '(ברירת מחדל)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-slate-400 mt-1">שינוי חברה יעדכן אוטומטית את שם החברה בכל המשרות של מעסיק זה.</p>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">טלפון</label>
@@ -539,7 +653,7 @@ export const AdminEmployers: React.FC = () => {
                             </div>
                             <div>
                                 <h4 className="text-sm font-bold text-slate-900">רשאי לראות עובדים רלוונטים</h4>
-                                <p className="text-xs text-slate-500">אפשר למעסיק ספציפי זה לצפות במשתמשים רלוונטים למסרות שלו.</p>
+                                <p className="text-xs text-slate-500">אפשר למעסיק ספציפי זה לצפות במשתמשים רלוונטים למשרות שלו.</p>
                             </div>
                         </div>
 
@@ -586,7 +700,7 @@ export const AdminEmployers: React.FC = () => {
                             </div>
                             <div>
                                 <p className="font-black text-slate-900 leading-tight">{employerForCredits.displayName}</p>
-                                <p className="text-xs text-slate-500 font-bold">מצב קרדיטים נוכחי צפוי: {employerForCredits.credits || 0}</p>
+                                <p className="text-xs text-slate-500 font-bold">מצב קרדיטים נוכחי: {employerForCredits.credits || 0}</p>
                             </div>
                         </div>
                         <div>

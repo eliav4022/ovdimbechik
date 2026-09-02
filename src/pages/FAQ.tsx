@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { HelpCircle, ChevronDown, MessageSquare, Zap, Shield, Search } from 'lucide-react';
 import { cn } from '../lib/utils';

@@ -31,9 +31,23 @@ export function validateFile(file: File, maxSizeMB: number = 5, allowedTypes: st
     if (file.size > maxSizeMB * 1024 * 1024) {
         return { valid: false, error: `גודל הקובץ חורג מהמגבלה של ${maxSizeMB}MB` };
     }
-    // Allow empty type if system couldn't determine, or match against allowed
-    if (file.type && !allowedTypes.includes(file.type)) {
-        return { valid: false, error: 'סוג הקובץ אינו נתמך. נא להעלות קבצי PDF או Word (DOC/DOCX).' };
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (['pdf', 'doc', 'docx'].includes(ext)) {
+        return { valid: true };
+    }
+    const type = (file.type || '').toLowerCase();
+    if (type) {
+        const isMimeAllowed = allowedTypes.some(t => type.includes(t.toLowerCase())) ||
+            type.includes('pdf') ||
+            type.includes('word') ||
+            type.includes('msword') ||
+            type.includes('officedocument') ||
+            type === 'application/zip' ||
+            type === 'application/x-zip-compressed' ||
+            type === 'application/octet-stream';
+        if (!isMimeAllowed) {
+            return { valid: false, error: 'סוג הקובץ אינו נתמך. נא להעלות קבצי PDF או Word (DOC/DOCX).' };
+        }
     }
     return { valid: true };
 }

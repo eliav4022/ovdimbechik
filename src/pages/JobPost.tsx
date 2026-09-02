@@ -9,12 +9,13 @@ import { Job, JobType, JobStatus, UserRole, WorkMode, ExperienceLevel, Promotion
 import { Briefcase, MapPin, DollarSign, Type, AlignLeft, Info, Clock, Tag, Rocket, Zap, Home, Award, Sparkles, Star, Lightbulb, X, Shield } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { trackEvent } from '../lib/analytics';
+import { triggerWebhook } from '../services/webhookService';
 
 import { predefinedTagsByCategory, getAllPredefinedTags } from '../lib/predefinedTags';
 
@@ -50,6 +51,8 @@ const JobPost: React.FC = () => {
   const [globalTags, setGlobalTags] = useState<string[]>([]);
   const [globalLocations, setGlobalLocations] = useState<string[]>([]);
   const [enableCVUploads, setEnableCVUploads] = useState(true);
+  const [jobCostPerPost, setJobCostPerPost] = useState(5);
+  const [jobCostUrgentExtra, setJobCostUrgentExtra] = useState(2);
   const [employers, setEmployers] = useState<{ id: string, name: string, company: string, companyId?: string }[]>([]);
 
   useEffect(() => {
@@ -84,7 +87,14 @@ const JobPost: React.FC = () => {
 
         const sysSnap = await getDoc(doc(db, 'settings', 'system'));
         if (sysSnap.exists()) {
-            setEnableCVUploads(sysSnap.data().enableCVUploads !== false);
+            const sData = sysSnap.data();
+            setEnableCVUploads(sData.enableCVUploads !== false);
+            if (typeof sData.creditsCostPerJob === 'number') {
+                setJobCostPerPost(sData.creditsCostPerJob);
+            }
+            if (typeof sData.creditsCostPerUrgentJob === 'number') {
+                setJobCostUrgentExtra(sData.creditsCostPerUrgentJob);
+            }
         }
       } catch(error) { console.error("Failed to fetch settings/tags", error); }
     };
@@ -181,13 +191,13 @@ const JobPost: React.FC = () => {
       }
     }
 
-    const cost = 5; // 5 credits = 1 job post
+    const cost = (jobCostPerPost || 5) + (formData.isUrgent ? (jobCostUrgentExtra || 0) : 0);
     
     // Admin doesn't pay credits. If editing, we don't charge again (simplification).
     if (!hasAdminPermission(user.role) && !isEditing) {
         const userCredits = user.credits || 0;
         if (userCredits < cost) {
-            toast('אין לך מספיק קרדיטים לפרסום משרה זו', 'error');
+            toast(`אין לך מספיק קרדיטים לפרסום משרה זו (נדרשים ${cost} קרדיטים, ברשותך ${userCredits})`, 'error');
             setLoading(false);
             return;
         }
@@ -209,12 +219,22 @@ const JobPost: React.FC = () => {
         const approvedTags = isAdmin ? allTags : allTags.filter(isTagApproved);
         const unapprovedTags = isAdmin ? [] : allTags.filter((t: string) => !isTagApproved(t));
 
+        const selectedEmp = employers.find(e => e.id === formData.ownerId);
+        const companyIdToSet = formData.companyId || (selectedEmp?.companyId || user.companyId || '');
+        const ownerIdToSet = formData.ownerId || formData.employerId || user.uid;
+
+        // Clean up undefined values from editableFields
+        Object.keys(editableFields).forEach(key => {
+            if (editableFields[key] === undefined) {
+                delete editableFields[key];
+            }
+        });
+
         if (isAdmin) {
-            const selectedEmp = employers.find(e => e.id === formData.ownerId);
-            const companyIdToSet = formData.companyId || (selectedEmp?.companyId || user.companyId || '');
             await updateDoc(doc(db, 'jobs', id), {
                 ...editableFields,
-                ownerId: formData.ownerId,
+                ownerId: ownerIdToSet,
+                employerId: ownerIdToSet,
                 companyId: companyIdToSet,
                 tags: approvedTags,
                 pendingTags: unapprovedTags,
@@ -235,16 +255,21 @@ const JobPost: React.FC = () => {
                 } catch(e) { console.error("Failed to update global tags", e); }
             }
             toast('המשרה עודכנה בהצלחה!', 'success');
+            triggerWebhook('job.updated', { jobId: id, ...editableFields, updatedAt: now });
         } else {
             await updateDoc(doc(db, 'jobs', id), {
                 hasPendingUpdate: true,
                 pendingUpdate: {
                     ...editableFields,
+                    ownerId: ownerIdToSet,
+                    employerId: ownerIdToSet,
+                    companyId: companyIdToSet,
                     tags: allTags,
                     updatedAt: now,
                 }
             });
             toast('השינויים נשמרו ונשלחו לאישור מנהל (בינתיים המשרה מוצגת כרגיל)', 'success');
+            triggerWebhook('job.updated', { jobId: id, pendingReview: true, ...editableFields, updatedAt: now });
         }
       } else {
         const newJobRef = doc(collection(db, 'jobs'));
@@ -391,6 +416,8 @@ const JobPost: React.FC = () => {
             }
         });
 
+        // Trigger integrations webhook for new job
+        triggerWebhook('job.created', newJob);
 
         toast(hasAdminPermission(user.role) ? 'המשרה פורסמה בהצלחה!' : 'המשרה נשלחה לאישור המערכת.', 'success');
       }
@@ -931,7 +958,7 @@ const JobPost: React.FC = () => {
                         <label className="text-sm font-black text-slate-700">שייך מעסיק / משתמש</label>
                         <select 
                             className="w-full h-14 bg-indigo-50/50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none text-right font-bold text-slate-700 shadow-inner px-4 cursor-pointer"
-                            value={formData.ownerId || user.uid}
+                            value={formData.ownerId || formData.employerId || user?.uid || ''}
                             onChange={(e) => {
                                 const newId = e.target.value;
                                 const selectedEmp = employers.find(emp => emp.id === newId);

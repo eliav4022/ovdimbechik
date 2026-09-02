@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { Target, Users, Zap, Award, ShieldCheck, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';

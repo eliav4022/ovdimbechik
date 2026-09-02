@@ -1,6 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { FileWarning, Sparkles, ChevronLeft } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Link } from 'react-router-dom';

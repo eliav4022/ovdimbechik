@@ -46,7 +46,9 @@ import {
     RefreshCw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
+import { triggerWebhook } from '../services/webhookService';
+import { sendEmail } from '../lib/emailUtils';
 
 const EmployerDashboard: React.FC = () => {
     const { user } = useAuth();
@@ -220,22 +222,58 @@ const EmployerDashboard: React.FC = () => {
     useEffect(() => {
         if (!user) return;
 
-        const jobsQuery = query(collection(db, 'jobs'), where('employerId', '==', user.uid));
-        const appsQuery = query(collection(db, 'applications'), where('ownerId', '==', user.uid));
-        const txQuery = query(collection(db, 'credit_transactions'), where('employerId', '==', user.uid));
+        // Query jobs by either employerId or ownerId
+        const jobsQuery1 = query(collection(db, 'jobs'), where('employerId', '==', user.uid));
+        const jobsQuery2 = query(collection(db, 'jobs'), where('ownerId', '==', user.uid));
+        
+        let jobs1: Job[] = [];
+        let jobs2: Job[] = [];
+        const updateMergedJobs = () => {
+            const map = new Map<string, Job>();
+            jobs1.forEach(j => map.set(j.id, j));
+            jobs2.forEach(j => map.set(j.id, j));
+            setJobs(Array.from(map.values()));
+        };
 
-        const unsubJobs = onSnapshot(jobsQuery, (snapshot) => {
-            setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job)));
+        const unsubJobs1 = onSnapshot(jobsQuery1, (snapshot) => {
+            jobs1 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+            updateMergedJobs();
         }, (error) => {
             handleFirestoreError(error, OperationType.LIST, 'jobs');
         });
 
-        const unsubApps = onSnapshot(appsQuery, (snapshot) => {
-            setApplications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application)));
+        const unsubJobs2 = onSnapshot(jobsQuery2, (snapshot) => {
+            jobs2 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+            updateMergedJobs();
+        }, () => {});
+
+        // Query applications by ownerId or employerId
+        const appsQuery1 = query(collection(db, 'applications'), where('ownerId', '==', user.uid));
+        const appsQuery2 = query(collection(db, 'applications'), where('employerId', '==', user.uid));
+        
+        let apps1: Application[] = [];
+        let apps2: Application[] = [];
+        const updateMergedApps = () => {
+            const map = new Map<string, Application>();
+            apps1.forEach(a => map.set(a.id, a));
+            apps2.forEach(a => map.set(a.id, a));
+            setApplications(Array.from(map.values()));
             setLoading(false);
+        };
+
+        const unsubApps1 = onSnapshot(appsQuery1, (snapshot) => {
+            apps1 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
+            updateMergedApps();
         }, (error) => {
             handleFirestoreError(error, OperationType.LIST, 'applications');
         });
+
+        const unsubApps2 = onSnapshot(appsQuery2, (snapshot) => {
+            apps2 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
+            updateMergedApps();
+        }, () => {});
+
+        const txQuery = query(collection(db, 'credit_transactions'), where('employerId', '==', user.uid));
 
         const unsubTx = onSnapshot(txQuery, (snapshot) => {
             const txData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CreditTransaction));
@@ -265,8 +303,10 @@ const EmployerDashboard: React.FC = () => {
         fetchSettingsAndSeekers();
 
         return () => {
-            unsubJobs();
-            unsubApps();
+            unsubJobs1();
+            unsubJobs2();
+            unsubApps1();
+            unsubApps2();
             unsubTx();
         };
     }, [user, refreshKey]);
@@ -381,6 +421,46 @@ const EmployerDashboard: React.FC = () => {
     const updateAppStatus = async (appId: string, status: ApplicationStatus) => {
         try {
             await updateDoc(doc(db, 'applications', appId), { status });
+            const targetApp = applications.find(a => a.id === appId);
+            const targetJob = targetApp ? jobs.find(j => j.id === targetApp.jobId) : null;
+
+            // Dispatch webhook event
+            triggerWebhook('application.status_changed', {
+                applicationId: appId,
+                jobId: targetApp?.jobId,
+                jobTitle: targetJob?.title || 'משרה',
+                candidateName: targetApp?.applicantName,
+                candidateEmail: targetApp?.applicantEmail,
+                candidatePhone: targetApp?.applicantPhone,
+                newStatus: status,
+                updatedAt: new Date().toISOString()
+            });
+
+            // Send automated candidate email if enabled
+            if (systemSettings?.enableCandidateEmailNotifications !== false && targetApp?.applicantEmail) {
+                const statusName = status === ApplicationStatus.INTERVIEW ? 'הוזמנת לראיון' :
+                                   status === ApplicationStatus.OFFER ? 'הצעת עבודה' :
+                                   status === ApplicationStatus.HIRED ? 'התקבלת לעבודה!' :
+                                   status === ApplicationStatus.REJECTED ? 'עדכון לגבי מועמדותך' :
+                                   status === ApplicationStatus.REVIEWING ? 'מועמדותך בבדיקה' : 'עדכון סטטוס';
+
+                sendEmail({
+                    to: targetApp.applicantEmail,
+                    subject: `עדכון סטטוס מועמדות למשרת ${targetJob?.title || 'דרושים'}: ${statusName}`,
+                    html: `
+                        <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 16px;">
+                            <h2 style="color: #4f46e5; margin-bottom: 16px;">שלום ${targetApp.applicantName || 'מועמד/ת'},</h2>
+                            <p>סטטוס מועמדותך למשרה <strong>${targetJob?.title || ''}</strong> עודכן על ידי המעסיק לסטטוס:</p>
+                            <div style="background-color: #f8fafc; padding: 12px 20px; border-radius: 12px; font-size: 18px; font-weight: bold; color: #0f172a; display: inline-block; margin: 12px 0;">
+                                ${statusName}
+                            </div>
+                            <p>באפשרותך להיכנס בכל עת לאזור האישי שלך באתר כדי לעקוב אחר כל המועמדויות והעדכונים.</p>
+                            <br/>
+                            <p style="color: #64748b; font-size: 13px;">בברכה,<br/>צוות עובדים בצ'יק</p>
+                        </div>
+                    `
+                }).catch(err => console.warn('Could not send candidate status update email:', err));
+            }
         } catch (error) {
             handleFirestoreError(error, OperationType.UPDATE, `applications/${appId}`);
         }
@@ -766,17 +846,19 @@ const EmployerDashboard: React.FC = () => {
                                                         </select>
                                                     </div>
                                                     <div className="flex gap-2 pt-2">
+                                                        {systemSettings?.enableCVUploads !== false && Boolean(app.cvUrl) && (
+                                                            <Button 
+                                                                className="flex-1 rounded-xl"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => window.open(getFileUrl(app.cvUrl), '_blank')}
+                                                                leftIcon={<Download size={16} />}
+                                                            >
+                                                                קורות חיים
+                                                            </Button>
+                                                        )}
                                                         <Button 
-                                                            className="flex-1 rounded-xl"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => window.open(getFileUrl(app.cvUrl), '_blank')}
-                                                            leftIcon={<Download size={16} />}
-                                                        >
-                                                            קורות חיים
-                                                        </Button>
-                                                        <Button 
-                                                            className="flex-1 rounded-xl bg-green-500 hover:bg-green-600 text-white"
+                                                            className={cn("rounded-xl bg-green-500 hover:bg-green-600 text-white", (systemSettings?.enableCVUploads !== false && Boolean(app.cvUrl)) ? "flex-1" : "w-full")}
                                                             size="sm"
                                                             onClick={() => openWhatsApp(app.applicantPhone, app.applicantName, jobs.find(j => j.id === app.jobId)?.title || '')}
                                                             leftIcon={<MessageCircle size={16} />}
@@ -860,15 +942,17 @@ const EmployerDashboard: React.FC = () => {
                                                         </td>
                                                         <td className="p-8">
                                                             <div className="flex items-center justify-center gap-3">
-                                                                <Button 
-                                                                    variant="ghost" 
-                                                                    size="icon"
-                                                                    onClick={() => window.open(getFileUrl(app.cvUrl), '_blank')}
-                                                                    className="bg-slate-50 text-slate-400 hover:bg-brand-orange hover:text-white"
-                                                                    title="צפה בקורות חיים"
-                                                                >
-                                                                    <Download size={18} />
-                                                                </Button>
+                                                                {systemSettings?.enableCVUploads !== false && Boolean(app.cvUrl) && (
+                                                                    <Button 
+                                                                        variant="ghost" 
+                                                                        size="icon"
+                                                                        onClick={() => window.open(getFileUrl(app.cvUrl), '_blank')}
+                                                                        className="bg-slate-50 text-slate-400 hover:bg-brand-orange hover:text-white"
+                                                                        title="צפה בקורות חיים"
+                                                                    >
+                                                                        <Download size={18} />
+                                                                    </Button>
+                                                                )}
                                                                 <Button 
                                                                     variant="ghost" 
                                                                     size="icon"
@@ -1245,7 +1329,7 @@ const EmployerDashboard: React.FC = () => {
                                                         </div>
                                                     ))}
                                                 </div>
-                                                {match.seeker.cvUrl && (
+                                                {systemSettings?.enableCVUploads !== false && Boolean(match.seeker.cvUrl) && (
                                                     <div className="mt-6 pt-4 border-t border-slate-50">
                                                         <a href={getFileUrl(match.seeker.cvUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-colors">
                                                             <Download size={16} /> קורות חיים

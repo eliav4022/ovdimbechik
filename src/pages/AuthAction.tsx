@@ -4,7 +4,7 @@ import { confirmPasswordReset, verifyPasswordResetCode, applyActionCode } from '
 import { auth } from '../lib/firebase';
 import { Helmet } from 'react-helmet-async';
 import { Key, CheckCircle, XCircle, Loader2, MailCheck } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 const AuthAction = () => {
   const [searchParams] = useSearchParams();

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { FileText, DollarSign, BrainCircuit, Building, Globe, Edit3, Calendar, Link as LinkIcon, Download, CheckSquare, Search, Briefcase, FileType, ChevronDown, Info } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';

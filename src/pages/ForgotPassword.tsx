@@ -5,7 +5,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { ArrowRight, Mail, Key } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');

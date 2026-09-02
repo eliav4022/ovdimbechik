@@ -42,7 +42,16 @@ export interface User {
   permissions: string[]; // required permissions array as requested
   photoURL?: string;
   phone?: string;
+  location?: string;
+  jobTitle?: string;
   bio?: string;
+  seekerProfile?: {
+    jobTitle?: string;
+    yearsOfExperience?: number;
+    bio?: string;
+    skills?: string[];
+    cvUrl?: string;
+  };
   companyName?: string;
   companyId?: string; // Links this user to a company
   isCompanyAdmin?: boolean; // Can manage company tokens
@@ -205,6 +214,7 @@ export enum ApplicationStatus {
   NEW = 'New',
   REVIEWING = 'Reviewing',
   INTERVIEW = 'Interview',
+  OFFER = 'Offer',
   HIRED = 'Hired',
   REJECTED = 'Rejected',
   // Below kept for backward compatibility
@@ -221,6 +231,7 @@ export interface Application {
   jobId: string;
   seekerId: string;
   ownerId: string;
+  employerId?: string;
   applicantName: string;
   applicantEmail: string;
   applicantPhone: string;

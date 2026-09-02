@@ -9,7 +9,7 @@ import { Modal } from '../../components/ui/Modal';
 import { toast } from 'react-hot-toast';
 import { Helmet } from 'react-helmet-async';
 import { LoadingSpinner } from '../../components/ui/Loading';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 const PreviewPopup: React.FC<{ popup: Partial<Popup>, onClose: () => void }> = ({ popup, onClose }) => {
     if (popup.position === 'top') {
